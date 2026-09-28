@@ -85,7 +85,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
     ? (contactBalances.data?.find((b) => b.contact_id === d.contact_id)?.balance ?? null)
     : null;
 
-  const balanceInfo = React.useMemo(() => {
+  const balanceInfo = (() => {
     if (!d || !d.contact_id || currentContactBalance === null || currentContactBalance === undefined) return null;
     const isSales = d.doc_type?.startsWith("sales") || d.doc_type === "pos_sale" || d.doc_type === "quote";
     const docAmtTry = Number(d.total_try ?? Number(d.total || 0) * Number(d.exchange_rate || 1));
@@ -107,7 +107,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
       this_amount: thisDocAmt,
       current_balance: Math.round((curBal || 0) * 100) / 100,
     };
-  }, [d, currentContactBalance]);
+  })();
 
   const docForPdf = { ...d, lines, contact_balance_info: balanceInfo };
   const phone = (contact.data?.find((c) => c.id === d.contact_id)?.mobile ?? "").replace(/\D/g, "");

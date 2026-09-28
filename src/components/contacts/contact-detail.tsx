@@ -58,11 +58,6 @@ export function ContactDetail({ id }: { id: string }) {
     order: [{ column: "issue_date", ascending: false }],
   });
 
-  const c = contact.data;
-  if (contact.isPending && !c) return <Skeleton className="h-64 rounded-card" />;
-  if (!c) return <EmptyState title="Cari bulunamadı" />;
-
-  const balance = Number(balances.data?.find((b) => b.contact_id === id)?.balance ?? c.opening_balance ?? 0);
   const all = React.useMemo(() => {
     const raw = statement.data ?? [];
     if (!docs.data || raw.some((r) => r.ref_type === "sales_order" || r.ref_type === "purchase_order")) {
@@ -103,6 +98,12 @@ export function ContactDetail({ id }: { id: string }) {
     }
     return merged;
   }, [statement.data, docs.data]);
+
+  const c = contact.data;
+  if (contact.isPending && !c) return <Skeleton className="h-64 rounded-card" />;
+  if (!c) return <EmptyState title="Cari bulunamadı" />;
+
+  const balance = Number(balances.data?.find((b) => b.contact_id === id)?.balance ?? c.opening_balance ?? 0);
   const before = all.filter((r) => r.entry_date < from);
   const carried = before.length ? Number(before[before.length - 1].balance) : 0;
   const rows = all.filter((r) => r.entry_date >= from);
