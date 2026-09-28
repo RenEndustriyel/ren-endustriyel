@@ -22,6 +22,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContactPicker } from "@/components/contacts/contact-picker";
 import { useDocument } from "@/components/documents/document-editor";
+import { useConfirm } from "@/components/ui/confirm";
 
 /** Fotoğrafı küçültüp JPEG'e çevirir (yükleme boyutunu düşürür) */
 async function compressImage(file: File, max = 1600): Promise<Blob> {
@@ -43,6 +44,7 @@ export function ExpenseFormPage({ editId }: { editId?: string | null }) {
 
 function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_lines">[] }) | null }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const { org } = useOrg();
   const cats = useCategories("expense");
   const accounts = useAccounts();
@@ -77,6 +79,16 @@ function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_
     setErr(null);
     if (!v.amount) return setErr("Tutar girin.");
     if (!v.category_id && !v.description.trim()) return setErr("Kategori veya açıklama girin.");
+
+    if (doc) {
+      const ok = await confirm({
+        title: "Masraf güncellensin mi?",
+        description: "Masraf kaydındaki değişiklikler kaydedilecek. Onaylıyor musunuz?",
+        confirmText: "Evet, Güncelle",
+      });
+      if (!ok) return;
+    }
+
     setBusy(true);
     const id = doc?.id ?? newId();
     const catName = cats.data?.find((c) => c.id === v.category_id)?.name;

@@ -9,6 +9,7 @@ import { NumberInput } from "@/components/ui/money-input";
 import { Segmented } from "@/components/ui/segmented";
 import { usePriceLists, useSave, type Row } from "@/lib/data";
 import { CURRENCIES } from "@/lib/doc-types";
+import { useConfirm } from "@/components/ui/confirm";
 
 export type ContactKind = "customer" | "supplier" | "both";
 type Contact = Row<"contacts">;
@@ -51,6 +52,7 @@ export function ContactForm({
   onSaved: (c: Contact) => void;
   onCancel?: () => void;
 }) {
+  const confirm = useConfirm();
   const { save, isPending } = useSave("contacts");
   const priceLists = usePriceLists();
   const form = useForm<Values>({
@@ -86,6 +88,15 @@ export function ContactForm({
     if (tax && !/^\d{10,11}$/.test(tax)) {
       form.setError("tax_number", { message: "VKN 10, TCKN 11 haneli olmalı" });
       return;
+    }
+
+    if (contact) {
+      const ok = await confirm({
+        title: "Cari kart güncellensin mi?",
+        description: "Cari kartındaki değişiklikler kaydedilecek. Onaylıyor musunuz?",
+        confirmText: "Evet, Güncelle",
+      });
+      if (!ok) return;
     }
     const row = {
       ...(contact ? { id: contact.id } : {}),

@@ -20,6 +20,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Combobox } from "@/components/ui/combobox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContactPicker } from "@/components/contacts/contact-picker";
+import { useConfirm } from "@/components/ui/confirm";
 
 export type TxnKind = "tahsilat" | "odeme" | "virman" | "gelir" | "gider";
 
@@ -68,6 +69,7 @@ function Inner({
   accountId?: string | null;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const { org } = useOrg();
   const accounts = useAccounts();
   const rates = useRates();
@@ -143,6 +145,15 @@ function Inner({
     if (v.amount <= 0) return setErr("Tutar girin.");
     if ((kind === "tahsilat" || kind === "odeme") && !v.contact_id) return setErr("Cari seçin.");
     if (kind === "virman" && (!toAcc || toAcc.id === acc.id)) return setErr("Farklı bir hedef hesap seçin.");
+
+    if (existing) {
+      const ok = await confirm({
+        title: "İşlem güncellensin mi?",
+        description: `${KIND_LABEL[kind] ?? "İşlem"} kaydındaki değişiklikler kaydedilecek. Onaylıyor musunuz?`,
+        confirmText: "Evet, Güncelle",
+      });
+      if (!ok) return;
+    }
 
     // Eğer kullanıcı açık belgeleri manuel eşlemediyse, otomatik olarak açık belgelere dağıt
     let effectiveAlloc = alloc;

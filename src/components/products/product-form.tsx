@@ -15,6 +15,7 @@ import { newId, useCategories, useRows, useRpc, useSave, useUnits, useUpdate, us
 import { CURRENCIES, VAT_RATES } from "@/lib/doc-types";
 import { useOrg } from "@/providers/org-provider";
 import { isoDate, formatMoney } from "@/lib/format";
+import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 
 type Product = Row<"products">;
@@ -44,6 +45,7 @@ type Values = {
 };
 
 export function ProductForm({ product, onSaved, onCancel, defaultName }: { product?: Product | null; onSaved: (p: Product) => void; onCancel?: () => void; defaultName?: string }) {
+  const confirm = useConfirm();
   const { org } = useOrg();
   const units = useUnits();
   const warehouses = useWarehouses();
@@ -273,6 +275,16 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
 
   const submit = form.handleSubmit(async (v) => {
     if (!v.name.trim()) return form.setError("name", { message: "Ürün adı gerekli" });
+
+    if (product) {
+      const ok = await confirm({
+        title: "Ürün güncellensin mi?",
+        description: "Ürün kartındaki değişiklikler kaydedilecek. Onaylıyor musunuz?",
+        confirmText: "Evet, Güncelle",
+      });
+      if (!ok) return;
+    }
+
     const id = product?.id ?? newId();
     const row = {
       id,

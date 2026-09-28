@@ -36,6 +36,7 @@ import { ContactPicker } from "@/components/contacts/contact-picker";
 import { ProductPicker } from "@/components/stock/product-picker";
 import { MultiDiscountInput } from "./multi-discount-input";
 import { PriceUpdateDialog, type PriceDiffItem } from "./price-update-dialog";
+import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 
 type DocRow = Row<"documents"> & { lines: Row<"document_lines">[] };
@@ -158,6 +159,7 @@ function EditorInner({
 }) {
   const router = useRouter();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const cfg = DOC_TYPES[type];
   const { org } = useOrg();
   const products = useProducts();
@@ -425,12 +427,21 @@ function EditorInner({
     }
   };
 
-  const handleSubmitClick = (status?: string) => {
+  const handleSubmitClick = async (status?: string) => {
     setError(null);
     const valid = lines.filter((l) => l.product_id || l.description?.trim());
     if (!valid.length) return setError("En az bir satır girin.");
     if (cfg.type !== "pos_sale" && !doc.contact_id && type !== "expense") return setError(`${cfg.contactLabel} seçin.`);
     if (!isEdit && pay.enabled && !pay.account_id && cfg.payable) return setError("Tahsilat / ödeme hesabını seçin.");
+
+    if (isEdit) {
+      const ok = await confirm({
+        title: "Değişiklikleri kaydetmek istiyor musunuz?",
+        description: `${cfg.label} güncellenecektir. Yapılan değişiklikleri onaylıyor musunuz?`,
+        confirmText: "Evet, Güncelle",
+      });
+      if (!ok) return;
+    }
 
     // Eğer alış belgesi ise ve fiyat farkı olan ürünler varsa onay diyalogu aç
     if (cfg.side === "purchase") {

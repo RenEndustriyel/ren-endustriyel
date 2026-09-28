@@ -3,8 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, HandCoins, Send, FileText, Download, Share2, MapPin, Phone, Mail, ShoppingCart } from "lucide-react";
-import { useRow, useRows, useRpcQuery, useUpdate, useContactBalances, type Row } from "@/lib/data";
+import { Pencil, Trash2, HandCoins, Send, FileText, Download, Share2, MapPin, Phone, Mail, ShoppingCart, Eye } from "lucide-react";
+import { useRow, useRows, useRpc, useRpcQuery, useUpdate, useContactBalances, type Row } from "@/lib/data";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, type DocType } from "@/lib/doc-types";
@@ -46,7 +48,91 @@ export function ContactDetail({ id }: { id: string }) {
   const contact = useRow<Contact>("contacts", id);
   const balances = useContactBalances();
   const { remove } = useUpdate("contacts");
+  const delDoc = useRpc("delete_document");
+  const { remove: removeTxn } = useUpdate("transactions");
+  const qc = useQueryClient();
+  const [selectedRow, setSelectedRow] = React.useState<StatementRow | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
+
+  const getViewUrl = (r: StatementRow) => {
+    if (r.kind === "document") {
+      if (r.ref_type === "expense") return `/giderler/masraflar/detay?id=${r.ref_id}`;
+      return `${DOC_TYPES[r.ref_type as DocType]?.base ?? "/satislar/faturalar"}/detay?id=${r.ref_id}`;
+    }
+    if (r.kind === "transaction") {
+      return `/nakit/hareketler/detay?id=${r.ref_id}`;
+    }
+    return null;
+  };
+
+  const getEditUrl = (r: StatementRow) => {
+    if (r.kind === "document") {
+      if (r.ref_type === "expense") return `/giderler/masraflar/duzenle?id=${r.ref_id}`;
+      return `${DOC_TYPES[r.ref_type as DocType]?.base ?? "/satislar/faturalar"}/duzenle?id=${r.ref_id}`;
+    }
+    if (r.kind === "transaction") {
+      return `/nakit/hareketler/duzenle?id=${r.ref_id}`;
+    }
+    return null;
+  };
+
+  const handleDeleteRow = async (r: StatementRow) => {
+    if (r.kind === "document") {
+      const label = DOC_TYPES[r.ref_type as DocType]?.label ?? "Belge";
+      const ok = await confirm({
+        title: `${label} (${r.number || "Taslak"}) silinsin mi?`,
+        description: "Stok hareketleri ve ödeme eşleştirmeleri geri alınacaktır. Bu işlem geri alınamaz.",
+        danger: true,
+        confirmText: "Sil",
+      });
+      if (!ok) return;
+      try {
+        await delDoc.call({ p_doc: r.ref_id }, "Belge silindi");
+        setSelectedRow(null);
+        await Promise.all([
+          statement.refetch(),
+          docs.refetch(),
+          balances.refetch(),
+          contact.refetch(),
+          qc.invalidateQueries({ queryKey: ["contact_statement"] }),
+          qc.invalidateQueries({ queryKey: ["documents"] }),
+          qc.invalidateQueries({ queryKey: ["transactions"] }),
+          qc.invalidateQueries({ queryKey: ["contact_balances"] }),
+          qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        ]);
+        toast.success("Belge başarıyla silindi");
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Silme işlemi başarısız");
+      }
+    } else if (r.kind === "transaction") {
+      const label = TYPE_LABELS[r.ref_type] ?? "İşlem";
+      const ok = await confirm({
+        title: `${label} (${r.description || r.number || "Tahsilat/Ödeme"}) silinsin mi?`,
+        description: "Hesap bakiyesi ve bağlı belge ödeme durumları güncellenecektir. Bu işlem geri alınamaz.",
+        danger: true,
+        confirmText: "Sil",
+      });
+      if (!ok) return;
+      try {
+        await removeTxn(r.ref_id, "İşlem silindi");
+        setSelectedRow(null);
+        await Promise.all([
+          statement.refetch(),
+          docs.refetch(),
+          balances.refetch(),
+          contact.refetch(),
+          qc.invalidateQueries({ queryKey: ["contact_statement"] }),
+          qc.invalidateQueries({ queryKey: ["documents"] }),
+          qc.invalidateQueries({ queryKey: ["transactions"] }),
+          qc.invalidateQueries({ queryKey: ["contact_balances"] }),
+          qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+        ]);
+        toast.success("İşlem başarıyla silindi");
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "Silme işlemi başarısız");
+      }
+    }
+  };
   const firstOfYear = `${new Date().getFullYear()}-01-01`;
   const [from, setFrom] = React.useState(firstOfYear);
   const [to, setTo] = React.useState(isoDate());
@@ -251,6 +337,7 @@ export function ContactDetail({ id }: { id: string }) {
                       <th className="px-3 py-2 text-right">Borç</th>
                       <th className="px-3 py-2 text-right">Alacak</th>
                       <th className="px-3 py-2 text-right">Bakiye</th>
+                      <th className="w-24 px-3 py-2 text-right">İşlemler</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -261,16 +348,17 @@ export function ContactDetail({ id }: { id: string }) {
                       <td />
                       <td />
                       <td className="num px-3 py-2 text-right font-medium">{formatMoney(carried)}</td>
+                      <td />
                     </tr>
                     {rows.map((r) => (
                       <tr
                         key={`${r.kind}-${r.ref_id}`}
-                        className={cn(r.kind === "document" && "cursor-pointer hover:bg-surface-2")}
-                        onClick={() => r.kind === "document" && router.push(`${DOC_TYPES[r.ref_type as DocType]?.base ?? "/satislar/faturalar"}/detay?id=${r.ref_id}`)}
+                        className="group cursor-pointer transition-colors hover:bg-surface-2/80"
+                        onClick={() => setSelectedRow(r)}
                       >
                         <td className="px-3 py-2 whitespace-nowrap">{formatDate(r.entry_date)}</td>
                         <td className="px-3 py-2">
-                          <div className="font-medium">{DOC_TYPES[r.ref_type as DocType]?.label ?? TYPE_LABELS[r.ref_type] ?? "Açılış"}</div>
+                          <div className="font-medium text-foreground">{DOC_TYPES[r.ref_type as DocType]?.label ?? TYPE_LABELS[r.ref_type] ?? "Açılış"}</div>
                           <div className="text-xs text-muted">{r.number}</div>
                         </td>
                         <td className="hidden px-3 py-2 text-muted md:table-cell">
@@ -281,6 +369,45 @@ export function ContactDetail({ id }: { id: string }) {
                         <td className="num px-3 py-2 text-right">{Number(r.credit) ? formatMoney(r.credit) : ""}</td>
                         <td className={cn("num px-3 py-2 text-right font-semibold", Number(r.balance) < 0 ? "text-danger" : "")}>
                           {formatMoney(r.balance)}
+                        </td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          {canWrite && r.kind !== "opening" && (
+                            <div className="flex items-center justify-end gap-1 opacity-75 group-hover:opacity-100">
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted hover:text-foreground"
+                                title="Detayları Görüntüle"
+                                onClick={() => {
+                                  const u = getViewUrl(r);
+                                  if (u) router.push(u);
+                                }}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="h-7 w-7 text-muted hover:text-foreground"
+                                title="Düzenle"
+                                onClick={() => {
+                                  const u = getEditUrl(r);
+                                  if (u) router.push(u);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="icon-sm"
+                                variant="ghost"
+                                className="h-7 w-7 text-danger/80 hover:bg-danger/10 hover:text-danger"
+                                title="Sil"
+                                onClick={() => handleDeleteRow(r)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -396,6 +523,117 @@ export function ContactDetail({ id }: { id: string }) {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent title="Cariyi düzenle" className="sm:max-w-2xl">
           <ContactForm contact={c} onSaved={() => setEditOpen(false)} onCancel={() => setEditOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedRow} onOpenChange={(o) => !o && setSelectedRow(null)}>
+        <DialogContent
+          title={
+            selectedRow?.kind === "opening"
+              ? "Açılış Bakiyesi"
+              : `${(selectedRow && (DOC_TYPES[selectedRow.ref_type as DocType]?.label ?? TYPE_LABELS[selectedRow.ref_type])) || "Hareket İşlemi"} ${selectedRow?.number ? `· ${selectedRow.number}` : ""}`
+          }
+          description="Bu hareket üzerinde detay görüntüleme, düzenleme veya silme işlemi yapabilirsiniz."
+          className="sm:max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="space-y-2 rounded-xl bg-surface-2/60 p-3.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted">İşlem Tarihi:</span>
+                <span className="font-medium text-foreground">{selectedRow && formatDate(selectedRow.entry_date)}</span>
+              </div>
+              {selectedRow?.due_date && (
+                <div className="flex justify-between">
+                  <span className="text-muted">Vade Tarihi:</span>
+                  <span className="font-medium text-foreground">{formatDate(selectedRow.due_date)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-border/50 pt-1.5">
+                <span className="text-muted">İşlem Türü:</span>
+                <span className="font-medium text-foreground">
+                  {selectedRow?.kind === "opening"
+                    ? "Açılış"
+                    : selectedRow?.kind === "document"
+                      ? (DOC_TYPES[selectedRow.ref_type as DocType]?.label ?? selectedRow.ref_type)
+                      : (TYPE_LABELS[selectedRow?.ref_type ?? ""] ?? "Nakit/Banka Hareketi")}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-border/50 pt-1.5">
+                <span className="text-muted">Tutar:</span>
+                <span className={cn("num font-bold text-sm", Number(selectedRow?.debit) > 0 ? "text-danger" : "text-success")}>
+                  {selectedRow && (Number(selectedRow.debit) > 0 ? `+${formatMoney(selectedRow.debit)} (Borç)` : `-${formatMoney(selectedRow.credit)} (Alacak)`)}
+                </span>
+              </div>
+              {selectedRow?.description && selectedRow.description !== selectedRow.number && (
+                <div className="flex justify-between border-t border-border/50 pt-1.5">
+                  <span className="text-muted">Açıklama:</span>
+                  <span className="font-medium text-foreground">{selectedRow.description}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              {selectedRow?.kind !== "opening" && (
+                <>
+                  <Button
+                    variant="primary"
+                    className="w-full justify-center gap-2 font-medium"
+                    onClick={() => {
+                      if (selectedRow) {
+                        const u = getViewUrl(selectedRow);
+                        if (u) router.push(u);
+                      }
+                    }}
+                  >
+                    <Eye className="size-4" /> Detayları Görüntüle
+                  </Button>
+
+                  {canWrite && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        className="justify-center gap-2 font-medium"
+                        onClick={() => {
+                          if (selectedRow) {
+                            const u = getEditUrl(selectedRow);
+                            if (u) router.push(u);
+                          }
+                        }}
+                      >
+                        <Pencil className="size-4" /> Düzenle
+                      </Button>
+                      <Button
+                        variant="danger"
+                        className="justify-center gap-2 font-medium"
+                        onClick={() => {
+                          if (selectedRow) handleDeleteRow(selectedRow);
+                        }}
+                      >
+                        <Trash2 className="size-4" /> Sil
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {selectedRow?.kind === "opening" && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-center gap-2 font-medium"
+                  onClick={() => {
+                    setSelectedRow(null);
+                    setEditOpen(true);
+                  }}
+                >
+                  <Pencil className="size-4" /> Açılış Bakiyesini Düzenle
+                </Button>
+              )}
+
+              <Button variant="ghost" className="w-full justify-center text-muted" onClick={() => setSelectedRow(null)}>
+                Vazgeç / Kapat
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
