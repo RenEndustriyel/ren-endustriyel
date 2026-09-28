@@ -63,7 +63,46 @@ export function ContactDetail({ id }: { id: string }) {
   if (!c) return <EmptyState title="Cari bulunamadı" />;
 
   const balance = Number(balances.data?.find((b) => b.contact_id === id)?.balance ?? c.opening_balance ?? 0);
-  const all = statement.data ?? [];
+  const all = React.useMemo(() => {
+    const raw = statement.data ?? [];
+    if (!docs.data || raw.some((r) => r.ref_type === "sales_order" || r.ref_type === "purchase_order")) {
+      return raw;
+    }
+    const orders = docs.data.filter(
+      (d) =>
+        (d.doc_type === "sales_order" || d.doc_type === "purchase_order") &&
+        d.status !== "draft" &&
+        d.status !== "cancelled" &&
+        d.status !== "converted"
+    );
+    if (!orders.length) return raw;
+
+    const merged = [...raw];
+    for (const o of orders) {
+      const isSales = o.doc_type === "sales_order";
+      const amt = Number(o.total_try ?? Number(o.total) * Number(o.exchange_rate || 1));
+      merged.push({
+        entry_date: o.issue_date,
+        kind: "document",
+        ref_id: o.id,
+        ref_type: o.doc_type,
+        number: o.number,
+        description: o.description || (isSales ? "Satış Siparişi" : "Satın Alma Siparişi"),
+        debit: isSales ? amt : 0,
+        credit: isSales ? 0 : amt,
+        balance: 0,
+        due_date: o.due_date,
+      });
+    }
+
+    merged.sort((a, b) => a.entry_date.localeCompare(b.entry_date));
+    let runBal = 0;
+    for (const r of merged) {
+      runBal += Number(r.debit) - Number(r.credit);
+      r.balance = Math.round(runBal * 100) / 100;
+    }
+    return merged;
+  }, [statement.data, docs.data]);
   const before = all.filter((r) => r.entry_date < from);
   const carried = before.length ? Number(before[before.length - 1].balance) : 0;
   const rows = all.filter((r) => r.entry_date >= from);

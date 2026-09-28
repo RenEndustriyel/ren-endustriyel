@@ -20,7 +20,7 @@ import {
   Link2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { useRows, useRpc, useUnits, useProducts, type Row } from "@/lib/data";
+import { useRows, useRpc, useUnits, useProducts, useContactBalances, type Row } from "@/lib/data";
 import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, docFlow, type DocType } from "@/lib/doc-types";
 import { formatDate, formatMoney, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
@@ -68,6 +68,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
 
   const d = q.data;
   const contact = useRows<Row<"contacts">>("contacts");
+  const contactBalances = useContactBalances();
   if (q.isPending && !d) return <Skeleton className="mx-auto h-96 max-w-5xl rounded-card" />;
   if (!d || d.deleted_at) return <EmptyState title="Belge bulunamadı" description="Silinmiş olabilir." />;
 
@@ -78,7 +79,36 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   const overdue = cfg.payable && d.due_date && d.due_date < isoDate() && remaining > 0.004;
   const unitName = (uid: string | null) => units.data?.find((u) => u.id === uid)?.name ?? "";
   const lines = d.lines.map((l) => ({ ...l, unit_name: unitName(l.unit_id), product_name: products.data?.find((p) => p.id === l.product_id)?.name }));
-  const docForPdf = { ...d, lines };
+
+  const currentContactBalance = d.contact_id
+    ? (contactBalances.data?.find((b) => b.contact_id === d.contact_id)?.balance ?? null)
+    : null;
+
+  const balanceInfo = React.useMemo(() => {
+    if (!d || !d.contact_id || currentContactBalance === null || currentContactBalance === undefined) return null;
+    const isSales = d.doc_type.startsWith("sales") || d.doc_type === "pos_sale" || d.doc_type === "quote";
+    const docAmtTry = Number(d.total_try ?? Number(d.total) * Number(d.exchange_rate || 1));
+    const thisDocAmt = Number(d.total);
+    const isActiveInBalance = d.status !== "draft" && d.status !== "cancelled";
+
+    let prevBal = 0;
+    let curBal = Number(currentContactBalance);
+
+    if (isActiveInBalance) {
+      prevBal = isSales ? curBal - docAmtTry : curBal + docAmtTry;
+    } else {
+      prevBal = curBal;
+      curBal = isSales ? prevBal + docAmtTry : prevBal - docAmtTry;
+    }
+
+    return {
+      previous_balance: Math.round(prevBal * 100) / 100,
+      this_amount: thisDocAmt,
+      current_balance: Math.round(curBal * 100) / 100,
+    };
+  }, [d, currentContactBalance]);
+
+  const docForPdf = { ...d, lines, contact_balance_info: balanceInfo };
   const phone = (contact.data?.find((c) => c.id === d.contact_id)?.mobile ?? "").replace(/\D/g, "");
 
   const pdf = async (mode: "share" | "download" | "open") => {
@@ -110,9 +140,15 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
         }
         description={
           <span className="flex flex-wrap items-center gap-2">
-            {cfg.payable && d.status !== "draft" ? (
+            {cfg.statuses && (
+              <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" || d.status === "approved" ? "success" : "neutral"}>
+                {STATUS_LABEL[d.status]}
+              </Badge>
+            )}
+            {cfg.payable && d.status !== "draft" && (
               <Badge tone={overdue ? "danger" : PAYMENT_STATUS[d.payment_status].tone}>{overdue ? "Vadesi geçti" : PAYMENT_STATUS[d.payment_status].label}</Badge>
-            ) : (
+            )}
+            {!cfg.statuses && !cfg.payable && (
               <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" ? "success" : "neutral"}>
                 {STATUS_LABEL[d.status]}
               </Badge>
@@ -324,6 +360,39 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
                   <Line label={flow === "in" ? "Tahsil edilen" : "Ödenen"} value={formatMoney(d.paid_amount, d.currency)} className="text-success" />
                   <Line label="Kalan" value={formatMoney(remaining, d.currency)} className={cn("font-semibold", remaining > 0.004 && "text-danger")} />
                 </>
+              )}
+              {balanceInfo && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <div className="flex items-center justify-between text-xs text-muted">
+                    <span>Önceki Bakiye</span>
+                    <span className="num font-medium">
+                      {Math.abs(balanceInfo.previous_balance) <= 0.009
+                        ? "0,00 ₺ (Kapalı)"
+                        : `${formatMoney(Math.abs(balanceInfo.previous_balance), "TRY")} ${balanceInfo.previous_balance > 0 ? "(Borçlu)" : "(Alacaklı)"}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-muted mt-1.5">
+                    <span>Bu {cfg.label}</span>
+                    <span className="num font-medium">{formatMoney(balanceInfo.this_amount, d.currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-bold text-sm mt-2.5 p-2 rounded bg-surface-2 border border-border">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-text">GÜNCEL TOPLAM BAKİYE</span>
+                    <span
+                      className={cn(
+                        "num",
+                        balanceInfo.current_balance > 0.009
+                          ? "text-success"
+                          : balanceInfo.current_balance < -0.009
+                            ? "text-danger"
+                            : "text-muted",
+                      )}
+                    >
+                      {Math.abs(balanceInfo.current_balance) <= 0.009
+                        ? "0,00 ₺ (Kapalı)"
+                        : `${formatMoney(Math.abs(balanceInfo.current_balance), "TRY")} ${balanceInfo.current_balance > 0 ? "(Borçlu)" : "(Alacaklı)"}`}
+                    </span>
+                  </div>
+                </div>
               )}
             </CardBody>
           </Card>

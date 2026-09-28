@@ -40,12 +40,25 @@ const s = StyleSheet.create({
   words: { marginTop: 8, fontSize: 8, color: C.muted, fontStyle: "normal" },
   notes: { marginTop: 16, fontSize: 8, lineHeight: 1.5 },
   footer: { position: "absolute", bottom: 20, left: 36, right: 36, flexDirection: "row", justifyContent: "space-between", fontSize: 7, color: C.muted, borderTopWidth: 1, borderColor: C.line, paddingTop: 6 },
+  balanceBox: { marginTop: 8, paddingTop: 5, borderTopWidth: 1, borderColor: C.line },
+  balanceRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
+  balanceLabel: { color: C.muted, fontSize: 7.5 },
+  balanceVal: { fontSize: 7.5 },
+  currentBalanceRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, paddingHorizontal: 5, marginTop: 3, backgroundColor: C.soft, borderRadius: 3, borderWidth: 0.5, borderColor: C.line },
+  currentBalanceLabel: { fontSize: 8, fontWeight: 700, color: C.ink },
+  currentBalanceVal: { fontSize: 8, fontWeight: 700, color: C.ink },
 });
 
 const nf = (n: number, d = 2) => Number(n ?? 0).toLocaleString("tr-TR", { minimumFractionDigits: d, maximumFractionDigits: d });
 const qf = (n: number) => Number(n ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 3 });
 const df = (d?: string | null) => (d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("tr-TR") : "");
 const sym = (c: string) => (c === "USD" ? "$" : c === "EUR" ? "€" : "₺");
+const formatBal = (n?: number | null) => {
+  const v = Number(n ?? 0);
+  if (Math.abs(v) <= 0.009) return "0,00 ₺ (Kapalı)";
+  const status = v > 0 ? "Borçlu" : "Alacaklı";
+  return `${nf(Math.abs(v))} ₺ (${status})`;
+};
 
 export type PdfOrg = {
   name: string;
@@ -116,6 +129,11 @@ export type PdfDocument = {
   notes?: string | null;
   terms?: string | null;
   showPrices?: boolean;
+  contact_balance_info?: {
+    previous_balance?: number | null;
+    this_amount?: number | null;
+    current_balance?: number | null;
+  } | null;
 };
 
 export function DocumentPdf({ doc, org, logo }: { doc: PdfDocument; org: PdfOrg; logo?: string | null }) {
@@ -249,6 +267,26 @@ export function DocumentPdf({ doc, org, logo }: { doc: PdfDocument; org: PdfOrg;
               <View style={s.totalRow}>
                 <Text style={{ color: C.muted }}>Ödenen / Kalan</Text>
                 <Text>{nf(doc.paid_amount)} / {nf(Number(doc.total) - Number(doc.paid_amount))} {cur}</Text>
+              </View>
+            ) : null}
+            {doc.contact_balance_info ? (
+              <View style={s.balanceBox} wrap={false}>
+                {doc.contact_balance_info.previous_balance !== undefined && doc.contact_balance_info.previous_balance !== null ? (
+                  <View style={s.balanceRow}>
+                    <Text style={s.balanceLabel}>Önceki Bakiye:</Text>
+                    <Text style={s.balanceVal}>{formatBal(doc.contact_balance_info.previous_balance)}</Text>
+                  </View>
+                ) : null}
+                <View style={s.balanceRow}>
+                  <Text style={s.balanceLabel}>Bu Belge / Sipariş:</Text>
+                  <Text style={[s.balanceVal, { fontWeight: 700 }]}>
+                    {nf(doc.contact_balance_info.this_amount ?? doc.total)} {cur}
+                  </Text>
+                </View>
+                <View style={s.currentBalanceRow}>
+                  <Text style={s.currentBalanceLabel}>GÜNCEL TOPLAM BAKİYE:</Text>
+                  <Text style={s.currentBalanceVal}>{formatBal(doc.contact_balance_info.current_balance)}</Text>
+                </View>
               </View>
             ) : null}
           </View>

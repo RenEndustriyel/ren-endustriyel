@@ -48,12 +48,12 @@ const ORDER_STATUSES = [
 
 export const DOC_TYPES: Record<DocType, DocConfig> = {
   quote: { type: "quote", label: "Teklif", plural: "Teklifler", base: "/satislar/teklifler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: false, stock: 0, priced: true, autoNumber: true, convertTo: ["sales_order", "sales_invoice"], statuses: QUOTE_STATUSES },
-  sales_order: { type: "sales_order", label: "Satış Siparişi", plural: "Siparişler", base: "/satislar/siparisler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: false, stock: 0, priced: true, autoNumber: true, convertTo: ["sales_delivery", "sales_invoice"], statuses: ORDER_STATUSES },
+  sales_order: { type: "sales_order", label: "Satış Siparişi", plural: "Siparişler", base: "/satislar/siparisler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: 0, priced: true, autoNumber: true, convertTo: ["sales_delivery", "sales_invoice"], statuses: ORDER_STATUSES },
   sales_delivery: { type: "sales_delivery", label: "Giden İrsaliye", plural: "Giden İrsaliyeler", base: "/satislar/irsaliyeler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: false, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_invoice"] },
   sales_invoice: { type: "sales_invoice", label: "Satış Faturası", plural: "Satış Faturaları", base: "/satislar/faturalar", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_return"] },
   sales_return: { type: "sales_return", label: "Satış İadesi", plural: "Satış İadeleri", base: "/satislar/iadeler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: 1, priced: true, autoNumber: true, convertTo: [] },
   pos_sale: { type: "pos_sale", label: "Hızlı Satış", plural: "Hızlı Satışlar", base: "/satislar/hizli-satislar", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_return"] },
-  purchase_order: { type: "purchase_order", label: "Satın Alma Siparişi", plural: "Satın Alma Siparişleri", base: "/giderler/siparisler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: false, stock: 0, priced: true, autoNumber: true, convertTo: ["purchase_delivery", "purchase_invoice"], statuses: ORDER_STATUSES },
+  purchase_order: { type: "purchase_order", label: "Satın Alma Siparişi", plural: "Satın Alma Siparişleri", base: "/giderler/siparisler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 0, priced: true, autoNumber: true, convertTo: ["purchase_delivery", "purchase_invoice"], statuses: ORDER_STATUSES },
   purchase_delivery: { type: "purchase_delivery", label: "Gelen İrsaliye", plural: "Gelen İrsaliyeler", base: "/giderler/irsaliyeler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: false, stock: 1, priced: true, autoNumber: false, convertTo: ["purchase_invoice"] },
   purchase_invoice: { type: "purchase_invoice", label: "Alış Faturası", plural: "Alış Faturaları", base: "/giderler/alis-faturalari", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 1, priced: true, autoNumber: false, convertTo: ["purchase_return"] },
   purchase_return: { type: "purchase_return", label: "Alış İadesi", plural: "Alış İadeleri", base: "/giderler/iadeler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: [] },
@@ -63,7 +63,7 @@ export const DOC_TYPES: Record<DocType, DocConfig> = {
 
 /** Tahsilat (in) mı ödeme (out) mu doğurur */
 export const docFlow = (t: DocType): "in" | "out" =>
-  t === "sales_invoice" || t === "pos_sale" || t === "purchase_return" ? "in" : "out";
+  t === "sales_invoice" || t === "pos_sale" || t === "purchase_return" || t === "sales_order" ? "in" : "out";
 
 export const PAYMENT_STATUS: Record<string, { label: string; tone: "success" | "warning" | "danger" | "neutral" }> = {
   paid: { label: "Ödendi", tone: "success" },

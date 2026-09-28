@@ -102,6 +102,11 @@ export async function shareStatementPdf({
 
 export type DocForPdf = Tables<"documents"> & {
   lines: (Tables<"document_lines"> & { unit_name?: string | null; product_name?: string | null })[];
+  contact_balance_info?: {
+    previous_balance?: number | null;
+    this_amount?: number | null;
+    current_balance?: number | null;
+  } | null;
 };
 
 export async function shareDocumentPdf(org: Org, doc: DocForPdf, mode: "share" | "download" | "open" = "share") {
@@ -112,6 +117,68 @@ export async function shareDocumentPdf(org: Org, doc: DocForPdf, mode: "share" |
     const cfg = DOC_TYPES[doc.doc_type as DocType];
     const snap = (doc.contact_snapshot ?? {}) as Record<string, string | null>;
     const isDelivery = doc.doc_type === "sales_delivery" || doc.doc_type === "purchase_delivery";
+
+    let balanceInfo = doc.contact_balance_info;
+    if (balanceInfo === undefined && doc.contact_id) {
+      try {
+        const { data: rawCb } = await (supabase.from as any)("contact_balances")
+          .select("*")
+          .eq("contact_id", doc.contact_id)
+          .maybeSingle();
+        const cb = rawCb as { balance?: number | null; includes_orders?: boolean } | null;
+
+        const { data: contactRow } = await supabase
+          .from("contacts")
+          .select("opening_balance")
+          .eq("id", doc.contact_id)
+          .maybeSingle();
+
+        let baseBal =
+          cb?.balance !== undefined && cb?.balance !== null
+            ? Number(cb.balance)
+            : Number(contactRow?.opening_balance ?? 0);
+
+        if (!cb?.includes_orders) {
+          const { data: openOrders } = await supabase
+            .from("documents")
+            .select("id, doc_type, total_try, total, exchange_rate, status")
+            .eq("contact_id", doc.contact_id)
+            .is("deleted_at", null)
+            .in("doc_type", ["sales_order", "purchase_order"])
+            .not("status", "in", '("draft","cancelled","converted")');
+
+          for (const o of openOrders ?? []) {
+            if (o.id === doc.id) continue;
+            const amt = Number(o.total_try ?? Number(o.total) * Number(o.exchange_rate || 1));
+            if (o.doc_type === "sales_order") baseBal += amt;
+            else if (o.doc_type === "purchase_order") baseBal -= amt;
+          }
+        }
+
+        const isSales = doc.doc_type.startsWith("sales") || doc.doc_type === "pos_sale" || doc.doc_type === "quote";
+        const docAmtTry = Number(doc.total_try ?? Number(doc.total) * Number(doc.exchange_rate || 1));
+        const isActive = doc.status !== "draft" && doc.status !== "cancelled";
+
+        let prevBal = 0;
+        let curBal = 0;
+        if (isActive) {
+          curBal = baseBal + (cb?.includes_orders ? 0 : isSales ? docAmtTry : -docAmtTry);
+          prevBal = isSales ? curBal - docAmtTry : curBal + docAmtTry;
+        } else {
+          prevBal = baseBal;
+          curBal = isSales ? prevBal + docAmtTry : prevBal - docAmtTry;
+        }
+
+        balanceInfo = {
+          previous_balance: Math.round(prevBal * 100) / 100,
+          this_amount: Number(doc.total),
+          current_balance: Math.round(curBal * 100) / 100,
+        };
+      } catch (err) {
+        console.warn("Bakiye bilgisi alınamadı:", err);
+      }
+    }
+
     const blob = await render(
       <DocumentPdf
         org={org}
@@ -153,6 +220,7 @@ export async function shareDocumentPdf(org: Org, doc: DocForPdf, mode: "share" |
           notes: doc.notes,
           terms: doc.terms,
           showPrices: !isDelivery,
+          contact_balance_info: balanceInfo,
         }}
       />,
     );

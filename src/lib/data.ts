@@ -303,7 +303,53 @@ export const usePriceLists = () => useRows<Row<"price_lists">>("price_lists", { 
 export const useContacts = () => useRows<Row<"contacts">>("contacts", { order: [{ column: "name" }] });
 export const useProducts = () => useRows<Row<"products">>("products", { order: [{ column: "name" }] });
 
-export type ContactBalance = { contact_id: string; balance: number };
+export type ContactBalance = { contact_id: string; balance: number; includes_orders?: boolean };
 export function useContactBalances() {
-  return useRows<ContactBalance>("contact_balances" as TableName, { softDelete: false, select: "contact_id, balance" });
+  const cb = useRows<ContactBalance>("contact_balances" as TableName, { softDelete: false, select: "*" });
+  const openOrders = useRows<Row<"documents">>("documents", {
+    params: ["open_orders_balance"],
+    filter: (q) =>
+      q.in("doc_type", ["sales_order", "purchase_order"]).not("status", "in", '("draft","cancelled","converted")'),
+    select: "id, contact_id, doc_type, total_try, total, exchange_rate, status",
+  });
+
+  const mergedData = React.useMemo(() => {
+    if (!cb.data) return cb.data;
+    // Eğer veritabanı görünümü siparişleri zaten içeriyorsa tekrar ekleme
+    const first = cb.data[0] as unknown as { includes_orders?: boolean } | undefined;
+    if (first && first.includes_orders) return cb.data;
+
+    const adjustments = new Map<string, number>();
+    for (const doc of openOrders.data ?? []) {
+      if (!doc.contact_id) continue;
+      const amt = Number(doc.total_try ?? Number(doc.total) * Number(doc.exchange_rate || 1));
+      const sign = doc.doc_type === "sales_order" ? 1 : -1;
+      adjustments.set(doc.contact_id, (adjustments.get(doc.contact_id) ?? 0) + sign * amt);
+    }
+
+    if (adjustments.size === 0) return cb.data;
+
+    const seen = new Set<string>();
+    const res = cb.data.map((b) => {
+      seen.add(b.contact_id);
+      const adj = adjustments.get(b.contact_id) ?? 0;
+      return {
+        ...b,
+        balance: Math.round((Number(b.balance) + adj) * 100) / 100,
+      };
+    });
+
+    for (const [cId, adj] of adjustments.entries()) {
+      if (!seen.has(cId)) {
+        res.push({ contact_id: cId, balance: Math.round(adj * 100) / 100 });
+      }
+    }
+
+    return res;
+  }, [cb.data, openOrders.data]);
+
+  return {
+    ...cb,
+    data: mergedData,
+  };
 }

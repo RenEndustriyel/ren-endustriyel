@@ -77,8 +77,8 @@ export async function reconcileContactAllocations(orgId: string): Promise<number
 
       const validDocTypes =
         txn.direction === "in"
-          ? ["sales_invoice", "pos_sale", "purchase_return"]
-          : ["purchase_invoice", "expense", "sales_return"];
+          ? ["sales_invoice", "pos_sale", "purchase_return", "sales_order"]
+          : ["purchase_invoice", "expense", "sales_return", "purchase_order"];
 
       const contactDocs = openDocs.filter(
         (d) => d.contact_id === txn.contact_id && validDocTypes.includes(d.doc_type)
