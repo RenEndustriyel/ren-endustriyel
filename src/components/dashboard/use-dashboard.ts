@@ -52,7 +52,86 @@ export function useDashboard(orgId: string) {
           return !isDup;
         });
 
-        res.recent = list;
+        // Hareketleri ödeme durumu (peşin/vadeli), ödeme yöntemi (kk/havale/nakit) ve cari ismi ile zenginleştir
+        const docIds = list.filter((r) => r.kind === "document").map((r) => r.id);
+        const txnIds = list.filter((r) => r.kind === "transaction").map((r) => r.id);
+
+        const docMap = new Map<string, { payment_status: string; due_date: string | null; contact_name: string | null; method: string | null }>();
+        const txnMap = new Map<string, { method: string | null; contact_name: string | null }>();
+
+        if (docIds.length > 0) {
+          try {
+            const { data: docs } = await supabase
+              .from("documents")
+              .select("id, payment_status, due_date, contacts(name)")
+              .in("id", docIds);
+
+            const { data: allocs } = await supabase
+              .from("payment_allocations")
+              .select("document_id, transaction:transactions(method)")
+              .in("document_id", docIds);
+
+            const allocMethodMap = new Map<string, string>();
+            for (const a of (allocs as unknown as { document_id: string; transaction: { method: string | null } | null }[]) || []) {
+              if (a?.document_id && a?.transaction?.method) {
+                allocMethodMap.set(a.document_id, a.transaction.method);
+              }
+            }
+
+            for (const d of (docs as unknown as { id: string; payment_status: string; due_date: string | null; contacts: { name: string } | null }[]) || []) {
+              docMap.set(d.id, {
+                payment_status: d.payment_status,
+                due_date: d.due_date,
+                contact_name: d.contacts?.name ?? null,
+                method: allocMethodMap.get(d.id) ?? null,
+              });
+            }
+          } catch (e) {
+            console.warn("Son hareket belge detayları yüklenemedi:", e);
+          }
+        }
+
+        if (txnIds.length > 0) {
+          try {
+            const { data: txns } = await supabase
+              .from("transactions")
+              .select("id, method, contacts(name)")
+              .in("id", txnIds);
+
+            for (const t of (txns as unknown as { id: string; method: string | null; contacts: { name: string } | null }[]) || []) {
+              txnMap.set(t.id, {
+                method: t.method ?? null,
+                contact_name: t.contacts?.name ?? null,
+              });
+            }
+          } catch (e) {
+            console.warn("Son hareket işlem detayları yüklenemedi:", e);
+          }
+        }
+
+        // Zenginleştirilmiş alanları ata
+        res.recent = list.map((r) => {
+          if (r.kind === "document") {
+            const extra = docMap.get(r.id);
+            const partyName = extra?.contact_name || r.party;
+            return {
+              ...r,
+              party: partyName,
+              payment_status: extra?.payment_status ?? (r.type === "pos_sale" ? "paid" : "unpaid"),
+              method: extra?.method ?? (r.type === "pos_sale" ? "cash" : null),
+              due_date: extra?.due_date ?? null,
+            };
+          } else {
+            const extra = txnMap.get(r.id);
+            const partyName = extra?.contact_name || r.party;
+            return {
+              ...r,
+              party: partyName,
+              payment_status: "paid",
+              method: extra?.method ?? "cash",
+            };
+          }
+        });
       }
       return res;
     },

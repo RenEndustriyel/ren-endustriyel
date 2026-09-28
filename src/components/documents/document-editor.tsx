@@ -389,7 +389,10 @@ function EditorInner({
     const res = await saveDoc.call(
       {
         p_doc: payload,
-        p_lines: valid.map((l) => ({ ...l, description: l.description.trim() || null })),
+        p_lines: valid.map((l) => ({
+          ...l,
+          description: (l.description?.trim() || products.data?.find((p) => p.id === l.product_id)?.name || "Ürün").trim(),
+        })),
         p_payment: !isEdit && pay.enabled && cfg.payable && pay.account_id ? { id: newId(), account_id: pay.account_id, method: pay.method } : null,
       },
       successMsg,
@@ -399,7 +402,7 @@ function EditorInner({
 
   const handleSubmitClick = (status?: string) => {
     setError(null);
-    const valid = lines.filter((l) => l.product_id || l.description.trim());
+    const valid = lines.filter((l) => l.product_id || l.description?.trim());
     if (!valid.length) return setError("En az bir satır girin.");
     if (cfg.type !== "pos_sale" && !doc.contact_id && type !== "expense") return setError(`${cfg.contactLabel} seçin.`);
     if (!isEdit && pay.enabled && !pay.account_id && cfg.payable) return setError("Tahsilat / ödeme hesabını seçin.");
@@ -584,14 +587,13 @@ function EditorInner({
                 <div key={l.id} className="flex flex-col gap-2 px-4 py-3">
                   <div className="flex items-start gap-2">
                     <span className="mt-2.5 w-5 shrink-0 text-center text-xs text-muted">{i + 1}</span>
-                    <div className="grid min-w-0 flex-1 gap-2 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                    <div className="min-w-0 flex-1">
                       <ProductPicker
                         value={l.product_id}
                         onChange={(v) => pickProduct(i, v)}
-                        placeholder="Ürün / hizmet seçin"
+                        placeholder="Ürün / hizmet seçin (ad, kod, barkod…)"
                         onCreate={(name) => router.push(`/stok/urunler/yeni?ad=${encodeURIComponent(name)}`)}
                       />
-                      <Input value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="Açıklama (ürün seçmeden de yazılabilir)" />
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => setLines(lines.length > 1 ? lines.filter((_, j) => j !== i) : [emptyLine(defaultVat)])} aria-label="Satırı sil">
                       <Trash2 />

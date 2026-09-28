@@ -142,9 +142,40 @@ export function RecentActivity({ data }: { data: DashboardSummary }) {
           />
         ) : (
           <div className="divide-y divide-border">
-            {data.recent.slice(0, 6).map((r) => {
+            {data.recent.slice(0, 8).map((r) => {
               const positive = r.amount >= 0;
               const typeName = TYPE_LABELS[r.type] ?? r.type;
+
+              // Peşin / Vadeli / Ödeme Yöntemi rozeti
+              const isUnpaid = r.payment_status === "unpaid" || r.payment_status === "none";
+              const isPartial = r.payment_status === "partial";
+              const method = r.method;
+
+              let badgeText = "(P)";
+              let badgeTitle = "Peşin";
+              let badgeStyle = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25";
+
+              if (isUnpaid) {
+                badgeText = "(V)";
+                badgeTitle = "Vadeli / Açık";
+                badgeStyle = "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/25";
+              } else if (isPartial) {
+                badgeText = "(V)";
+                badgeTitle = "Vadeli / Kısmi";
+                badgeStyle = "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/25";
+              } else if (method === "credit_card") {
+                badgeText = "(KK)";
+                badgeTitle = "Kredi Kartı";
+                badgeStyle = "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/25";
+              } else if (method === "bank_transfer") {
+                badgeText = "(Hav/Eft)";
+                badgeTitle = "Havale / EFT";
+                badgeStyle = "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/25";
+              } else {
+                badgeText = "(P)";
+                badgeTitle = "Peşin (Nakit)";
+                badgeStyle = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25";
+              }
 
               // Renk ve ikon
               let iconBg = "bg-primary/10 text-primary";
@@ -179,19 +210,34 @@ export function RecentActivity({ data }: { data: DashboardSummary }) {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-text group-hover:text-primary">
-                      {typeName} {r.party && <span>· {r.party}</span>}
+                    <div className="truncate text-sm font-semibold text-text group-hover:text-primary">
+                      {r.party || typeName}
                     </div>
-                    <div className="text-xs text-muted">{formatDate(r.date)}</div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted">
+                      <span>{typeName}</span>
+                      {r.number && <span>· {r.number}</span>}
+                      <span>· {formatDate(r.date)}</span>
+                    </div>
                   </div>
-                  <div
-                    className={cn(
-                      "num shrink-0 text-sm font-semibold tabular-nums",
-                      positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                    )}
-                  >
-                    {positive ? "+" : "−"}
-                    {formatMoney(Math.abs(r.amount))}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={cn(
+                        "num text-sm font-semibold tabular-nums",
+                        positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                      )}
+                    >
+                      {positive ? "+" : "−"}
+                      {formatMoney(Math.abs(r.amount))}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[11px] font-bold px-1.5 py-0.5 rounded border tracking-wide",
+                        badgeStyle
+                      )}
+                      title={badgeTitle}
+                    >
+                      {badgeText}
+                    </span>
                   </div>
                 </Link>
               );

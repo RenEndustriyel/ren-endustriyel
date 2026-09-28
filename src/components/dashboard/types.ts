@@ -33,6 +33,9 @@ export type DashboardSummary = {
     date: string;
     party: string | null;
     amount: number;
+    payment_status?: string | null;
+    method?: string | null;
+    due_date?: string | null;
   }[];
   critical_stock: { id: string; name: string; stock_qty: number; critical_stock: number }[];
   currency: { sales_usd: number; sales_eur: number; cash_usd: number; cash_eur: number };

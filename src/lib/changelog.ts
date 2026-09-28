@@ -14,14 +14,51 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "1.3.0";
+export const LATEST_VERSION = "1.3.1";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "1.3.1",
+    date: "28 Eylül 2026",
+    title: "Son Hareketler Peşin/Vadeli/Ödeme Tipi & Sipariş Bakiye Entegrasyonu",
+    badge: "Mevcut Sürüm",
+    items: [
+      {
+        type: "yeni",
+        title: "Son Hareketler Rozetleri: Peşin (P), Vadeli (V), Kredi Kartı (KK), Havale/EFT (Hav/Eft)",
+        description:
+          "Paneldeki son hareketler tablosunda tutarların yanına parantez içinde (P), (V), (KK), (Hav/Eft) durum etiketleri eklendi ve Cari İsmi belirginleştirildi.",
+      },
+      {
+        type: "yeni",
+        title: "Sipariş Kaydedildiği Anda Cari Bakiyeye İşleme",
+        description:
+          "Satış ve satın alma siparişleri oluşturulduğu anda cari bakiyesine gerçek zamanlı olarak yansıtılır.",
+      },
+      {
+        type: "yeni",
+        title: "Çıktılarda ve Ekranda Güncel Toplam Bakiye",
+        description:
+          "PDF, yazdırma ve ekran çıktılarında genel toplamın altında Önceki Bakiye, Bu Belge Tutarı ve Güncel Toplam Bakiye (Borçlu/Alacaklı) gösterilir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Genişletilmiş Ürün Seçici",
+        description:
+          "Satış, alış, fatura, sipariş ve teklif düzenleme ekranlarında ürün yanındaki açıklama kutusu kaldırılarak ürün seçici tam genişliğe uzatıldı.",
+      },
+      {
+        type: "duzeltme",
+        title: "Son Hareketlerde Mükerrer Masraf Kaydı Düzeltildi",
+        description:
+          "Masraf girildiğinde hem masraf belgesi hem ödeme hareketinin çift görünmesi engellendi, temiz tek satır gösterim sağlandı.",
+      },
+    ],
+  },
   {
     version: "1.3.0",
     date: "28 Eylül 2026",
     title: "Günlük Yedekleme, Masaüstü EXE & Mobil Yükleme Desteği",
-    badge: "Mevcut Sürüm",
     items: [
       {
         type: "yeni",
