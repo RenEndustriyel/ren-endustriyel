@@ -29,6 +29,7 @@ import {
   PieChart,
   BookUser,
   Boxes,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/providers/org-provider";
@@ -105,6 +106,7 @@ export const NAV: NavGroup[] = [
     title: "Raporlar",
     icon: BarChart3,
     items: [
+      { title: "Büyüme & Sağlık", href: "/raporlar/buyume-skorboard", icon: Activity, hideFor: ["staff"], keywords: "skorbord büyüme sağlık ciro trend kâr marjı hacim" },
       { title: "Gelir Gider", href: "/raporlar/gelir-gider", icon: TrendingUp, hideFor: ["staff"], keywords: "kâr kar karlılık" },
       { title: "KDV Raporu", href: "/raporlar/kdv", icon: Percent, hideFor: ["staff"] },
       { title: "Nakit Akışı", href: "/raporlar/nakit-akisi", icon: BarChart3, hideFor: ["staff"] },
