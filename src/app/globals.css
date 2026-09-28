@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------
+   Renk jetonları — Paraşüt paleti (mavi / mercan / yeşil / kahve)
+   --------------------------------------------------------------- */
+:root {
+  --bg: #eceef1;
+  --surface: #ffffff;
+  --surface-2: #f6f7f9;
+  --border: #e1e4e8;
+  --text: #25292e;
+  --muted: #6b7280;
+
+  --primary: #1ba2d0;
+  --primary-hover: #148cb5;
+  --primary-fg: #ffffff;
+  --primary-soft: #e3f4fa;
+
+  --success: #22b890;
+  --success-soft: #e0f6ef;
+  --danger: #ef6f5e;
+  --danger-soft: #fdecea;
+  --warning: #f2a33a;
+  --warning-soft: #fdf1df;
+  --brown: #8b6a55;
+  --neutral-ring: #e9ebee;
+  /* grafik: doğrulanmış giriş/çıkış çifti (CVD güvenli) */
+  --chart-in: #1590bb;
+  --chart-out: #c9731f;
+
+  --sidebar-bg: #2c3036;
+  --sidebar-bg-2: #24272c;
+  --sidebar-fg: #d7dbe0;
+  --sidebar-muted: #8a9099;
+  --sidebar-active: #1ba2d0;
+
+  --radius: 10px;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #121418;
+  --surface: #1b1e23;
+  --surface-2: #22262c;
+  --border: #2e333a;
+  --text: #e6e8eb;
+  --muted: #9aa1ab;
+
+  --primary: #33b3dd;
+  --primary-hover: #52c1e5;
+  --primary-soft: #16303b;
+
+  --success: #2fc79e;
+  --success-soft: #133229;
+  --danger: #f27e6f;
+  --danger-soft: #3a1f1c;
+  --warning: #f5b150;
+  --warning-soft: #3a2c16;
+  --brown: #b08c74;
+  --neutral-ring: #2e333a;
+  --chart-in: #1f98c4;
+  --chart-out: #d27a2c;
+
+  --sidebar-bg: #16181c;
+  --sidebar-bg-2: #111316;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-brown: var(--brown);
+  --color-neutral-ring: var(--neutral-ring);
+  --color-chart-in: var(--chart-in);
+  --color-chart-out: var(--chart-out);
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-2: var(--sidebar-bg-2);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-active: var(--sidebar-active);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --radius-card: var(--radius);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  border-color: var(--border);
+}
+
+/* Tutarlar: sabit genişlikli rakamlar */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* iOS güvenli alanlar */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* İnce kaydırma çubuğu */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 40%, transparent) transparent;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
