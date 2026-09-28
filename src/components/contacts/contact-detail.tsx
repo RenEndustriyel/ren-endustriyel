@@ -315,9 +315,9 @@ export function ContactDetail({ id }: { id: string }) {
                 header: "Durum",
                 cell: (d) =>
                   d.payment_status !== "none" ? (
-                    <Badge tone={PAYMENT_STATUS[d.payment_status].tone}>{PAYMENT_STATUS[d.payment_status].label}</Badge>
+                    <Badge tone={PAYMENT_STATUS[d.payment_status]?.tone ?? "neutral"}>{PAYMENT_STATUS[d.payment_status]?.label ?? "—"}</Badge>
                   ) : (
-                    <Badge>{STATUS_LABEL[d.status]}</Badge>
+                    <Badge>{STATUS_LABEL[d.status] ?? d.status}</Badge>
                   ),
               },
               { key: "total", header: "Tutar", align: "right", cell: (d) => <span className="num font-semibold">{formatMoney(d.total, d.currency)}</span>, sortValue: (d) => Number(d.total_try) },

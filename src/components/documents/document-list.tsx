@@ -86,10 +86,10 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
     if (d.status === "cancelled") return <Badge tone="danger">İptal</Badge>;
     if (cfg.payable) {
       if (isOverdue(d)) return <Badge tone="danger">{Math.round((new Date(today).getTime() - new Date(d.due_date!).getTime()) / 864e5)} gün gecikti</Badge>;
-      const ps = PAYMENT_STATUS[d.payment_status];
+      const ps = PAYMENT_STATUS[d.payment_status] ?? PAYMENT_STATUS.none;
       return <Badge tone={ps.tone}>{ps.label}</Badge>;
     }
-    return <Badge tone={d.status === "accepted" || d.status === "converted" ? "success" : d.status === "rejected" ? "danger" : "neutral"}>{STATUS_LABEL[d.status]}</Badge>;
+    return <Badge tone={d.status === "accepted" || d.status === "converted" ? "success" : d.status === "rejected" ? "danger" : "neutral"}>{STATUS_LABEL[d.status] ?? d.status}</Badge>;
   };
 
   const columns: Column<Doc>[] = [
@@ -141,7 +141,7 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
           { header: "Toplam", value: (d) => Number(d.total), type: "money" },
           { header: "Toplam (TL)", value: (d) => Number(d.total_try), type: "money" },
           { header: "Ödenen", value: (d) => Number(d.paid_amount), type: "money" },
-          { header: "Durum", value: (d) => (cfg.payable ? PAYMENT_STATUS[d.payment_status].label : STATUS_LABEL[d.status]) },
+          { header: "Durum", value: (d) => (cfg.payable ? (PAYMENT_STATUS[d.payment_status]?.label ?? "—") : (STATUS_LABEL[d.status] ?? d.status)) },
         ],
       },
     ]);

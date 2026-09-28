@@ -72,13 +72,14 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   if (q.isPending && !d) return <Skeleton className="mx-auto h-96 max-w-5xl rounded-card" />;
   if (!d || d.deleted_at) return <EmptyState title="Belge bulunamadı" description="Silinmiş olabilir." />;
 
-  const cfg = DOC_TYPES[d.doc_type as DocType] ?? DOC_TYPES[type];
-  const snap = (d.contact_snapshot ?? {}) as Record<string, string | null>;
-  const remaining = Math.max(Number(d.total) - Number(d.paid_amount), 0);
-  const flow = docFlow(d.doc_type as DocType);
+  const cfg = DOC_TYPES[d.doc_type as DocType] ?? DOC_TYPES[type] ?? DOC_TYPES.purchase_invoice;
+  const snap = ((d.contact_snapshot as Record<string, string | null>) ?? {}) || {};
+  const remaining = Math.max(Number(d.total || 0) - Number(d.paid_amount || 0), 0);
+  const flow = docFlow((d.doc_type as DocType) ?? type);
   const overdue = cfg.payable && d.due_date && d.due_date < isoDate() && remaining > 0.004;
   const unitName = (uid: string | null) => units.data?.find((u) => u.id === uid)?.name ?? "";
-  const lines = d.lines.map((l) => ({ ...l, unit_name: unitName(l.unit_id), product_name: products.data?.find((p) => p.id === l.product_id)?.name }));
+  const rawLines = Array.isArray(d.lines) ? d.lines : [];
+  const lines = rawLines.map((l) => ({ ...l, unit_name: unitName(l.unit_id), product_name: products.data?.find((p) => p.id === l.product_id)?.name }));
 
   const currentContactBalance = d.contact_id
     ? (contactBalances.data?.find((b) => b.contact_id === d.contact_id)?.balance ?? null)
@@ -86,13 +87,13 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
 
   const balanceInfo = React.useMemo(() => {
     if (!d || !d.contact_id || currentContactBalance === null || currentContactBalance === undefined) return null;
-    const isSales = d.doc_type.startsWith("sales") || d.doc_type === "pos_sale" || d.doc_type === "quote";
-    const docAmtTry = Number(d.total_try ?? Number(d.total) * Number(d.exchange_rate || 1));
-    const thisDocAmt = Number(d.total);
+    const isSales = d.doc_type?.startsWith("sales") || d.doc_type === "pos_sale" || d.doc_type === "quote";
+    const docAmtTry = Number(d.total_try ?? Number(d.total || 0) * Number(d.exchange_rate || 1));
+    const thisDocAmt = Number(d.total || 0);
     const isActiveInBalance = d.status !== "draft" && d.status !== "cancelled";
 
     let prevBal = 0;
-    let curBal = Number(currentContactBalance);
+    let curBal = Number(currentContactBalance || 0);
 
     if (isActiveInBalance) {
       prevBal = isSales ? curBal - docAmtTry : curBal + docAmtTry;
@@ -102,9 +103,9 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
     }
 
     return {
-      previous_balance: Math.round(prevBal * 100) / 100,
+      previous_balance: Math.round((prevBal || 0) * 100) / 100,
       this_amount: thisDocAmt,
-      current_balance: Math.round(curBal * 100) / 100,
+      current_balance: Math.round((curBal || 0) * 100) / 100,
     };
   }, [d, currentContactBalance]);
 
@@ -123,11 +124,12 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   };
 
   const changeStatus = async (s: string) => {
-    await setStatus.call({ p_doc: d.id, p_status: s }, `Durum: ${STATUS_LABEL[s]}`);
+    await setStatus.call({ p_doc: d.id, p_status: s }, `Durum: ${STATUS_LABEL[s] ?? s}`);
     q.refetch();
   };
 
   const convert = (to: DocType) => router.push(`${DOC_TYPES[to].base}/yeni?kaynak=${d.id}`);
+  const ps = PAYMENT_STATUS[d.payment_status] ?? PAYMENT_STATUS.none;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -142,15 +144,15 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
           <span className="flex flex-wrap items-center gap-2">
             {cfg.statuses && (
               <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" || d.status === "approved" ? "success" : "neutral"}>
-                {STATUS_LABEL[d.status]}
+                {STATUS_LABEL[d.status] ?? d.status}
               </Badge>
             )}
             {cfg.payable && d.status !== "draft" && (
-              <Badge tone={overdue ? "danger" : PAYMENT_STATUS[d.payment_status].tone}>{overdue ? "Vadesi geçti" : PAYMENT_STATUS[d.payment_status].label}</Badge>
+              <Badge tone={overdue ? "danger" : ps.tone}>{overdue ? "Vadesi geçti" : ps.label}</Badge>
             )}
             {!cfg.statuses && !cfg.payable && (
               <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" ? "success" : "neutral"}>
-                {STATUS_LABEL[d.status]}
+                {STATUS_LABEL[d.status] ?? d.status}
               </Badge>
             )}
             {!d.affects_stock && cfg.stock !== 0 && <Badge>Stok irsaliyede</Badge>}

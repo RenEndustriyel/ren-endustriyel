@@ -96,7 +96,9 @@ export function useDocument(id: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase.from("documents").select("*, lines:document_lines(*)").eq("id", id!).maybeSingle();
       if (error) throw error;
-      if (data) (data as DocRow).lines.sort((a, b) => a.position - b.position);
+      if (data && Array.isArray((data as DocRow).lines)) {
+        (data as DocRow).lines.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      }
       return data as DocRow | null;
     },
   });
@@ -169,9 +171,22 @@ function EditorInner({
   const rates = useRates();
   const saveDoc = useRpc<Row<"documents">>("save_document", (qc, args) => {
     // çevrimdışı iyimser kayıt: listede hemen görünsün
-    const d = args.p_doc as EditorDoc & Record<string, unknown>;
-    const t = calcDocument(d, args.p_lines as EditorLine[]);
-    patchListCaches(qc, "documents", { ...d, number: d.number ?? null, total: t.total, total_try: t.total_try, paid_amount: 0, payment_status: cfg.payable ? "unpaid" : "none", created_at: new Date().toISOString() });
+    try {
+      const d = args.p_doc as EditorDoc & Record<string, unknown>;
+      const pLines = (args.p_lines as EditorLine[]) ?? [];
+      const t = calcDocument(d, pLines);
+      patchListCaches(qc, "documents", {
+        ...d,
+        number: d.number ?? null,
+        total: t.total,
+        total_try: t.total_try,
+        paid_amount: 0,
+        payment_status: cfg.payable ? "unpaid" : "none",
+        created_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn("Optimistic document patch error:", e);
+    }
   });
   const [scanOpen, setScanOpen] = React.useState(false);
   const [showMore, setShowMore] = React.useState(false);
@@ -364,7 +379,7 @@ function EditorInner({
 
   const performSave = async (status?: string, updatedProductsCount?: number) => {
     setError(null);
-    const valid = lines.filter((l) => l.product_id || l.description.trim());
+    const valid = lines.filter((l) => l.product_id || l.description?.trim());
     if (!valid.length) return setError("En az bir satır girin.");
     if (cfg.type !== "pos_sale" && !doc.contact_id && type !== "expense") return setError(`${cfg.contactLabel} seçin.`);
     if (!isEdit && pay.enabled && !pay.account_id && cfg.payable) return setError("Tahsilat / ödeme hesabını seçin.");
@@ -386,18 +401,28 @@ function EditorInner({
         ? `${cfg.label} kaydedildi (${updatedProductsCount} ürünün alış fiyatı güncellendi)`
         : `${cfg.label} kaydedildi`;
 
-    const res = await saveDoc.call(
-      {
-        p_doc: payload,
-        p_lines: valid.map((l) => ({
-          ...l,
-          description: (l.description?.trim() || products.data?.find((p) => p.id === l.product_id)?.name || "Ürün").trim(),
-        })),
-        p_payment: !isEdit && pay.enabled && cfg.payable && pay.account_id ? { id: newId(), account_id: pay.account_id, method: pay.method } : null,
-      },
-      successMsg,
-    );
-    onDone(res.data?.id ?? doc.id);
+    try {
+      const res = await saveDoc.call(
+        {
+          p_doc: payload,
+          p_lines: valid.map((l) => ({
+            ...l,
+            description: (l.description?.trim() || products.data?.find((p) => p.id === l.product_id)?.name || "Ürün").trim(),
+          })),
+          p_payment: !isEdit && pay.enabled && cfg.payable && pay.account_id ? { id: newId(), account_id: pay.account_id, method: pay.method } : null,
+        },
+        successMsg,
+      );
+      const targetId = res.data?.id ?? doc.id;
+      if (targetId) {
+        onDone(targetId);
+      }
+    } catch (err: unknown) {
+      console.error("Belge kaydetme hatası:", err);
+      const msg = err instanceof Error ? err.message : "Belge kaydedilirken bir hata oluştu";
+      setError(msg);
+      toast.error(msg);
+    }
   };
 
   const handleSubmitClick = (status?: string) => {
@@ -477,7 +502,11 @@ function EditorInner({
 
   const handleConfirmWithoutPriceUpdate = async () => {
     setPriceDiffModalOpen(false);
-    await performSave(pendingStatus);
+    try {
+      await performSave(pendingStatus);
+    } catch (err) {
+      console.error("Fiyat güncellemeden kaydetme hatası:", err);
+    }
   };
 
   const whOptions = warehouses.data ?? [];

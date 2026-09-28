@@ -89,7 +89,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       networkFirst(request, PAGE_CACHE).catch(async () => {
         const bare = await caches.match(url.pathname, { ignoreSearch: true });
-        return bare || (await caches.match("/panel")) || Response.error();
+        if (bare) return bare;
+        const panel = await caches.match("/panel");
+        if (panel) return panel;
+        return fetch(request);
       }),
     );
     return;
@@ -97,7 +100,7 @@ self.addEventListener("fetch", (event) => {
 
   // İstemci tarafı gezinme verisi (RSC)
   if (request.headers.get("RSC") === "1" || url.searchParams.has("_rsc")) {
-    event.respondWith(networkFirst(request, PAGE_CACHE));
+    event.respondWith(networkFirst(request, PAGE_CACHE).catch(() => fetch(request)));
     return;
   }
 
