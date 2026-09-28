@@ -14,14 +14,51 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "1.2.0";
+export const LATEST_VERSION = "1.3.0";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "1.3.0",
+    date: "28 Eylül 2026",
+    title: "Günlük Yedekleme, Masaüstü EXE & Mobil Yükleme Desteği",
+    badge: "Mevcut Sürüm",
+    items: [
+      {
+        type: "yeni",
+        title: "Otomatik Günlük Canlı Yedekleme",
+        description:
+          "Canlı veritabanınız her sabah belirlediğiniz klasöre (tarih tarih veya üstüne yazma moduyla) otomatik yedeklenir. Ayarlar menüsünden tek tıkla anlık JSON yedek indirme ve Windows Görev Zamanlayıcı entegrasyonu sağlandı.",
+      },
+      {
+        type: "yeni",
+        title: "Masaüstü EXE Versiyonu (Windows)",
+        description:
+          "Bağımsız 'Ren Endüstriyel.exe' masaüstü programı kuruldu. İnternet varken canlı bulutla entegre çalışır; internet kesildiğinde dahi çevrimdışı tam yetkiyle çalışmaya devam eder.",
+      },
+      {
+        type: "yeni",
+        title: "Telefon ve Tabletler İçin 'Uygulama Yükle'",
+        description:
+          "Mobil cihazlar için tek dokunuşla ana ekrana yükleme butonu, akıllı öneri şeridi ve iOS Safari adım adım kurulum rehberi eklendi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Kesintisiz Çevrimdışı (Offline-First) Senkronizasyon",
+        description:
+          "Masaüstünde ve mobilde internet olmasa bile cari, stok ve fatura kayıtları yerel bellekte tutulur, internet bağlantısı sağlandığında otomatik olarak canlıya aktarılır.",
+      },
+      {
+        type: "iyilestirme",
+        title: "GitHub Actions Otomatik Bulut Yedeği",
+        description:
+          "Bilgisayarınız kapalı olsa dahi her sabah saat 08:00'de GitHub sunucularında canlı veritabanı yedeği güvenle arşivlenir.",
+      },
+    ],
+  },
   {
     version: "1.2.0",
     date: "28 Eylül 2026",
     title: "Yeni Nesil Panel, Satış Trendi & Canlı Güncelleme Takibi",
-    badge: "Mevcut Sürüm",
     items: [
       {
         type: "yeni",

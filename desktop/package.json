@@ -1,0 +1,34 @@
+{
+  "name": "ren-endustriyel-desktop",
+  "version": "1.0.0",
+  "description": "Ren Endüstriyel Ön Muhasebe Masaüstü Uygulaması",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "keywords": ["muhasebe", "desktop", "electron"],
+  "author": "Ren Endüstriyel",
+  "license": "Private",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.renendustriyel.muhasebe",
+    "productName": "Ren Endüstriyel",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "../public/icons/app.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Ren Endüstriyel"
+    }
+  }
+}

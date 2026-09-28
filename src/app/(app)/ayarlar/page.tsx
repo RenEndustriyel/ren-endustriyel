@@ -9,6 +9,7 @@ import { UsersSettings } from "@/components/settings/users";
 import { CategorySettings } from "@/components/settings/categories";
 import { NotificationSettings, RatesSettings } from "@/components/settings/notifications";
 import { DataResetSettings } from "@/components/settings/data-reset";
+import { BackupSettings } from "@/components/settings/backup-settings";
 
 export default function SettingsPage() {
   const { isAdmin } = useOrg();
@@ -20,13 +21,14 @@ export default function SettingsPage() {
         </p>
       )}
       <Tabs defaultValue="firma">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 flex-wrap">
           <TabsTrigger value="firma">Firma Bilgileri</TabsTrigger>
           <TabsTrigger value="numara">Belge Numaraları</TabsTrigger>
           <TabsTrigger value="stok">Birim ve Depolar</TabsTrigger>
           <TabsTrigger value="kategori">Kategoriler</TabsTrigger>
           <TabsTrigger value="kullanici">Kullanıcılar</TabsTrigger>
           <TabsTrigger value="bildirim">Bildirim ve Kur</TabsTrigger>
+          <TabsTrigger value="yedekleme">Yedekleme</TabsTrigger>
           {isAdmin && (
             <TabsTrigger
               value="sifirla"
@@ -55,6 +57,9 @@ export default function SettingsPage() {
         <TabsContent value="bildirim" className="grid items-start gap-4 lg:grid-cols-2">
           <NotificationSettings />
           <RatesSettings />
+        </TabsContent>
+        <TabsContent value="yedekleme">
+          <BackupSettings />
         </TabsContent>
         {isAdmin && (
           <TabsContent value="sifirla">

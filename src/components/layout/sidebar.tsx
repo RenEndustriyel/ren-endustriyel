@@ -129,6 +129,7 @@ export function SidebarNav({ collapsed, onNavigate }: { collapsed?: boolean; onN
 import { useChangelog } from "./changelog-context";
 import { LATEST_VERSION } from "@/lib/changelog";
 import { Sparkles } from "lucide-react";
+import { InstallButton } from "./install-banner";
 
 export function Sidebar() {
   const { org } = useOrg();
@@ -171,47 +172,58 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Sabit Sol Alt Alan: Güncelleme Notları & Menü Daralt */}
+      {/* Sabit Sol Alt Alan: Uygulama Yükle, Güncelleme Notları & Menü Daralt */}
       <div className="shrink-0 border-t border-white/[0.06] p-2 flex flex-col gap-1">
         {collapsed ? (
-          <button
-            type="button"
-            onClick={openChangelog}
-            title={`Güncelleme Notları (v${LATEST_VERSION})`}
-            className="group relative flex size-10 mx-auto items-center justify-center rounded-lg text-sidebar-muted hover:bg-white/[0.08] hover:text-white transition-colors"
-          >
-            <Sparkles className="size-4 text-amber-400" />
-            {hasUnread && (
-              <>
-                <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-emerald-500 animate-ping" />
-                <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-emerald-500" />
-              </>
-            )}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={openChangelog}
-            className="group flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium text-sidebar-fg/80 hover:bg-white/[0.08] hover:text-white transition-colors select-none"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex size-6 items-center justify-center rounded-md bg-amber-400/15 text-amber-400 group-hover:bg-amber-400/25 transition-colors">
-                <Sparkles className="size-3.5" />
-              </div>
-              <span className="truncate">Güncelleme Notları</span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-white/90">
-                v{LATEST_VERSION}
-              </span>
+          <>
+            <InstallButton
+              className="group relative flex size-10 mx-auto items-center justify-center rounded-lg text-sidebar-muted hover:bg-white/[0.08] hover:text-white transition-colors"
+            />
+            <button
+              type="button"
+              onClick={openChangelog}
+              title={`Güncelleme Notları (v${LATEST_VERSION})`}
+              className="group relative flex size-10 mx-auto items-center justify-center rounded-lg text-sidebar-muted hover:bg-white/[0.08] hover:text-white transition-colors"
+            >
+              <Sparkles className="size-4 text-amber-400" />
               {hasUnread && (
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-                </span>
+                <>
+                  <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-emerald-500" />
+                </>
               )}
-            </div>
-          </button>
+            </button>
+          </>
+        ) : (
+          <>
+            <InstallButton
+              variant="menuItem"
+              className="group flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium text-sidebar-fg/80 hover:bg-white/[0.08] hover:text-white transition-colors select-none"
+            />
+            <button
+              type="button"
+              onClick={openChangelog}
+              className="group flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium text-sidebar-fg/80 hover:bg-white/[0.08] hover:text-white transition-colors select-none"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex size-6 items-center justify-center rounded-md bg-amber-400/15 text-amber-400 group-hover:bg-amber-400/25 transition-colors">
+                  <Sparkles className="size-3.5" />
+                </div>
+                <span className="truncate">Güncelleme Notları</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-white/90">
+                  v{LATEST_VERSION}
+                </span>
+                {hasUnread && (
+                  <span className="relative flex size-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                  </span>
+                )}
+              </div>
+            </button>
+          </>
         )}
 
         <button

@@ -9,6 +9,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { MobileNav } from "./mobile-nav";
 import { OfflineBanner } from "./online-status";
+import { InstallBanner } from "./install-banner";
 import { CommandPaletteProvider } from "./command-palette";
 import { BrandMark } from "./brand";
 import { useAccounts, useCategories, useContacts, useContactBalances, useProducts, useUnits, useWarehouses, usePriceLists, useRows } from "@/lib/data";
@@ -70,6 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
             <OfflineBanner />
+            <InstallBanner />
             <Topbar />
             <main className="min-w-0 flex-1 px-3 pb-28 pt-4 sm:px-5 sm:pt-5 md:pb-8">
               <React.Suspense fallback={null}>{children}</React.Suspense>

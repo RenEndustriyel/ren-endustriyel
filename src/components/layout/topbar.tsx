@@ -19,6 +19,7 @@ import {
 import { BrandMark } from "./brand";
 import { OnlineStatus } from "./online-status";
 import { useCommandPalette } from "./command-palette";
+import { InstallButton } from "./install-banner";
 
 function initials(name: string) {
   return name
@@ -89,6 +90,8 @@ export function Topbar() {
         <button onClick={palette.open} className="rounded-lg p-2 text-muted hover:bg-surface-2 md:hidden" aria-label="Ara">
           <Search className="size-5" />
         </button>
+
+        <InstallButton />
 
         <OnlineStatus />
 

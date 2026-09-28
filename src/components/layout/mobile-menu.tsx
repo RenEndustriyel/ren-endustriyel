@@ -9,6 +9,7 @@ import { SidebarNav } from "./sidebar";
 import { useChangelog } from "./changelog-context";
 import { LATEST_VERSION } from "@/lib/changelog";
 import { Sparkles } from "lucide-react";
+import { InstallButton } from "./install-banner";
 
 /** Telefonda soldan açılan tam menü */
 export function MobileMenuSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -41,8 +42,12 @@ export function MobileMenuSheet({ open, onOpenChange }: { open: boolean; onOpenC
             <SidebarNav onNavigate={() => onOpenChange(false)} />
           </div>
 
-          {/* Güncelleme Notları (Mobil) */}
-          <div className="shrink-0 border-t border-white/[0.06] p-3 pb-safe">
+          {/* Uygulamayı Cihaza Yükle & Güncelleme Notları (Mobil) */}
+          <div className="shrink-0 border-t border-white/[0.06] p-3 pb-safe space-y-2">
+            <InstallButton
+              variant="menuItem"
+              className="flex w-full items-center justify-between rounded-lg bg-primary/15 px-3 py-2.5 text-xs font-semibold text-white hover:bg-primary/25 active:bg-primary/30 transition-colors"
+            />
             <button
               type="button"
               onClick={handleOpenChangelog}
