@@ -1,7 +1,7 @@
 const { app, BrowserWindow, shell, Menu } = require("electron");
 const path = require("path");
 
-const LIVE_URL = "https://ren2209-claude-focused-mccarthy-syg.vercel.app";
+const LIVE_URL = "https://renendustriyel.vercel.app";
 
 function createWindow() {
   const win = new BrowserWindow({

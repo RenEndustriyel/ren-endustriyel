@@ -18,7 +18,7 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 let config = {
   folder: "C:\\RenMuhasebe_Yedekler",
   mode: "dated", // "dated" (tarih tarih) veya "overwrite" (üstüne yaz)
-  liveUrl: "https://ren2209-claude-focused-mccarthy-syg.vercel.app",
+  liveUrl: "https://renendustriyel.vercel.app",
   token: "ren_muhasebe_backup_secret_2026",
 };
 

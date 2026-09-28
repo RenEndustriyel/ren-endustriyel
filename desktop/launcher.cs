@@ -8,7 +8,7 @@ namespace RenEndustriyel.Desktop
 {
     static class Program
     {
-        private const string AppUrl = "https://ren2209-claude-focused-mccarthy-syg.vercel.app";
+        private const string AppUrl = "https://renendustriyel.vercel.app";
         private const string AppName = "Ren Endüstriyel · Ön Muhasebe";
 
         [STAThread]
