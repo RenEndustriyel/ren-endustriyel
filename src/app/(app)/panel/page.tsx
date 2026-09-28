@@ -7,6 +7,7 @@ import { useDashboard } from "@/components/dashboard/use-dashboard";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { GrowthHealthBoard } from "@/components/reports/growth-health-board";
+import { TurnoverComparisons } from "@/components/dashboard/turnover-comparisons";
 import {
   TopProducts,
   BalanceCards,
@@ -89,6 +90,9 @@ export default function PanelPage() {
         <>
           {/* 2. Üst 5 KPI Kartı (Pusulam renk ve gradyanları ile) */}
           <KpiCards data={data} hideCash={hideMoney} />
+
+          {/* Dönemsel Ciro Kıyaslamaları (Bugün vs Dün, Bu Ay vs Geçen Ay, Bu Yıl vs Geçen Yıl) */}
+          <TurnoverComparisons orgId={org!.id} />
 
           {/* Büyüme & Sağlık Skorbordu (İşletme büyüme, kârlılık ve fiziksel hacim hibrit analizi) */}
           {!hideMoney && <GrowthHealthBoard orgId={org!.id} variant="dashboard" />}

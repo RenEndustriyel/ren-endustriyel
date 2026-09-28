@@ -97,7 +97,7 @@ function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_
         description: v.description.trim() || catName || "Masraf",
       },
       p_lines: [{ description: v.description.trim() || catName || "Masraf", quantity: 1, unit_price: v.amount, vat_rate: v.vat_rate, discount_rate: 0 }],
-      p_payment: v.paid && !doc && accountId ? { id: newId(), account_id: accountId, method: "cash" } : null,
+      p_payment: v.paid && accountId ? { id: newId(), account_id: accountId, method: "cash" } : null,
     }, doc ? "Masraf güncellendi" : "Masraf kaydedildi");
 
     if (photo) {

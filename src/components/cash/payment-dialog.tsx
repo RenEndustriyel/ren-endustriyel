@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -58,6 +59,8 @@ function PaymentForm({ onOpenChange, flow, target, contactId, employeeId, catego
   const accRate = accCur === "TRY" ? 1 : rateFor(rates.data, accCur) || 1;
   const accAmount = accCur === target.currency ? amount : Math.round(((amount * docRate) / accRate) * 100) / 100;
 
+  const qc = useQueryClient();
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!acc || amount <= 0) return;
@@ -83,6 +86,13 @@ function PaymentForm({ onOpenChange, flow, target, contactId, employeeId, catego
       },
       flow === "in" ? "Tahsilat kaydedildi" : "Ödeme kaydedildi",
     );
+    qc.invalidateQueries({ queryKey: ["rows", "transactions"] });
+    qc.invalidateQueries({ queryKey: ["rows", "accounts"] });
+    qc.invalidateQueries({ queryKey: ["account_statement"] });
+    qc.invalidateQueries({ queryKey: ["contact-balances"] });
+    qc.invalidateQueries({ queryKey: ["contact_statement"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    qc.invalidateQueries({ queryKey: ["documents"] });
     onOpenChange(false);
   };
 

@@ -111,16 +111,31 @@ export function GrowthHealthBoard({
                 <span>{health.statusText}</span>
               </div>
               <div className="flex items-center gap-2.5 text-[11px] font-semibold text-text">
-                <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
-                  Ciro ↑
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-0.5",
+                    health.ciroTrendUp ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                  )}
+                >
+                  Ciro {health.ciroTrendUp ? "↑" : "↓"}
                 </span>
                 <span className="text-border">·</span>
-                <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
-                  Adet ↑
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-0.5",
+                    health.adetTrendUp ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                  )}
+                >
+                  Adet {health.adetTrendUp ? "↑" : "↓"}
                 </span>
                 <span className="text-border">·</span>
-                <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400">
-                  Kâr Marjı ↗
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-0.5",
+                    health.karMarjiTrendUp ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400",
+                  )}
+                >
+                  Kâr Marjı {health.karMarjiTrendUp ? "↗" : "↘"}
                 </span>
               </div>
             </div>

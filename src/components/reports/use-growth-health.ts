@@ -125,7 +125,7 @@ export function useGrowthHealth(orgId: string, periodType: PeriodType = "monthly
       const earliestDate = buckets[0].from;
       const latestDate = buckets[buckets.length - 1].to;
 
-      // 2. Veritabanından belgeleri ve satırları çek
+      // 2. Veritabanından belgeleri, satırları ve ürün alış fiyatlarını çek
       const { data: rawDocs, error: docErr } = await supabase
         .from("documents")
         .select(`
@@ -139,6 +139,7 @@ export function useGrowthHealth(orgId: string, periodType: PeriodType = "monthly
           contact_id,
           lines:document_lines (
             id,
+            product_id,
             quantity,
             unit_price,
             net_amount
@@ -147,11 +148,24 @@ export function useGrowthHealth(orgId: string, periodType: PeriodType = "monthly
         .eq("org_id", orgId)
         .in("doc_type", ["sales_invoice", "pos_sale", "sales_return", "purchase_invoice"])
         .is("deleted_at", null)
-        .not("status", "in", '("draft","cancelled")')
+        .neq("status", "draft")
+        .neq("status", "cancelled")
         .gte("issue_date", earliestDate)
         .lte("issue_date", latestDate);
 
       if (docErr) throw docErr;
+
+      // Ürün alış fiyatları (gerçekçi maliyet ve kârlılık için)
+      const { data: rawProducts } = await supabase
+        .from("products")
+        .select("id, purchase_price")
+        .eq("org_id", orgId)
+        .is("deleted_at", null);
+
+      const productCostMap = new Map<string, number>();
+      for (const p of rawProducts || []) {
+        if (p.purchase_price) productCostMap.set(p.id, Number(p.purchase_price));
+      }
 
       // 3. Stok maliyet hareketlerini çek (Satılan Malın Maliyeti / COGS için)
       const { data: rawMovements } = await supabase
@@ -171,6 +185,7 @@ export function useGrowthHealth(orgId: string, periodType: PeriodType = "monthly
         let salesRevenue = 0;
         let returnsRevenue = 0;
         let totalQty = 0;
+        let calculatedLineCost = 0;
         const contactsSet = new Set<string>();
 
         // Belgeleri filtrele
@@ -185,14 +200,20 @@ export function useGrowthHealth(orgId: string, periodType: PeriodType = "monthly
 
               if (Array.isArray(doc.lines)) {
                 for (const l of doc.lines) {
-                  totalQty += Number(l.quantity || 0);
+                  const qty = Number(l.quantity || 0);
+                  totalQty += qty;
+                  const itemCost = (l.product_id ? productCostMap.get(l.product_id) : null) ?? Number(l.unit_price || 0) * 0.70;
+                  calculatedLineCost += qty * itemCost * rate;
                 }
               }
             } else if (doc.doc_type === "sales_return") {
               returnsRevenue += netAmt;
               if (Array.isArray(doc.lines)) {
                 for (const l of doc.lines) {
-                  totalQty -= Number(l.quantity || 0);
+                  const qty = Number(l.quantity || 0);
+                  totalQty -= qty;
+                  const itemCost = (l.product_id ? productCostMap.get(l.product_id) : null) ?? Number(l.unit_price || 0) * 0.70;
+                  calculatedLineCost -= qty * itemCost * rate;
                 }
               }
             }
@@ -200,28 +221,28 @@ export function useGrowthHealth(orgId: string, periodType: PeriodType = "monthly
         }
 
         // Maliyet (COGS) hesapla
-        let cogs = 0;
+        let movementCogs = 0;
         for (const m of movements) {
           if (m.movement_date >= b.from && m.movement_date <= b.to) {
             const cost = Number(m.unit_cost || 0);
             const qty = Math.abs(Number(m.quantity || 0));
             if (m.movement_type === "sale") {
-              cogs += qty * cost;
+              movementCogs += qty * cost;
             } else if (m.movement_type === "sales_return") {
-              cogs -= qty * cost;
+              movementCogs -= qty * cost;
             }
           }
         }
 
         const netRev = Math.max(Math.round((salesRevenue - returnsRevenue) * 100) / 100, 0);
 
-        // Eğer maliyet kaydı henüz girilmemişse veya 0 ise, tipik bir %32 brüt marj tabanı uygula
+        // Gerçekçi maliyet: hareket maliyeti varsa öncelikli, yoksa ürün alış fiyatı bazlı hesaplama
+        const effectiveCost = movementCogs > 0 ? movementCogs : Math.max(calculatedLineCost, 0);
         let grossProfit = 0;
-        if (cogs > 0 && cogs <= netRev) {
-          grossProfit = Math.round((netRev - cogs) * 100) / 100;
+        if (effectiveCost > 0 && effectiveCost <= netRev) {
+          grossProfit = Math.round((netRev - effectiveCost) * 100) / 100;
         } else if (netRev > 0) {
-          // Tahmini %35 brüt kâr marjı yaklaşımı
-          grossProfit = Math.round(netRev * 0.35 * 100) / 100;
+          grossProfit = Math.round(netRev * 0.30 * 100) / 100;
         }
 
         const profitMargin = netRev > 0 ? Math.min(Math.max(Math.round((grossProfit / netRev) * 1000) / 10, 0), 100) : 0;
@@ -271,14 +292,15 @@ export function useGrowthHealth(orgId: string, periodType: PeriodType = "monthly
       const previous = points.length > 1 ? points[points.length - 2] : null;
 
       const calcGrowth = (curr: number, prev: number) => {
-        if (!prev) return curr > 0 ? 15 : 0;
-        return Math.round(((curr - prev) / prev) * 100);
+        if (prev > 0) return Math.round(((curr - prev) / prev) * 100);
+        if (curr > 0) return 100;
+        return 0;
       };
 
-      const ciroGrowth = previous ? calcGrowth(current?.netRevenue || 0, previous.netRevenue) : 15;
-      const karGrowth = previous ? calcGrowth(current?.grossProfit || 0, previous.grossProfit) : 18;
-      const contactGrowth = previous ? calcGrowth(current?.activeContacts || 0, previous.activeContacts) : 8;
-      const volGrowth = previous ? calcGrowth(current?.volume || 0, previous.volume) : 12;
+      const ciroGrowth = previous ? calcGrowth(current?.netRevenue || 0, previous.netRevenue) : 0;
+      const karGrowth = previous ? calcGrowth(current?.grossProfit || 0, previous.grossProfit) : 0;
+      const contactGrowth = previous ? calcGrowth(current?.activeContacts || 0, previous.activeContacts) : 0;
+      const volGrowth = previous ? calcGrowth(current?.volume || 0, previous.volume) : 0;
 
       // 7. Sağlık Skoru ve Durum Tespiti
       let statusText = "SAĞLIKLI BÜYÜME";
