@@ -43,3 +43,6 @@ next-env.d.ts
 
 # üretilen service worker (scripts/gen-sw.mjs)
 /public/sw.js
+
+.vercel
+.env*
