@@ -34,6 +34,7 @@ export function MultiDiscountInput({
   unitPrice = 0,
   currency = "TRY",
   className,
+  onKeyDown,
 }: {
   value: number; // Efektif iskonto oranı (%)
   discountStr?: string; // "10+5" vb.
@@ -41,6 +42,7 @@ export function MultiDiscountInput({
   unitPrice?: number;
   currency?: string;
   className?: string;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }) {
   const [open, setOpen] = React.useState(false);
   const [rawText, setRawText] = React.useState<string>(() => {
@@ -100,6 +102,7 @@ export function MultiDiscountInput({
         <Input
           value={rawText}
           onChange={handleInputChange}
+          onKeyDown={onKeyDown}
           placeholder="%0"
           className={cn(
             "h-9 pr-7 text-xs font-semibold",

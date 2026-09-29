@@ -240,6 +240,7 @@ export function TransactionsList() {
           {
             key: "p",
             header: "Cari / açıklama",
+            sortValue: (t) => party(t) + " " + (t.description ?? ""),
             cell: (t) => (
               <div>
                 <div className="font-medium text-text">{party(t)}</div>
@@ -247,7 +248,7 @@ export function TransactionsList() {
               </div>
             ),
           },
-          { key: "a", header: "Hesap", hideBelow: "md", cell: (t) => <span className="text-muted font-medium">{t.account?.name ?? "Portföy"}</span> },
+          { key: "a", header: "Hesap", hideBelow: "md", sortValue: (t) => t.account?.name ?? "Portföy", cell: (t) => <span className="text-muted font-medium">{t.account?.name ?? "Portföy"}</span> },
           {
             key: "amt",
             header: "Tutar",

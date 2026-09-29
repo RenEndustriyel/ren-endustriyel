@@ -327,11 +327,42 @@ function EditorInner({
     [doc.prices_include_vat, doc.currency, doc.exchange_rate, rates.data],
   );
 
+  const [focusLineId, setFocusLineId] = React.useState<string | null>(null);
+
   const setLine = (i: number, patch: Partial<EditorLine>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+
+  const handleAddLine = () => {
+    const newLine = emptyLine(defaultVat);
+    setLines((ls) => [...ls, newLine]);
+    setFocusLineId(newLine.id);
+  };
+
+  const handleAdvanceToNextLine = (currentIndex: number) => {
+    if (currentIndex === lines.length - 1) {
+      const newLine = emptyLine(defaultVat);
+      setLines((ls) => [...ls, newLine]);
+      setFocusLineId(newLine.id);
+    } else {
+      setFocusLineId(lines[currentIndex + 1].id);
+    }
+  };
+
+  const stepVat = (index: number, direction: "up" | "down") => {
+    const currentVat = lines[index].vat_rate;
+    const currentIdx = VAT_RATES.indexOf(currentVat);
+    if (direction === "up") {
+      const nextIdx = currentIdx < VAT_RATES.length - 1 ? currentIdx + 1 : 0;
+      setLine(index, { vat_rate: VAT_RATES[nextIdx] });
+    } else {
+      const prevIdx = currentIdx > 0 ? currentIdx - 1 : VAT_RATES.length - 1;
+      setLine(index, { vat_rate: VAT_RATES[prevIdx] });
+    }
+  };
 
   const pickProduct = (i: number, pid: string | null) => {
     const p = products.data?.find((x) => x.id === pid);
     if (!p) return setLine(i, { product_id: null });
+    setFocusLineId(null);
     setLine(i, {
       product_id: p.id,
       description: p.name,
@@ -633,6 +664,7 @@ function EditorInner({
                         onChange={(v) => pickProduct(i, v)}
                         placeholder="Ürün / hizmet seçin (ad, kod, barkod…)"
                         onCreate={(name) => router.push(`/stok/urunler/yeni?ad=${encodeURIComponent(name)}`)}
+                        autoOpen={focusLineId === l.id}
                       />
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => setLines(lines.length > 1 ? lines.filter((_, j) => j !== i) : [emptyLine(defaultVat)])} aria-label="Satırı sil">
@@ -642,7 +674,11 @@ function EditorInner({
                   <div className="grid grid-cols-3 gap-2 pl-7 pr-12 sm:grid-cols-6">
                     <label className="text-[11px] text-muted">
                       Miktar
-                      <NumberInput value={l.quantity} decimals={3} onChange={(n) => setLine(i, { quantity: n })} />
+                      <NumberInput
+                        value={l.quantity}
+                        decimals={3}
+                        onChange={(n) => setLine(i, { quantity: n })}
+                      />
                     </label>
                     <label className="text-[11px] text-muted">
                       Birim
@@ -657,7 +693,17 @@ function EditorInner({
                     </label>
                     <label className="text-[11px] text-muted">
                       Birim fiyat
-                      <NumberInput value={l.unit_price} decimals={4} onChange={(n) => setLine(i, { unit_price: n })} />
+                      <NumberInput
+                        value={l.unit_price}
+                        decimals={4}
+                        onChange={(n) => setLine(i, { unit_price: n })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAdvanceToNextLine(i);
+                          }
+                        }}
+                      />
                     </label>
                     <div className="flex flex-col">
                       <span className="mb-1 flex items-center justify-between text-[11px] text-muted">
@@ -668,20 +714,65 @@ function EditorInner({
                         value={l.discount_rate}
                         discountStr={l.discount_str}
                         onChange={(rate, str) => setLine(i, { discount_rate: rate, discount_str: str })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAdvanceToNextLine(i);
+                          }
+                        }}
                         unitPrice={l.unit_price}
                         currency={doc.currency}
                       />
                     </div>
-                    <label className="text-[11px] text-muted">
-                      KDV
-                      <NativeSelect value={String(l.vat_rate)} onChange={(e) => setLine(i, { vat_rate: Number(e.target.value) })}>
-                        {VAT_RATES.map((r) => (
-                          <option key={r} value={r}>
-                            %{r}
-                          </option>
-                        ))}
-                      </NativeSelect>
-                    </label>
+                    <div className="flex flex-col">
+                      <span className="mb-1 flex items-center justify-between text-[11px] text-muted">
+                        <span>KDV</span>
+                        <span className="text-[9.5px] text-muted/60">▲▼ Değiştir</span>
+                      </span>
+                      <div className="flex h-10 items-center overflow-hidden rounded-lg border border-border bg-surface shadow-2xs">
+                        <NativeSelect
+                          value={String(l.vat_rate)}
+                          onChange={(e) => setLine(i, { vat_rate: Number(e.target.value) })}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              stepVat(i, "up");
+                            } else if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              stepVat(i, "down");
+                            } else if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAdvanceToNextLine(i);
+                            }
+                          }}
+                          className="h-full flex-1 border-0 text-xs font-semibold focus:ring-0"
+                        >
+                          {VAT_RATES.map((r) => (
+                            <option key={r} value={r}>
+                              %{r}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                        <div className="flex h-full shrink-0 flex-col border-l border-border bg-surface-2/60">
+                          <button
+                            type="button"
+                            title="KDV Arttır (%0 -> %1 -> %10 -> %20)"
+                            onClick={() => stepVat(i, "up")}
+                            className="flex flex-1 items-center justify-center px-1.5 text-muted transition-colors hover:bg-surface hover:text-text border-b border-border/60"
+                          >
+                            <ChevronUp className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            title="KDV Azalt (%20 -> %10 -> %1 -> %0)"
+                            onClick={() => stepVat(i, "down")}
+                            className="flex flex-1 items-center justify-center px-1.5 text-muted transition-colors hover:bg-surface hover:text-text"
+                          >
+                            <ChevronDown className="size-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex flex-col justify-end text-right">
                       <span className="text-[11px] text-muted">{doc.prices_include_vat ? "Tutar (KDV dahil)" : "Tutar"}</span>
                       <span className="num flex h-10 items-center justify-end text-sm font-semibold">
@@ -728,7 +819,7 @@ function EditorInner({
               ))}
             </div>
             <div className="border-t border-border p-3">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setLines([...lines, emptyLine(defaultVat)])}>
+              <Button type="button" variant="ghost" size="sm" onClick={handleAddLine}>
                 <Plus /> Satır ekle
               </Button>
             </div>

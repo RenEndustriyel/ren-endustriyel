@@ -23,6 +23,7 @@ export function Combobox({
   clearable,
   className,
   id,
+  autoOpen,
 }: {
   value: string | null | undefined;
   onChange: (v: string | null) => void;
@@ -36,10 +37,27 @@ export function Combobox({
   clearable?: boolean;
   className?: string;
   id?: string;
+  autoOpen?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const selected = options.find((o) => o.value === value);
+
+  React.useEffect(() => {
+    if (autoOpen) {
+      setOpen(true);
+    }
+  }, [autoOpen]);
+
+  React.useEffect(() => {
+    if (open) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 30);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -68,6 +86,8 @@ export function Combobox({
         >
           <Command loop>
             <Command.Input
+              ref={inputRef}
+              autoFocus
               value={search}
               onValueChange={setSearch}
               placeholder={searchPlaceholder}

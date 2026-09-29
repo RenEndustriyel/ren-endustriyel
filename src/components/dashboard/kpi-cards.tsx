@@ -52,22 +52,22 @@ export function KpiCards({ data, hideCash }: { data: DashboardSummary; hideCash?
   ];
 
   return (
-    <div className={cn("grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3", hideCash ? "xl:grid-cols-4" : "xl:grid-cols-5")}>
+    <div className={cn("grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3", hideCash ? "xl:grid-cols-4" : "xl:grid-cols-5")}>
       {cards.map((c, i) => (
         <Link
           key={c.label}
           href={c.href}
           className={cn(
-            "group relative overflow-hidden rounded-2xl bg-gradient-to-br p-4 sm:p-5 text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 min-w-0",
+            "group relative overflow-hidden rounded-xl bg-gradient-to-br p-3 sm:p-3.5 text-white shadow-2xs border border-black/5 dark:border-white/10 transition-all hover:shadow-xs hover:-translate-y-0.5 min-w-0",
             c.cls,
             i === cards.length - 1 && cards.length % 2 === 1 && "col-span-2 md:col-span-1 lg:col-span-1",
           )}
         >
-          <c.icon className="absolute -right-3 -top-3 size-20 opacity-15 transition-transform group-hover:scale-110 pointer-events-none" />
-          <div className="text-xl sm:text-2xl lg:text-3xl font-bold tabular-nums truncate">
+          <c.icon className="absolute -right-1.5 -top-1.5 size-12 opacity-20 transition-transform group-hover:scale-110 pointer-events-none" />
+          <div className="text-base sm:text-lg lg:text-xl font-bold tabular-nums truncate leading-tight">
             {formatMoney(c.value)}
           </div>
-          <div className="text-xs sm:text-sm/relaxed font-medium opacity-90 mt-1 truncate">
+          <div className="text-[11px] sm:text-xs font-medium opacity-90 mt-0.5 truncate">
             {c.label}
           </div>
         </Link>

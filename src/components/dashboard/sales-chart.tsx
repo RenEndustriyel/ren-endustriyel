@@ -26,26 +26,26 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
   const fmt = mode === "daily" ? formatShortDay : monthLabel;
 
   return (
-    <Card className="p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <Card className="p-3.5 sm:p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2.5 border-b border-border pb-2.5">
         <div>
           <Link href="/raporlar/gelir-gider" className="group inline-flex items-center gap-2">
-            <h2 className="flex items-center gap-2 text-base font-semibold text-text group-hover:text-primary transition-colors">
-              <BarChart3 className="size-5 text-teal-600 dark:text-teal-400" /> Satış Grafiği
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text group-hover:text-primary transition-colors">
+              <BarChart3 className="size-4 text-teal-600 dark:text-teal-400" /> Satış Grafiği
             </h2>
           </Link>
-          <p className="mt-0.5 text-xs text-muted">
+          <p className="mt-0.5 text-[11px] text-muted">
             {mode === "daily" ? "Son 14 gün (TL)" : "Son 12 ay (TL)"} · Toplam{" "}
             <span className="font-semibold text-teal-700 dark:text-teal-300">{formatMoney(total)}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <div className="inline-flex overflow-hidden rounded-lg border border-border p-0.5 text-xs font-semibold">
+        <div className="flex items-center gap-2">
+          <div className="inline-flex overflow-hidden rounded-lg border border-border p-0.5 text-[11px] font-semibold">
             <button
               type="button"
               onClick={() => setMode("daily")}
               className={cn(
-                "rounded-md px-3 py-1.5 transition-colors",
+                "rounded-md px-2.5 py-1 transition-colors",
                 mode === "daily" ? "bg-teal-600 text-white font-bold" : "text-muted hover:text-text hover:bg-surface-2",
               )}
             >
@@ -55,21 +55,21 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
               type="button"
               onClick={() => setMode("monthly")}
               className={cn(
-                "rounded-md px-3 py-1.5 transition-colors",
+                "rounded-md px-2.5 py-1 transition-colors",
                 mode === "monthly" ? "bg-teal-600 text-white font-bold" : "text-muted hover:text-text hover:bg-surface-2",
               )}
             >
               Aylık
             </button>
           </div>
-          <Link href="/raporlar/gelir-gider" className="text-xs font-semibold text-teal-600 dark:text-teal-400 hover:underline">
+          <Link href="/raporlar/gelir-gider" className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 hover:underline">
             Detaylı rapor →
           </Link>
         </div>
       </div>
-      <div className="h-[260px] w-full min-w-0">
+      <div className="h-[190px] sm:h-[210px] w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <AreaChart data={rows} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#0f9b8e" stopOpacity={0.35} />
@@ -77,17 +77,17 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
-            <XAxis dataKey="label" tickFormatter={fmt} tick={{ fontSize: 11, fill: "var(--muted)" }} axisLine={false} tickLine={false} minTickGap={16} />
-            <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11, fill: "var(--muted)" }} axisLine={false} tickLine={false} width={45} allowDecimals={false} />
+            <XAxis dataKey="label" tickFormatter={fmt} tick={{ fontSize: 10, fill: "var(--muted)" }} axisLine={false} tickLine={false} minTickGap={16} />
+            <YAxis tickFormatter={formatCompact} tick={{ fontSize: 10, fill: "var(--muted)" }} axisLine={false} tickLine={false} width={40} allowDecimals={false} />
             <Tooltip content={<ChartTooltip formatLabel={fmt} />} cursor={{ stroke: "#94a3b8", strokeDasharray: "3 3" }} />
             <Area
               dataKey="amount"
               name="Satış"
               type="monotone"
               stroke="#0f9b8e"
-              strokeWidth={2.5}
+              strokeWidth={2}
               fill="url(#salesFill)"
-              activeDot={{ r: 4, strokeWidth: 2, stroke: "#fff", fill: "#0f9b8e" }}
+              activeDot={{ r: 3.5, strokeWidth: 1.5, stroke: "#fff", fill: "#0f9b8e" }}
             />
           </AreaChart>
         </ResponsiveContainer>

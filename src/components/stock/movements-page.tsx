@@ -89,15 +89,17 @@ export function MovementsPage() {
         loading={moves.isPending}
         rowKey={(m) => m.id}
         onRowClick={(m) => (m.document && m.document_id ? router.push(`${DOC_TYPES[m.document.doc_type as DocType].base}/detay?id=${m.document_id}`) : router.push(`/stok/urunler/detay?id=${m.product_id}`))}
+        initialSort={{ key: "date", dir: "desc" }}
         columns={[
-          { key: "date", header: "Tarih", cell: (m) => formatDate(m.movement_date) },
-          { key: "p", header: "Ürün", cell: (m) => <span className="font-medium">{pName(m.product_id)}</span> },
-          { key: "t", header: "Hareket", cell: (m) => <div><div>{MOVEMENT_LABELS[m.movement_type]}</div><div className="text-xs text-muted">{m.document?.number ?? m.description}</div></div> },
-          { key: "w", header: "Depo", hideBelow: "md", cell: (m) => <span className="text-muted">{whName(m.warehouse_id)}</span> },
+          { key: "date", header: "Tarih", sortValue: (m) => m.movement_date, cell: (m) => formatDate(m.movement_date) },
+          { key: "p", header: "Ürün", sortValue: (m) => pName(m.product_id), cell: (m) => <span className="font-medium">{pName(m.product_id)}</span> },
+          { key: "t", header: "Hareket", sortValue: (m) => `${MOVEMENT_LABELS[m.movement_type] ?? ""} ${m.document?.number ?? m.description ?? ""}`, cell: (m) => <div><div>{MOVEMENT_LABELS[m.movement_type]}</div><div className="text-xs text-muted">{m.document?.number ?? m.description}</div></div> },
+          { key: "w", header: "Depo", hideBelow: "md", sortValue: (m) => whName(m.warehouse_id), cell: (m) => <span className="text-muted">{whName(m.warehouse_id)}</span> },
           {
             key: "q",
             header: "Miktar",
             align: "right",
+            sortValue: (m) => Number(m.quantity || 0),
             cell: (m) => (
               <span className={cn("num font-semibold", Number(m.quantity) >= 0 ? "text-success" : "text-danger")}>
                 {Number(m.quantity) > 0 ? "+" : ""}

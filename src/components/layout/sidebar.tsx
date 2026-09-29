@@ -38,8 +38,8 @@ export function SidebarNav({ collapsed, onNavigate }: { collapsed?: boolean; onN
           );
         }
 
-        const isOpen = openGroup === group.title;
         const hasActiveChild = items.some((item) => isActive(item.href));
+        const isOpen = openGroup === group.title || (openGroup === null && hasActiveChild);
         const Icon = group.icon;
 
         return (

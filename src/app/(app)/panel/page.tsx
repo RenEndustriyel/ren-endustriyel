@@ -49,16 +49,16 @@ export default function PanelPage() {
   const isBusy = isFetching || manualLoading;
 
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
-      {/* 1. Başlık Alanı (Pusulam tarzı) */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 text-white shadow-sm">
-            <TrendingUp className="size-6 text-white" />
+    <div className="mx-auto flex max-w-[1400px] flex-col gap-4">
+      {/* 1. Başlık Alanı */}
+      <div className="flex items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 text-white shadow-2xs">
+            <TrendingUp className="size-4.5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-text">Genel Bakış</h1>
-            <p className="text-xs sm:text-sm text-muted">İşletmenizin anlık durumu</p>
+            <h1 className="text-base sm:text-lg font-bold tracking-tight text-text">Genel Bakış</h1>
+            <p className="text-[11px] text-muted">İşletmenizin anlık durumu</p>
           </div>
         </div>
 
@@ -67,7 +67,7 @@ export default function PanelPage() {
           size="sm"
           onClick={handleRefresh}
           disabled={isBusy}
-          className="gap-1.5 text-xs font-semibold"
+          className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
         >
           <RotateCw className={cn("size-3.5", isBusy && "animate-spin")} />
           <span className="hidden sm:inline">Yenile</span>

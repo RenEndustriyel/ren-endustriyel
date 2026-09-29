@@ -127,11 +127,13 @@ export function AccountDetail({ id }: { id: string }) {
         loading={stmt.isPending}
         rowKey={(r) => r.id}
         onRowClick={(r) => router.push(`/nakit/hareketler/detay?id=${r.id}`)}
+        initialSort={{ key: "d", dir: "desc" }}
         columns={[
-          { key: "d", header: "Tarih", cell: (r) => formatDate(r.txn_date) },
+          { key: "d", header: "Tarih", sortValue: (r) => r.txn_date, cell: (r) => formatDate(r.txn_date) },
           {
             key: "t",
             header: "İşlem",
+            sortValue: (r) => `${r.party ?? ""} ${r.description ?? ""} ${TYPE_LABELS[r.type] ?? r.type}`,
             cell: (r) => (
               <div>
                 <div className="font-medium">{TYPE_LABELS[r.type] ?? r.type}</div>
@@ -139,9 +141,9 @@ export function AccountDetail({ id }: { id: string }) {
               </div>
             ),
           },
-          { key: "in", header: "Giriş", align: "right", cell: (r) => <span className="num text-success">{Number(r.amount_in) ? formatMoney(r.amount_in, a.currency) : ""}</span> },
-          { key: "out", header: "Çıkış", align: "right", cell: (r) => <span className="num text-danger">{Number(r.amount_out) ? formatMoney(r.amount_out, a.currency) : ""}</span> },
-          { key: "b", header: "Bakiye", align: "right", hideBelow: "md", cell: (r) => <span className={cn("num font-semibold", Number(r.balance) < 0 && "text-danger")}>{formatMoney(r.balance, a.currency)}</span> },
+          { key: "in", header: "Giriş", align: "right", sortValue: (r) => Number(r.amount_in || 0), cell: (r) => <span className="num text-success">{Number(r.amount_in) ? formatMoney(r.amount_in, a.currency) : ""}</span> },
+          { key: "out", header: "Çıkış", align: "right", sortValue: (r) => Number(r.amount_out || 0), cell: (r) => <span className="num text-danger">{Number(r.amount_out) ? formatMoney(r.amount_out, a.currency) : ""}</span> },
+          { key: "b", header: "Bakiye", align: "right", hideBelow: "md", sortValue: (r) => Number(r.balance || 0), cell: (r) => <span className={cn("num font-semibold", Number(r.balance) < 0 && "text-danger")}>{formatMoney(r.balance, a.currency)}</span> },
         ]}
         mobileRow={(r) => (
           <div className="flex items-center justify-between gap-3">

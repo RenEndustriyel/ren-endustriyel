@@ -33,7 +33,7 @@ export function Stat({
   }
 
   return (
-    <div className={cn("rounded-card border border-border bg-surface px-4 py-3", className)}>
+    <div className={cn("rounded-xl border border-border bg-surface px-4 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)] dark:shadow-none", className)}>
       <div className="text-xs text-muted">{label}</div>
       <div className={cn("num mt-0.5 text-lg font-semibold sm:text-xl", color)}>
         {displayValue}

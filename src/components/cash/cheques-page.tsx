@@ -95,6 +95,7 @@ export function ChequesPage() {
           {
             key: "who",
             header: dir === "received" ? "Müşteri / keşideci" : "Tedarikçi",
+            sortValue: (c) => c.contact?.name ?? c.drawer ?? "",
             cell: (c) => (
               <div>
                 <div className="font-medium">{c.contact?.name ?? c.drawer ?? "—"}</div>
@@ -102,7 +103,7 @@ export function ChequesPage() {
               </div>
             ),
           },
-          { key: "st", header: "Durum", hideBelow: "md", cell: (c) => <Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge> },
+          { key: "st", header: "Durum", hideBelow: "md", sortValue: (c) => STATUS[c.status]?.label ?? c.status, cell: (c) => <Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge> },
           { key: "amt", header: "Tutar", align: "right", sortValue: (c) => Number(c.amount), cell: (c) => <span className="num font-semibold">{formatMoney(c.amount, c.currency)}</span> },
         ]}
         mobileRow={(c) => (

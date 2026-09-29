@@ -13,6 +13,7 @@ export function ProductPicker({
   placeholder = "Ürün seçin",
   onCreate,
   showPrice = true,
+  autoOpen,
 }: {
   value: string | null;
   onChange: (id: string | null) => void;
@@ -20,6 +21,7 @@ export function ProductPicker({
   placeholder?: string;
   onCreate?: (name: string) => void;
   showPrice?: boolean;
+  autoOpen?: boolean;
 }) {
   const products = useProducts();
   const units = useUnits();
@@ -50,6 +52,7 @@ export function ProductPicker({
       searchPlaceholder="Ad, kod veya barkod…"
       onCreate={onCreate}
       createLabel="Yeni ürün"
+      autoOpen={autoOpen}
     />
   );
 }

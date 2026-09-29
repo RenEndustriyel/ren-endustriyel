@@ -6,12 +6,12 @@
    Renk jetonları — Paraşüt paleti (mavi / mercan / yeşil / kahve)
    --------------------------------------------------------------- */
 :root {
-  --bg: #eceef1;
+  --bg: #eaedf2;
   --surface: #ffffff;
-  --surface-2: #f6f7f9;
-  --border: #e1e4e8;
-  --text: #25292e;
-  --muted: #6b7280;
+  --surface-2: #f1f4f8;
+  --border: #d0d7e2;
+  --text: #1e2329;
+  --muted: #64748b;
 
   --primary: #1ba2d0;
   --primary-hover: #148cb5;
@@ -25,7 +25,7 @@
   --warning: #f2a33a;
   --warning-soft: #fdf1df;
   --brown: #8b6a55;
-  --neutral-ring: #e9ebee;
+  --neutral-ring: #dde2e8;
   /* grafik: doğrulanmış giriş/çıkış çifti (CVD güvenli) */
   --chart-in: #1590bb;
   --chart-out: #c9731f;
@@ -36,7 +36,7 @@
   --sidebar-muted: #8a9099;
   --sidebar-active: #1ba2d0;
 
-  --radius: 10px;
+  --radius: 12px;
   color-scheme: light;
 }
 

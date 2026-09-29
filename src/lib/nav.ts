@@ -30,6 +30,10 @@ import {
   BookUser,
   Boxes,
   Activity,
+  FileCheck,
+  FilePlus,
+  Inbox,
+  Send,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/providers/org-provider";
@@ -100,6 +104,16 @@ export const NAV: NavGroup[] = [
       { title: "Stok Sayımı", href: "/stok/sayim", icon: ClipboardCheck },
       { title: "Stok Geçmişi", href: "/stok/hareketler", icon: History },
       { title: "Fiyat Listeleri", href: "/stok/fiyat-listeleri", icon: Tags },
+    ],
+  },
+  {
+    title: "E-Fatura / E-Arşiv",
+    icon: FileCheck,
+    items: [
+      { title: "Fatura Oluştur", href: "/e-fatura/olustur", icon: FilePlus, keywords: "e-fatura e-arşiv fatura kes oluştur gib" },
+      { title: "Gelen E-Faturalar", href: "/e-fatura/gelen", icon: Inbox, keywords: "gelen e-fatura gib gelen kutusu alış faturası" },
+      { title: "Giden E-Faturalar", href: "/e-fatura/giden", icon: Send, keywords: "giden e-fatura e-arşiv satış faturası gib" },
+      { title: "Fatura KDV Raporu", href: "/e-fatura/kdv-raporu", icon: Percent, keywords: "fatura kdv raporu matrah tevkifat beyanname" },
     ],
   },
   {

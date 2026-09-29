@@ -70,29 +70,29 @@ export function GrowthHealthBoard({
   const { periods, kpi, health } = data;
 
   return (
-    <Card className="overflow-hidden rounded-2xl border border-border/80 bg-surface/95 p-4 shadow-sm backdrop-blur-sm sm:p-6">
+    <Card className={cn("overflow-hidden rounded-xl border border-border bg-surface shadow-2xs", variant === "dashboard" ? "p-3 sm:p-4" : "p-4 sm:p-6")}>
       {/* 1. Üst Başlık ve Durum Özeti */}
-      <div className="flex flex-col justify-between gap-4 border-b border-border/70 pb-5 md:flex-row md:items-center">
+      <div className={cn("flex flex-col justify-between gap-2.5 border-b border-border md:flex-row md:items-center", variant === "dashboard" ? "pb-2.5" : "pb-5")}>
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex size-8 items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:bg-sky-400/10 dark:text-sky-400">
-              <Activity className="size-5" />
+            <span className={cn("inline-flex items-center justify-center rounded-lg bg-sky-500/10 text-sky-600 dark:bg-sky-400/10 dark:text-sky-400", variant === "dashboard" ? "size-7" : "size-8")}>
+              <Activity className={variant === "dashboard" ? "size-4" : "size-5"} />
             </span>
-            <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">
+            <h2 className={cn("tracking-tight font-extrabold", variant === "dashboard" ? "text-base sm:text-lg" : "text-xl sm:text-2xl")}>
               <span className="text-text">BÜYÜME & SAĞLIK </span>
               <span className="bg-gradient-to-r from-sky-500 to-teal-500 bg-clip-text text-transparent">
                 SKORBORDU
               </span>
             </h2>
           </div>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-0.5 text-[11px] text-muted">
             İşletmenizin ciro artışı, brüt kârlılık marjı ve fiziksel hacim trendi
           </p>
         </div>
 
-        {/* Durum Özeti Rozet Kartı (Mockup sağ üst) */}
+        {/* Durum Özeti Rozet Kartı */}
         <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-border/80 bg-surface-2/80 p-2.5 shadow-xs">
+          <div className="rounded-xl border border-border bg-surface-2 p-2 shadow-2xs">
             <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wider text-muted">
               DURUM ÖZETİ
             </div>
@@ -153,82 +153,84 @@ export function GrowthHealthBoard({
       </div>
 
       {/* 2. Üst 3 KPI Kartı */}
-      <div className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2 md:grid-cols-3">
+      <div className={cn("grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3", variant === "dashboard" ? "mt-3" : "mt-5")}>
         {/* Net Ciro */}
-        <div className="relative overflow-hidden rounded-xl border border-border/70 bg-gradient-to-br from-surface to-surface-2/60 p-4 shadow-xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted">NET CİRO</div>
-          <div className="mt-1 flex items-baseline gap-2">
+        <div className="relative overflow-hidden rounded-xl border border-border bg-surface-2/50 dark:bg-surface-2/30 p-3 shadow-2xs transition-all hover:border-primary/40">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted">NET CİRO</div>
+          <div className="mt-0.5 flex items-baseline gap-2">
             <span
               className={cn(
-                "text-2xl font-black tracking-tight sm:text-3xl",
+                variant === "dashboard" ? "text-lg sm:text-xl font-bold" : "text-2xl font-black sm:text-3xl",
+                "tracking-tight",
                 kpi.netCiroGrowth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-danger",
               )}
             >
               {kpi.netCiroGrowth >= 0 ? "↑" : "↓"} {Math.abs(kpi.netCiroGrowth)}%
             </span>
           </div>
-          <div className="mt-1 text-xs text-muted">
-            Mevcut: <strong className="text-text">{formatMoney(kpi.currentCiro)}</strong>
+          <div className="mt-0.5 text-[11px] text-muted">
+            Mevcut: <strong className="text-text font-semibold">{formatMoney(kpi.currentCiro)}</strong>
           </div>
           {/* Watermark Arrow */}
           <div className="pointer-events-none absolute -bottom-1 -right-1 text-sky-500/10 dark:text-sky-400/10">
-            <TrendingUp className="size-20" />
+            <TrendingUp className="size-14" />
           </div>
         </div>
 
         {/* Brüt Kâr */}
-        <div className="relative overflow-hidden rounded-xl border border-border/70 bg-gradient-to-br from-surface to-surface-2/60 p-4 shadow-xs">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted">BRÜT KÂR</div>
-          <div className="mt-1 flex items-baseline gap-2">
+        <div className="relative overflow-hidden rounded-xl border border-border bg-surface-2/50 dark:bg-surface-2/30 p-3 shadow-2xs transition-all hover:border-primary/40">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted">BRÜT KÂR</div>
+          <div className="mt-0.5 flex items-baseline gap-2">
             <span
               className={cn(
-                "text-2xl font-black tracking-tight sm:text-3xl",
+                variant === "dashboard" ? "text-lg sm:text-xl font-bold" : "text-2xl font-black sm:text-3xl",
+                "tracking-tight",
                 kpi.brutKarGrowth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-danger",
               )}
             >
               {kpi.brutKarGrowth >= 0 ? "↑" : "↓"} {Math.abs(kpi.brutKarGrowth)}%
             </span>
           </div>
-          <div className="mt-1 text-xs text-muted">
-            Mevcut: <strong className="text-text">{formatMoney(kpi.currentKar)}</strong> (%{kpi.currentMargin} marj)
+          <div className="mt-0.5 text-[11px] text-muted">
+            Mevcut: <strong className="text-text font-semibold">{formatMoney(kpi.currentKar)}</strong> (%{kpi.currentMargin} marj)
           </div>
           {/* Watermark Arrow */}
           <div className="pointer-events-none absolute -bottom-1 -right-1 text-teal-500/10 dark:text-teal-400/10">
-            <ArrowUpRight className="size-20" />
+            <ArrowUpRight className="size-14" />
           </div>
         </div>
 
         {/* Hacim ve Müşteri */}
-        <div className="relative overflow-hidden rounded-xl border border-border/70 bg-gradient-to-br from-surface to-surface-2/60 p-4 shadow-xs sm:col-span-2 md:col-span-1">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-muted">HACİM VE MÜŞTERİ</div>
-          <div className="mt-2 space-y-1">
-            <div className="flex items-center justify-between text-xs sm:text-sm font-bold">
+        <div className="relative overflow-hidden rounded-xl border border-border bg-surface-2/50 dark:bg-surface-2/30 p-3 shadow-2xs transition-all hover:border-primary/40 sm:col-span-2 md:col-span-1">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-muted">HACİM VE MÜŞTERİ</div>
+          <div className="mt-1.5 space-y-0.5">
+            <div className="flex items-center justify-between text-xs font-semibold">
               <span className="text-muted">Aktif Cari:</span>
               <span className={cn(kpi.aktifCariGrowth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-danger")}>
                 {kpi.aktifCariGrowth >= 0 ? "+" : ""}{kpi.aktifCariGrowth}%
-                <span className="ml-1 text-[11px] font-normal text-muted">({kpi.currentContacts} cari)</span>
+                <span className="ml-1 text-[10.5px] font-normal text-muted">({kpi.currentContacts} cari)</span>
               </span>
             </div>
-            <div className="flex items-center justify-between text-xs sm:text-sm font-bold">
+            <div className="flex items-center justify-between text-xs font-semibold">
               <span className="text-muted">Satış Hacmi:</span>
               <span className={cn(kpi.satisHacmiGrowth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-danger")}>
                 {kpi.satisHacmiGrowth >= 0 ? "+" : ""}{kpi.satisHacmiGrowth}%
-                <span className="ml-1 text-[11px] font-normal text-muted">({formatNumber(kpi.currentVolume)} adet)</span>
+                <span className="ml-1 text-[10.5px] font-normal text-muted">({formatNumber(kpi.currentVolume)} adet)</span>
               </span>
             </div>
           </div>
           {/* Watermark Users */}
           <div className="pointer-events-none absolute -bottom-1 -right-1 text-indigo-500/10 dark:text-indigo-400/10">
-            <Users className="size-20" />
+            <Users className="size-14" />
           </div>
         </div>
       </div>
 
       {/* 3. Hibrit Trend Grafiği */}
-      <div className="mt-6 rounded-xl border border-border/80 bg-surface p-4 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
+      <div className={cn("rounded-xl border border-border bg-surface-2/40 dark:bg-surface-2/20 shadow-2xs", variant === "dashboard" ? "mt-3 p-3 sm:p-3.5" : "mt-6 p-4 sm:p-5")}>
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-border/60">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-text sm:text-base">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-text sm:text-sm">
               HİBRİT TREND GRAFİĞİ
             </h3>
             <p className="text-xs text-muted">Net Ciro, Brüt Kâr ve Kâr Marjı gelişimi</p>
@@ -288,13 +290,13 @@ export function GrowthHealthBoard({
         </div>
 
         {/* Hibrit Recharts Grafiği */}
-        <div className="h-64 sm:h-72 w-full pt-3">
+        <div className={cn("w-full pt-2", variant === "dashboard" ? "h-44 sm:h-52" : "h-64 sm:h-72")}>
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={periods} margin={{ top: 12, right: 12, bottom: 0, left: 0 }}>
+            <ComposedChart data={periods} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" opacity={0.6} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 11, fill: "var(--muted)" }}
+                tick={{ fontSize: 10, fill: "var(--muted)" }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -302,10 +304,10 @@ export function GrowthHealthBoard({
               <YAxis
                 yAxisId="left"
                 tickFormatter={(v) => formatCompact(v)}
-                tick={{ fontSize: 11, fill: "var(--muted)" }}
+                tick={{ fontSize: 10, fill: "var(--muted)" }}
                 axisLine={false}
                 tickLine={false}
-                width={50}
+                width={42}
               />
               {/* Sağ Y-Axis: Marj Yüzdesi (%) */}
               <YAxis
@@ -313,10 +315,10 @@ export function GrowthHealthBoard({
                 orientation="right"
                 tickFormatter={(v) => `%${v}`}
                 domain={[0, (max: number) => Math.max(Math.ceil(max / 10) * 10, 50)]}
-                tick={{ fontSize: 11, fill: "var(--muted)" }}
+                tick={{ fontSize: 10, fill: "var(--muted)" }}
                 axisLine={false}
                 tickLine={false}
-                width={40}
+                width={35}
               />
               <Tooltip content={<HybridChartTooltip />} />
 
@@ -326,8 +328,8 @@ export function GrowthHealthBoard({
                 dataKey="netRevenue"
                 name="Net Ciro"
                 fill="#38bdf8"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={28}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={22}
               />
               {/* Brüt Kâr Çubuğu (Koyu Mavi/İndigo) */}
               <Bar
@@ -335,8 +337,8 @@ export function GrowthHealthBoard({
                 dataKey="grossProfit"
                 name="Brüt Kâr"
                 fill="#1e40af"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={28}
+                radius={[3, 3, 0, 0]}
+                maxBarSize={22}
               />
               {/* Brüt Kâr Marjı Çizgisi (Turuncu) */}
               <Line
@@ -345,9 +347,9 @@ export function GrowthHealthBoard({
                 dataKey="profitMargin"
                 name="Kâr Marjı"
                 stroke="#f97316"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "#f97316", stroke: "#fff", strokeWidth: 1.5 }}
-                activeDot={{ r: 6, fill: "#f97316", stroke: "#fff", strokeWidth: 2 }}
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: "#f97316", stroke: "#fff", strokeWidth: 1.5 }}
+                activeDot={{ r: 5, fill: "#f97316", stroke: "#fff", strokeWidth: 2 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -355,18 +357,18 @@ export function GrowthHealthBoard({
       </div>
 
       {/* 4. Fiziksel Hacim Değişimi İndeksi */}
-      <div className="mt-5 rounded-xl border border-border/80 bg-surface p-4 shadow-xs">
-        <div className="flex items-center justify-between pb-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-text sm:text-sm">
+      <div className={cn("rounded-xl border border-border bg-surface-2/40 dark:bg-surface-2/20 shadow-2xs", variant === "dashboard" ? "mt-3 p-3 sm:p-3.5" : "mt-5 p-4 sm:p-5")}>
+        <div className="flex items-center justify-between pb-2.5 border-b border-border/60">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-text sm:text-xs">
             FİZİKSEL HACİM DEĞİŞİMİ İNDEKSİ
           </h3>
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
             <span className="size-2.5 rounded-sm bg-gradient-to-r from-sky-400 to-emerald-500" />
             <span>Hacim İndeksi</span>
           </span>
         </div>
 
-        <div className="h-28 w-full pt-1">
+        <div className={cn("w-full pt-1", variant === "dashboard" ? "h-20 sm:h-24" : "h-28")}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={periods} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
               <XAxis

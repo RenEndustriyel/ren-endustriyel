@@ -14,14 +14,57 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "1.3.1";
+export const LATEST_VERSION = "1.3.2";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "1.3.2",
+    date: "29 Eylül 2026",
+    title: "Evrensel Tablo Sıralama, Hızlı Ürün Satırı & E-Fatura / E-Arşiv Modülü",
+    badge: "Mevcut Sürüm",
+    items: [
+      {
+        type: "yeni",
+        title: "E-Fatura & E-Arşiv Ana Modülü",
+        description:
+          "Sol menüde Stok modülünün altına Fatura Oluştur (e-Fatura / e-Arşiv seçimli), Gelen E-Faturalar, Giden E-Faturalar ve Fatura KDV Raporu eklendi.",
+      },
+      {
+        type: "yeni",
+        title: "Evrensel Tablo Sıralama (Tüm Listelemelerde)",
+        description:
+          "Tüm tablolarda İsim, Tarih, Açıklama, Borç, Alacak, Bakiye ve Tutar sütun başlıklarına tıklandığında anında alfabetik ve sayısal sıralama (Artan / Azalan) desteği getirildi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Otomatik Satır Geçişi ve Ürün Arama Odaklanması",
+        description:
+          "Alış, satış, irsaliye, fatura, teklif ve sipariş girişlerinde fiyat veya iskonto girilip Enter tuşuna basıldığında yeni satırın ürün arama kutusu doğrudan açılır ve klavyeyle kesintisiz yazmaya devam edilir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "KDV Oranı Stepper Butonları (▲ / ▼)",
+        description:
+          "Fatura satırlarındaki KDV kutusunun yanına yukarı/aşağı butonları ve klavye Yukarı/Aşağı yön tuşu desteği eklendi (%0 -> %1 -> %10 -> %20 geçişi).",
+      },
+      {
+        type: "yeni",
+        title: "GİB Standart Fatura Önizleme & UBL-TR 2.1 XML",
+        description:
+          "Gelen ve kesilen tüm faturalar resmi GİB mühürlü görsel şablonunda görüntülenebilir, yazdırılabilir ve UBL XML olarak dışa aktarılabilir.",
+      },
+      {
+        type: "yeni",
+        title: "Fatura KDV Beyanname Raporu",
+        description:
+          "Oran bazında (%1, %10, %20) satış matrahı, hesaplanan KDV, alış matrahı ve indirilecek KDV ile net ödenecek/devreden KDV takibi ve Excel raporlama eklendi.",
+      },
+    ],
+  },
   {
     version: "1.3.1",
     date: "28 Eylül 2026",
     title: "Son Hareketler Peşin/Vadeli/Ödeme Tipi & Sipariş Bakiye Entegrasyonu",
-    badge: "Mevcut Sürüm",
     items: [
       {
         type: "yeni",

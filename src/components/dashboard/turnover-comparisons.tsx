@@ -210,7 +210,7 @@ export function TurnoverComparisons({ orgId }: { orgId: string }) {
             <Card
               key={item.title}
               className={cn(
-                "group relative overflow-hidden rounded-2xl border border-border/80 bg-surface/95 p-4 shadow-xs transition-all hover:border-border hover:shadow-sm",
+                "group relative overflow-hidden rounded-xl border border-border bg-surface p-3 sm:p-3.5 shadow-2xs transition-all hover:border-primary/50 hover:shadow-xs",
               )}
             >
               {/* Hafif arka plan gradyanı */}
@@ -222,27 +222,27 @@ export function TurnoverComparisons({ orgId }: { orgId: string }) {
               />
 
               {/* Arka plan silik ikon */}
-              <Icon className="pointer-events-none absolute -bottom-2 -right-2 size-16 text-muted/10 transition-transform group-hover:scale-110" />
+              <Icon className="pointer-events-none absolute -bottom-1.5 -right-1.5 size-12 text-muted/10 transition-transform group-hover:scale-110" />
 
-              <div className="relative flex flex-col justify-between gap-2.5">
+              <div className="relative flex flex-col justify-between gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted">
                     {item.title}
                   </span>
 
-                  {/* Yüzdelik Kıyaslama Rozeti (Az ise aşağı, çok ise yukarı) */}
+                  {/* Yüzdelik Kıyaslama Rozeti */}
                   <span
                     className={cn(
-                      "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-bold tracking-tight shadow-2xs",
+                      "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold tracking-tight shadow-2xs",
                       item.isUp
                         ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
                         : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25",
                     )}
                   >
                     {item.isUp ? (
-                      <ArrowUpRight className="size-3.5 stroke-[2.5]" />
+                      <ArrowUpRight className="size-3 stroke-[2.5]" />
                     ) : (
-                      <ArrowDownRight className="size-3.5 stroke-[2.5]" />
+                      <ArrowDownRight className="size-3 stroke-[2.5]" />
                     )}
                     <span>
                       {item.isUp ? "+" : ""}{item.growth}%
@@ -251,12 +251,12 @@ export function TurnoverComparisons({ orgId }: { orgId: string }) {
                 </div>
 
                 <div>
-                  <div className="text-xl sm:text-2xl font-black tracking-tight text-text tabular-nums">
+                  <div className="text-base sm:text-lg font-bold tracking-tight text-text tabular-nums leading-tight">
                     {formatMoney(item.currentValue)}
                   </div>
-                  <div className="mt-1 flex items-center justify-between text-xs text-muted">
+                  <div className="mt-0.5 flex items-center justify-between text-[11px] text-muted">
                     <span>{item.previousLabel}:</span>
-                    <strong className="text-text/90 font-semibold tabular-nums">
+                    <strong className="text-text/90 font-medium tabular-nums">
                       {formatMoney(item.previousValue)}
                     </strong>
                   </div>

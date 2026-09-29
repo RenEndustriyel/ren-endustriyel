@@ -108,7 +108,7 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
     ...(cfg.payable
       ? [{ key: "due", header: "Vade", hideBelow: "md" as const, sortValue: (d: Doc) => d.due_date ?? "", cell: (d: Doc) => <span className={cn("whitespace-nowrap", isOverdue(d) && "font-medium text-danger")}>{formatDate(d.due_date)}</span> }]
       : []),
-    { key: "status", header: "Durum", hideBelow: "md", cell: statusBadge },
+    { key: "status", header: "Durum", hideBelow: "md", sortValue: (d) => d.status + " " + (d.payment_status ?? ""), cell: statusBadge },
     ...(cfg.payable
       ? [{ key: "rem", header: "Kalan", align: "right" as const, hideBelow: "lg" as const, sortValue: (d: Doc) => remaining(d) * Number(d.exchange_rate), cell: (d: Doc) => <span className="num text-muted">{remaining(d) > 0.004 ? formatMoney(remaining(d), d.currency) : "—"}</span> }]
       : []),

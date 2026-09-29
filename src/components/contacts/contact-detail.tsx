@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, HandCoins, Send, FileText, Download, Share2, MapPin, Phone, Mail, ShoppingCart, Eye } from "lucide-react";
+import { Pencil, Trash2, HandCoins, Send, FileText, Download, Share2, MapPin, Phone, Mail, ShoppingCart, Eye, ChevronUp, ChevronDown } from "lucide-react";
 import { useRow, useRows, useRpc, useRpcQuery, useUpdate, useContactBalances, type Row } from "@/lib/data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -228,6 +228,69 @@ export function ContactDetail({ id }: { id: string }) {
     await shareStatementPdf({ org: org!, contact: c, rows, carried, from, to });
   };
 
+  const [sortField, setSortField] = React.useState<"date" | "type" | "description" | "debit" | "credit" | "balance">("date");
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: "date" | "type" | "description" | "debit" | "credit" | "balance") => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const displayRows = React.useMemo(() => {
+    return [...rows].sort((a, b) => {
+      let va: any = a.entry_date;
+      let vb: any = b.entry_date;
+      if (sortField === "type") {
+        va = (DOC_TYPES[a.ref_type as DocType]?.label ?? TYPE_LABELS[a.ref_type] ?? a.ref_type ?? "") + (a.number ?? "");
+        vb = (DOC_TYPES[b.ref_type as DocType]?.label ?? TYPE_LABELS[b.ref_type] ?? b.ref_type ?? "") + (b.number ?? "");
+      } else if (sortField === "description") {
+        va = a.description ?? "";
+        vb = b.description ?? "";
+      } else if (sortField === "debit") {
+        va = Number(a.debit ?? 0);
+        vb = Number(b.debit ?? 0);
+        return sortDir === "asc" ? va - vb : vb - va;
+      } else if (sortField === "credit") {
+        va = Number(a.credit ?? 0);
+        vb = Number(b.credit ?? 0);
+        return sortDir === "asc" ? va - vb : vb - va;
+      } else if (sortField === "balance") {
+        va = Number(a.balance ?? 0);
+        vb = Number(b.balance ?? 0);
+        return sortDir === "asc" ? va - vb : vb - va;
+      }
+      const r = String(va).localeCompare(String(vb), "tr", { numeric: true });
+      return sortDir === "asc" ? r : -r;
+    });
+  }, [rows, sortField, sortDir]);
+
+  const renderSortHeader = (label: string, field: "date" | "type" | "description" | "debit" | "credit" | "balance", alignRight?: boolean) => (
+    <button
+      type="button"
+      onClick={() => handleSort(field)}
+      className={cn(
+        "inline-flex items-center gap-1.5 font-semibold transition-colors hover:text-text select-none",
+        sortField === field ? "text-primary font-bold" : "text-muted",
+        alignRight && "ml-auto"
+      )}
+    >
+      <span>{label}</span>
+      {sortField === field ? (
+        sortDir === "asc" ? (
+          <ChevronUp className="size-3.5 stroke-[2.5]" />
+        ) : (
+          <ChevronDown className="size-3.5 stroke-[2.5]" />
+        )
+      ) : (
+        <span className="opacity-0 hover:opacity-50 text-[10px]">↕</span>
+      )}
+    </button>
+  );
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -329,15 +392,15 @@ export function ContactDetail({ id }: { id: string }) {
             ) : (
               <div className="thin-scroll overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-muted">
+                  <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-muted border-b border-border">
                     <tr>
-                      <th className="px-3 py-2 text-left">Tarih</th>
-                      <th className="px-3 py-2 text-left">İşlem</th>
-                      <th className="hidden px-3 py-2 text-left md:table-cell">Açıklama</th>
-                      <th className="px-3 py-2 text-right">Borç</th>
-                      <th className="px-3 py-2 text-right">Alacak</th>
-                      <th className="px-3 py-2 text-right">Bakiye</th>
-                      <th className="w-24 px-3 py-2 text-right">İşlemler</th>
+                      <th className="px-3 py-2.5 text-left">{renderSortHeader("Tarih", "date")}</th>
+                      <th className="px-3 py-2.5 text-left">{renderSortHeader("İşlem", "type")}</th>
+                      <th className="hidden px-3 py-2.5 text-left md:table-cell">{renderSortHeader("Açıklama", "description")}</th>
+                      <th className="px-3 py-2.5 text-right">{renderSortHeader("Borç", "debit", true)}</th>
+                      <th className="px-3 py-2.5 text-right">{renderSortHeader("Alacak", "credit", true)}</th>
+                      <th className="px-3 py-2.5 text-right">{renderSortHeader("Bakiye", "balance", true)}</th>
+                      <th className="w-24 px-3 py-2.5 text-right font-semibold">İşlemler</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -350,7 +413,7 @@ export function ContactDetail({ id }: { id: string }) {
                       <td className="num px-3 py-2 text-right font-medium">{formatMoney(carried)}</td>
                       <td />
                     </tr>
-                    {rows.map((r) => (
+                    {displayRows.map((r) => (
                       <tr
                         key={`${r.kind}-${r.ref_id}`}
                         className="group cursor-pointer transition-colors hover:bg-surface-2/80"
