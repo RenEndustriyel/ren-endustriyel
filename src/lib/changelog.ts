@@ -14,9 +14,47 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "1.3.2";
+export const LATEST_VERSION = "1.3.3";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "1.3.3",
+    date: "29 Eylül 2026",
+    title: "Sade Satır Girişi, Doğrudan KDV, GİB & Satış Notu Çıktıları ve Eksi Stok Bildirimi",
+    badge: "Mevcut Sürüm",
+    items: [
+      {
+        type: "yeni",
+        title: "Sade ve Serbestçe Yazılabilir Fatura Kalemleri",
+        description:
+          "Stokta olmayan ürün veya serbest hizmet girilirken sayfadan ayrılma zorunluluğu kaldırıldı; satıra doğrudan ürün/hizmet adı yazılabilir ve stok önerilerinden anında seçilebilir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Doğrudan KDV Oranı Yazımı",
+        description:
+          "KDV alanındaki ok butonları yerine kutucuğa doğrudan odaklanıp 0, 1, 10, 20 veya istenen oran elle yazılabilir hale getirildi.",
+      },
+      {
+        type: "yeni",
+        title: "Resmi GİB E-Fatura Çıktı Ekranı & PDF",
+        description:
+          "Fatura yazdırma ve PDF indirme şablonu Gelir İdaresi Başkanlığı resmi şablonuna (GİB amblemi, karekod, ETTN, KDV GERÇEK dökümü ve IBAN notu) tam uyumlu hale getirildi.",
+      },
+      {
+        type: "yeni",
+        title: "SATIŞ NOTU / SİPARİŞ NOTU Çıktı Ekranı",
+        description:
+          "Sipariş ve satış belgeleri için antetli, bakiye bilgili, sade ve kurumsal 'SATIŞ NOTU' şablonu eklendi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Eksiye Düşen Stok Bildirimi",
+        description:
+          "Kritik stok widget'ı anasayfadan kaldırılarak yalnızca ürün mevcudu eksiye düştüğünde sistem tarafından anlık uyarı bildirimi gösterilmesi sağlandı.",
+      },
+    ],
+  },
   {
     version: "1.3.2",
     date: "29 Eylül 2026",

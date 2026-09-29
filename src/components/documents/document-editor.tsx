@@ -33,7 +33,7 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BarcodeScanner } from "@/components/shared/barcode-scanner";
 import { ContactPicker } from "@/components/contacts/contact-picker";
-import { ProductPicker } from "@/components/stock/product-picker";
+import { WritableProductPicker } from "@/components/stock/writable-product-picker";
 import { MultiDiscountInput } from "./multi-discount-input";
 import { PriceUpdateDialog, type PriceDiffItem } from "./price-update-dialog";
 import { useConfirm } from "@/components/ui/confirm";
@@ -659,12 +659,25 @@ function EditorInner({
                   <div className="flex items-start gap-2">
                     <span className="mt-2.5 w-5 shrink-0 text-center text-xs text-muted">{i + 1}</span>
                     <div className="min-w-0 flex-1">
-                      <ProductPicker
-                        value={l.product_id}
-                        onChange={(v) => pickProduct(i, v)}
-                        placeholder="Ürün / hizmet seçin (ad, kod, barkod…)"
-                        onCreate={(name) => router.push(`/stok/urunler/yeni?ad=${encodeURIComponent(name)}`)}
-                        autoOpen={focusLineId === l.id}
+                      <WritableProductPicker
+                        productId={l.product_id}
+                        description={l.description}
+                        onProductSelect={(p) => {
+                          setFocusLineId(null);
+                          setLine(i, {
+                            product_id: p.id,
+                            description: p.name,
+                            unit_id: p.unit_id,
+                            unit_factor: 1,
+                            vat_rate: Number(p.vat_rate),
+                            unit_price: priceFor(p, 1),
+                          });
+                        }}
+                        onDescriptionChange={(text) => {
+                          setLine(i, { description: text, product_id: null });
+                        }}
+                        autoFocus={focusLineId === l.id}
+                        placeholder="Ürün / hizmet adı yazın veya stoktan arayın…"
                       />
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => setLines(lines.length > 1 ? lines.filter((_, j) => j !== i) : [emptyLine(defaultVat)])} aria-label="Satırı sil">
@@ -724,55 +737,22 @@ function EditorInner({
                         currency={doc.currency}
                       />
                     </div>
-                    <div className="flex flex-col">
-                      <span className="mb-1 flex items-center justify-between text-[11px] text-muted">
-                        <span>KDV</span>
-                        <span className="text-[9.5px] text-muted/60">▲▼ Değiştir</span>
-                      </span>
-                      <div className="flex h-10 items-center overflow-hidden rounded-lg border border-border bg-surface shadow-2xs">
-                        <NativeSelect
-                          value={String(l.vat_rate)}
-                          onChange={(e) => setLine(i, { vat_rate: Number(e.target.value) })}
-                          onKeyDown={(e) => {
-                            if (e.key === "ArrowUp") {
-                              e.preventDefault();
-                              stepVat(i, "up");
-                            } else if (e.key === "ArrowDown") {
-                              e.preventDefault();
-                              stepVat(i, "down");
-                            } else if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleAdvanceToNextLine(i);
-                            }
-                          }}
-                          className="h-full flex-1 border-0 text-xs font-semibold focus:ring-0"
-                        >
-                          {VAT_RATES.map((r) => (
-                            <option key={r} value={r}>
-                              %{r}
-                            </option>
-                          ))}
-                        </NativeSelect>
-                        <div className="flex h-full shrink-0 flex-col border-l border-border bg-surface-2/60">
-                          <button
-                            type="button"
-                            title="KDV Arttır (%0 -> %1 -> %10 -> %20)"
-                            onClick={() => stepVat(i, "up")}
-                            className="flex flex-1 items-center justify-center px-1.5 text-muted transition-colors hover:bg-surface hover:text-text border-b border-border/60"
-                          >
-                            <ChevronUp className="size-3" />
-                          </button>
-                          <button
-                            type="button"
-                            title="KDV Azalt (%20 -> %10 -> %1 -> %0)"
-                            onClick={() => stepVat(i, "down")}
-                            className="flex flex-1 items-center justify-center px-1.5 text-muted transition-colors hover:bg-surface hover:text-text"
-                          >
-                            <ChevronDown className="size-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <label className="text-[11px] text-muted">
+                      KDV %
+                      <NumberInput
+                        value={l.vat_rate}
+                        decimals={0}
+                        max={100}
+                        min={0}
+                        onChange={(n) => setLine(i, { vat_rate: n })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAdvanceToNextLine(i);
+                          }
+                        }}
+                      />
+                    </label>
                     <div className="flex flex-col justify-end text-right">
                       <span className="text-[11px] text-muted">{doc.prices_include_vat ? "Tutar (KDV dahil)" : "Tutar"}</span>
                       <span className="num flex h-10 items-center justify-end text-sm font-semibold">

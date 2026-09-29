@@ -19,15 +19,15 @@ export function GibPreviewModal({ invoice, open, onOpenChange }: Props) {
   const isIncoming = invoice.direction === "incoming";
   const isEArsiv = invoice.type === "e-arsiv";
 
-  const supplierName = isIncoming ? invoice.party_name : "REN ENDÜSTRİYEL OTOMASYON ELEKTRİK TİC. LTD. ŞTİ.";
-  const supplierVkn = isIncoming ? invoice.party_vkn_tckn : "7340058491";
-  const supplierTaxOffice = isIncoming ? (invoice.party_tax_office || "Pendik") : "Pendik";
-  const supplierAddress = isIncoming ? (invoice.party_address || "İstanbul") : "Şeyhli Mah. Ankara Cad. No:340 Pendik / İstanbul";
+  const supplierName = isIncoming ? invoice.party_name : "MEHMET ŞENEVREN";
+  const supplierVkn = isIncoming ? invoice.party_vkn_tckn : "21856457480";
+  const supplierTaxOffice = isIncoming ? (invoice.party_tax_office || "susurluk") : "susurluk";
+  const supplierAddress = isIncoming ? (invoice.party_address || "Susurluk / Balıkesir") : "Han Mh. Yeni Cadde No:23/D / Susurluk, BALIKESİR – Türkiye";
 
-  const receiverName = isIncoming ? "REN ENDÜSTRİYEL OTOMASYON ELEKTRİK TİC. LTD. ŞTİ." : invoice.party_name;
-  const receiverVkn = isIncoming ? "7340058491" : invoice.party_vkn_tckn;
-  const receiverTaxOffice = isIncoming ? "Pendik" : (invoice.party_tax_office || "Kadıköy");
-  const receiverAddress = isIncoming ? "Şeyhli Mah. Ankara Cad. No:340 Pendik / İstanbul" : (invoice.party_address || invoice.party_city || "İstanbul");
+  const receiverName = isIncoming ? "MEHMET ŞENEVREN" : invoice.party_name;
+  const receiverVkn = isIncoming ? "21856457480" : invoice.party_vkn_tckn;
+  const receiverTaxOffice = isIncoming ? "susurluk" : (invoice.party_tax_office || "Susurluk");
+  const receiverAddress = isIncoming ? "Han Mh. Yeni Cadde No:23/D / Susurluk, BALIKESİR – Türkiye" : (invoice.party_address || invoice.party_city || "Susurluk / Balıkesir – Türkiye");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

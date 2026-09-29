@@ -33,6 +33,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown";
 import { PaymentDialog } from "@/components/cash/payment-dialog";
+import { DocumentPrintModal } from "./document-print-modal";
 import { useDocument } from "./document-editor";
 import { Attachments } from "@/components/expenses/attachments";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   const setStatus = useRpc("set_document_status");
   const del = useRpc("delete_document");
   const [payOpen, setPayOpen] = React.useState(false);
+  const [printOpen, setPrintOpen] = React.useState(false);
 
   const allocs = useQuery({
     queryKey: ["allocs", id],
@@ -164,7 +166,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
             <Button size="sm" variant="outline" onClick={() => pdf("share")}>
               <Share2 /> <span className="hidden sm:inline">Paylaş</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => pdf("open")} className="hidden sm:inline-flex">
+            <Button size="sm" variant="outline" onClick={() => setPrintOpen(true)} className="hidden sm:inline-flex">
               <Printer /> Yazdır
             </Button>
             {canWrite && (
@@ -458,6 +460,17 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
           target={{ id: d.id, number: d.number, remaining, currency: d.currency, exchange_rate: Number(d.exchange_rate) }}
         />
       )}
+
+      <DocumentPrintModal
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        doc={docForPdf as any}
+        org={org}
+        balanceInfo={balanceInfo}
+        contactPhone={phone}
+        onDownloadPdf={() => pdf("download")}
+      />
     </div>
   );
 }

@@ -477,7 +477,7 @@ export default function EFaturaOlusturPage() {
                 <th className="py-2 px-2 w-20">Birim</th>
                 <th className="py-2 px-2 w-28 text-right">Birim Fiyat</th>
                 <th className="py-2 px-2 w-24 text-right">İskonto %</th>
-                <th className="py-2 px-2 w-28 text-right">KDV % (▲/▼)</th>
+                <th className="py-2 px-2 w-28 text-right">KDV %</th>
                 <th className="py-2 px-2 w-28 text-right">Toplam</th>
                 <th className="py-2 pr-1 w-8"></th>
               </tr>
@@ -572,55 +572,24 @@ export default function EFaturaOlusturPage() {
                     />
                   </td>
 
-                  {/* KDV Stepper (▲ / ▼ ve Klavye Ok Tuşları) */}
+                  {/* KDV Girişi (Doğrudan Yazılabilir 0, 1, 10, 20) */}
                   <td className="py-2 px-2">
-                    <div className="flex items-center justify-end gap-1">
-                      <div className="relative flex items-center">
-                        <select
-                          value={line.vat_rate}
-                          onChange={(e) => updateLine(idx, { vat_rate: Number(e.target.value) })}
-                          onKeyDown={(e) => {
-                            if (e.key === "ArrowUp") {
-                              e.preventDefault();
-                              cycleVat(idx, "up");
-                            } else if (e.key === "ArrowDown") {
-                              e.preventDefault();
-                              cycleVat(idx, "down");
-                            } else if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleAdvanceToNextLine(idx);
-                            }
-                          }}
-                          className="h-8 rounded-md border border-border bg-surface px-2 text-right text-xs font-semibold focus:border-primary focus:outline-none"
-                        >
-                          {VAT_RATES.map((r) => (
-                            <option key={r} value={r}>
-                              %{r}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="ml-1 flex flex-col gap-0.5">
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={() => cycleVat(idx, "up")}
-                            title="KDV Artır (%0 -> %1 -> %10 -> %20)"
-                            className="rounded p-0.5 text-muted hover:bg-surface-2 hover:text-text transition-colors"
-                          >
-                            <ChevronUp className="size-3" />
-                          </button>
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={() => cycleVat(idx, "down")}
-                            title="KDV Azalt (%20 -> %10 -> %1 -> %0)"
-                            className="rounded p-0.5 text-muted hover:bg-surface-2 hover:text-text transition-colors"
-                          >
-                            <ChevronDown className="size-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={line.vat_rate}
+                      placeholder="20"
+                      onChange={(e) => updateLine(idx, { vat_rate: Number(e.target.value) || 0 })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAdvanceToNextLine(idx);
+                        }
+                      }}
+                      className="h-8 text-right font-mono text-xs font-semibold"
+                    />
                   </td>
 
                   {/* Satır Toplamı */}

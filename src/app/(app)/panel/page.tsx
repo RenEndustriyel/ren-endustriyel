@@ -13,13 +13,14 @@ import {
   BalanceCards,
   RecentActivity,
   UpcomingPaymentsCard,
-  CriticalStock,
   CurrencySummary,
 } from "@/components/dashboard/widgets";
 import { AgendaWidget } from "@/components/dashboard/agenda-widget";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { Button } from "@/components/ui/button";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import { triggerLiveRatesRefresh } from "@/lib/rates";
 import { Card } from "@/components/ui/card";
 import { errorMessage } from "@/lib/errors";
@@ -47,6 +48,34 @@ export default function PanelPage() {
   };
 
   const isBusy = isFetching || manualLoading;
+
+  // Eksiye düşen stok kontrolü (Kullanıcı isteği: Sadece eksiye düştüğünde bildirim gelsin)
+  const { data: negativeProducts } = useQuery({
+    queryKey: ["negative_stock_alert", org?.id],
+    enabled: !!org?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, code, stock_qty")
+        .eq("org_id", org!.id)
+        .eq("is_active", true)
+        .eq("track_stock", true)
+        .lt("stock_qty", 0);
+      if (error) return [];
+      return data ?? [];
+    },
+    refetchInterval: 30000,
+  });
+
+  React.useEffect(() => {
+    if (negativeProducts && negativeProducts.length > 0) {
+      toast.error(`⚠️ Eksiye Düşen Stok Bildirimi (${negativeProducts.length} Ürün)`, {
+        description: negativeProducts.map((p) => `${p.name}: ${p.stock_qty}`).slice(0, 3).join(", ") + (negativeProducts.length > 3 ? "..." : ""),
+        id: "negative-stock-toast",
+        duration: 9000,
+      });
+    }
+  }, [negativeProducts]);
 
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-4">
@@ -112,8 +141,6 @@ export default function PanelPage() {
             <UpcomingPaymentsCard data={data} />
           </div>
 
-          {/* 7. Kritik Stok Uyarısı */}
-          <CriticalStock data={data} />
 
           {/* 8. Ajanda (Takvim & Notlar / Hatırlatmalar - Dövizin üstünde) */}
           <AgendaWidget />

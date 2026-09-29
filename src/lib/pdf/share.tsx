@@ -184,6 +184,8 @@ export async function shareDocumentPdf(org: Org, doc: DocForPdf, mode: "share" |
         org={org}
         logo={logo}
         doc={{
+          id: doc.id,
+          doc_type: doc.doc_type,
           title: doc.doc_type === "sales_invoice" || doc.doc_type === "pos_sale" ? "Fatura" : cfg.label,
           number: doc.number,
           issue_date: doc.issue_date,
