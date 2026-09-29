@@ -14,9 +14,35 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.1.2";
+export const LATEST_VERSION = "2.1.3";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.1.3",
+    date: "29 Eylül 2026",
+    title: "Hesap Ekstresi & Tüm Hareketlerde PDF İndirme ve Yazdırma · Alış KDV Birebir Senkronizasyonu",
+    badge: "Önemli Güncelleme",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Windows Paylaşım Penceresi Kaldırıldı & Doğrudan PDF Çıktısı",
+        description:
+          "Hesap ekstresi ve belgelerde PDF aç tıklandığında Windows işletim sistemi paylaşım (OneNote/Bluetooth) penceresinin açılması engellendi. Artık doğrudan tek tıkla PDF indirme veya tarayıcıda anında yazdırma/görüntüleme sağlanıyor.",
+      },
+      {
+        type: "yeni",
+        title: "Tüm Liste ve Hareketlerde PDF İndirme & Yazdırma Desteği",
+        description:
+          "Cari Hesap Ekstresi, Kasa/Banka Hesap Hareketleri, Tahsilat ve Ödemeler, Stok Hareketleri, Fatura/Belge Listeleri ve Ürün Listelerinin tamamına 'Yazdır / Görüntüle' ve 'PDF İndir' butonları eklendi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Alış Faturalarında KDV Hariç Seçimi Stok Kartına Birebir İşlenir",
+        description:
+          "Toplu sabitleme kaldırıldı. Alış faturasında 'KDV Hariç' seçili olduğu takdirde girilen ürünlerin stok kartına da kesinlikle KDV hariç olarak kaydedilmesi kuralı kalıcı olarak devreye alındı.",
+      },
+    ],
+  },
   {
     version: "2.1.2",
     date: "29 Eylül 2026",

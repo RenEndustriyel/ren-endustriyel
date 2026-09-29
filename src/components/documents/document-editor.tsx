@@ -236,7 +236,7 @@ function EditorInner({
       warehouse_id: base?.warehouse_id ?? null,
       currency: base?.currency ?? "TRY",
       exchange_rate: Number(base?.exchange_rate ?? 1),
-      prices_include_vat: cfg.side === "purchase" ? false : base?.prices_include_vat ?? false,
+      prices_include_vat: base?.prices_include_vat ?? false,
       discount_type: (base?.discount_type as "rate" | "amount") ?? "rate",
       discount_value: Number(base?.discount_value ?? 0),
       description: base?.description ?? "",
@@ -319,7 +319,7 @@ function EditorInner({
         cur = p.sale_currency;
       } else {
         price = Number(p.purchase_price) * unitFactor;
-        incl = false; // Alış fiyatı kartta ve faturada her zaman KDV hariçtir
+        incl = p.purchase_price_includes_vat;
         cur = p.purchase_currency;
       }
       // para birimi dönüşümü
@@ -486,9 +486,11 @@ function EditorInner({
       );
       const targetId = res.data?.id ?? doc.id;
 
-      // Alış belgelerinde satırdaki ürünlerin alış fiyatını ve KDV oranını KDV hariç olarak ürün kartına işle
+      // Alış belgelerinde satırdaki ürünlerin alış fiyatını ve KDV oranını ürün kartına işle
+      // Kural: "ne olursa olsun alışlarda kdv hariç işaretli ise stok kartına da hariç olarak kaydedecek"
       if (cfg.side === "purchase") {
         try {
+          const isVatExcluded = doc.prices_include_vat === false;
           for (const l of valid) {
             if (!l.product_id) continue;
             const p = products.data?.find((x) => x.id === l.product_id);
@@ -496,8 +498,8 @@ function EditorInner({
             await supabase
               .from("products")
               .update({
-                purchase_price: netBuy > 0 ? netBuy : l.unit_price,
-                purchase_price_includes_vat: false,
+                purchase_price: isVatExcluded ? (netBuy > 0 ? netBuy : l.unit_price) : l.unit_price,
+                purchase_price_includes_vat: !isVatExcluded,
                 vat_rate: l.vat_rate,
                 updated_at: new Date().toISOString(),
               })
@@ -505,7 +507,7 @@ function EditorInner({
           }
           await qc.invalidateQueries({ queryKey: ["products"] });
         } catch (syncErr) {
-          console.warn("Ürün kartı KDV hariç alış fiyatı senkronizasyon hatası:", syncErr);
+          console.warn("Ürün kartı alış fiyatı senkronizasyon hatası:", syncErr);
         }
       }
 

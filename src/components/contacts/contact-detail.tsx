@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, HandCoins, Send, FileText, Download, Share2, MapPin, Phone, Mail, ShoppingCart, Eye, ChevronUp, ChevronDown } from "lucide-react";
+import { Pencil, Trash2, HandCoins, Send, FileText, Download, Share2, MapPin, Phone, Mail, ShoppingCart, Eye, ChevronUp, ChevronDown, Printer } from "lucide-react";
 import { useRow, useRows, useRpc, useRpcQuery, useUpdate, useContactBalances, type Row } from "@/lib/data";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -223,9 +223,9 @@ export function ContactDetail({ id }: { id: string }) {
       },
     ]);
 
-  const sharePdf = async () => {
+  const handlePdf = async (mode: "download" | "open") => {
     const { shareStatementPdf } = await import("@/lib/pdf/share");
-    await shareStatementPdf({ org: org!, contact: c, rows, carried, from, to });
+    await shareStatementPdf({ org: org!, contact: c, rows, carried, from, to, mode });
   };
 
   const [sortField, setSortField] = React.useState<"date" | "type" | "description" | "debit" | "credit" | "balance">("date");
@@ -378,12 +378,15 @@ export function ContactDetail({ id }: { id: string }) {
                 Bitiş
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 w-40" />
               </label>
-              <div className="ml-auto flex gap-2">
-                <Button size="sm" variant="outline" onClick={exportStatement}>
-                  <Download /> Excel
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => handlePdf("open")} title="Ekstre PDF'ini yeni sekmede aç ve yazdır">
+                  <Printer className="size-4" /> Yazdır / Görüntüle
                 </Button>
-                <Button size="sm" variant="outline" onClick={sharePdf}>
-                  <Share2 /> PDF / Paylaş
+                <Button size="sm" variant="outline" onClick={() => handlePdf("download")} title="Ekstre PDF dosyasını bilgisayara indir">
+                  <FileText className="size-4" /> PDF İndir
+                </Button>
+                <Button size="sm" variant="outline" onClick={exportStatement}>
+                  <Download className="size-4" /> Excel
                 </Button>
               </div>
             </div>

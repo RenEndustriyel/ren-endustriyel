@@ -1,7 +1,2 @@
--- Migration: Alış fiyatlarının KDV hariç olarak normalize edilmesi
--- Kullanıcı İsteği: Alış faturaları ile girilen tüm ürünlerin birim fiyatlarının KDV hariç olarak düzenlenmesi
-
-update public.products
-   set purchase_price_includes_vat = false,
-       updated_at = now()
- where purchase_price_includes_vat = true;
+-- Reverted blanket update as requested by user.
+-- Alış faturasında KDV Hariç işaretli ise satırdaki ürünlerin stok kartına da KDV hariç olarak kaydedilir.

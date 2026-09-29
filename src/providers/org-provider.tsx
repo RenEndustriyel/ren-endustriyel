@@ -59,34 +59,6 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
     await qc.invalidateQueries({ queryKey: ["memberships"] });
   }, [qc]);
 
-  // Alış faturası ile girilmiş veya KDV dahil kalmış tüm ürünlerin alış fiyatını otomatik KDV hariç olarak düzelt
-  React.useEffect(() => {
-    const orgId = current?.organization?.id;
-    if (!orgId || !user) return;
-
-    (async () => {
-      try {
-        const { count, error } = await supabase
-          .from("products")
-          .update(
-            {
-              purchase_price_includes_vat: false,
-              updated_at: new Date().toISOString(),
-            },
-            { count: "exact" }
-          )
-          .eq("org_id", orgId)
-          .eq("purchase_price_includes_vat", true);
-
-        if (!error && count && count > 0) {
-          console.log(`[REN ERP] ${count} ürünün alış fiyatı KDV hariç olarak güncellendi.`);
-          qc.invalidateQueries({ queryKey: ["products"] });
-        }
-      } catch (err) {
-        console.warn("Otomatik KDV hariç düzeltme:", err);
-      }
-    })();
-  }, [current?.organization?.id, user, qc]);
 
   const role = current?.role ?? null;
   const value: OrgState = {

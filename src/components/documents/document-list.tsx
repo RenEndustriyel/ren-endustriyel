@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Download, FileText } from "lucide-react";
+import { Plus, Download, FileText, Printer } from "lucide-react";
 import { useRows, type Row } from "@/lib/data";
 import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, type DocType } from "@/lib/doc-types";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
@@ -46,7 +46,7 @@ function periodRange(p: Period, custom: { from: string; to: string }) {
 export function DocumentList({ type, title, newLabel }: { type: DocType; title?: string; newLabel?: string }) {
   const router = useRouter();
   const cfg = DOC_TYPES[type];
-  const { canWrite } = useOrg();
+  const { org, canWrite } = useOrg();
   const [q, setQ] = React.useState("");
   const [period, setPeriod] = React.useState<Period>("year");
   const [custom, setCustom] = React.useState({ from: `${new Date().getFullYear()}-01-01`, to: isoDate() });
@@ -146,13 +146,71 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
       },
     ]);
 
+  const handlePdf = async (mode: "download" | "open") => {
+    if (!org) return;
+    const { shareListPdf } = await import("@/lib/pdf/share");
+    const totalTry = rows.reduce((s, d) => s + Number(d.total_try), 0);
+    const netTry = rows.reduce((s, d) => s + Number(d.net_total), 0);
+    const vatTry = rows.reduce((s, d) => s + Number(d.vat_total), 0);
+    await shareListPdf({
+      org,
+      title: (title ?? cfg.plural).toLocaleUpperCase("tr-TR"),
+      subtitle: `${rows.length} Belge · Filtre: ${status === "all" ? "Tümü" : status}`,
+      orientation: "landscape",
+      fileName: cfg.plural.toLocaleLowerCase("tr-TR").replace(/\s+/g, "-"),
+      mode,
+      columns: [
+        { header: "Tarih", width: "10%" },
+        { header: "Belge No", width: "14%" },
+        { header: cfg.contactLabel, width: "22%" },
+        { header: "Açıklama", width: "16%" },
+        { header: "Vade", width: "10%" },
+        { header: "Matrah", width: "9%", align: "right" },
+        { header: "KDV", width: "9%", align: "right" },
+        { header: "Toplam", width: "10%", align: "right" },
+      ],
+      rows: rows.map((d) => [
+        formatDate(d.issue_date),
+        d.number || "—",
+        party(d),
+        d.description || "—",
+        formatDate(d.due_date),
+        formatMoney(Number(d.net_total), d.currency),
+        formatMoney(Number(d.vat_total), d.currency),
+        formatMoney(Number(d.total), d.currency),
+      ]),
+      summary: [
+        { label: "Toplam Belge", value: `${rows.length} adet` },
+        { label: "Toplam Matrah", value: `${netTry.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺` },
+        { label: "Toplam KDV", value: `${vatTry.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺` },
+        { label: "Genel Toplam (TL)", value: `${totalTry.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺` },
+      ],
+    });
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title={title ?? cfg.plural}
         description={`${rows.length} belge`}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("open")}
+              title="Belge listesini yeni sekmede aç ve yazdır"
+            >
+              <Printer className="size-4" /> <span className="hidden sm:inline">Yazdır / Görüntüle</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("download")}
+              title="Belge listesini PDF olarak indir"
+            >
+              <FileText className="size-4" /> <span className="hidden sm:inline">PDF İndir</span>
+            </Button>
             <Button size="sm" variant="outline" onClick={exportRows}>
               <Download /> <span className="hidden sm:inline">Excel</span>
             </Button>
@@ -163,7 +221,7 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
                 </Link>
               </Button>
             )}
-          </>
+          </div>
         }
       />
 

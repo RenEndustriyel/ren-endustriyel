@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Download, History } from "lucide-react";
+import { Download, History, Printer, FileText } from "lucide-react";
 import { useProducts, useRows, useWarehouses, type Row } from "@/lib/data";
 import { formatDate, formatQty, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { DOC_TYPES, MOVEMENT_LABELS, type DocType } from "@/lib/doc-types";
+import { useOrg } from "@/providers/org-provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -41,34 +42,86 @@ export function MovementsPage() {
   const pName = (id: string) => products.data?.find((p) => p.id === id)?.name ?? "—";
   const whName = (id: string) => warehouses.data?.find((w) => w.id === id)?.name ?? "—";
 
+  const { org } = useOrg();
+  const handlePdf = async (mode: "download" | "open") => {
+    if (!org) return;
+    const { shareListPdf } = await import("@/lib/pdf/share");
+    const rows = moves.data ?? [];
+    await shareListPdf({
+      org,
+      title: "STOK GEÇMİŞİ VE HAREKETLERİ",
+      subtitle: `${formatDate(from)} - ${formatDate(to)}`,
+      orientation: "landscape",
+      fileName: "stok-hareketleri",
+      mode,
+      columns: [
+        { header: "Tarih", width: "14%" },
+        { header: "Ürün", width: "26%" },
+        { header: "Depo", width: "16%" },
+        { header: "Hareket Tipi", width: "16%" },
+        { header: "Belge / Açıklama", width: "16%" },
+        { header: "Miktar", width: "12%", align: "right" },
+      ],
+      rows: rows.map((m) => [
+        formatDate(m.movement_date),
+        pName(m.product_id),
+        whName(m.warehouse_id),
+        MOVEMENT_LABELS[m.movement_type] ?? m.movement_type,
+        m.document?.number ?? m.description ?? "—",
+        formatQty(Number(m.quantity)),
+      ]),
+      summary: [
+        { label: "Toplam Hareket Sayısı", value: `${rows.length} kayıt` },
+      ],
+    });
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Stok Geçmişi"
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              exportExcel("stok-hareketleri", [
-                {
-                  name: "Hareketler",
-                  rows: moves.data ?? [],
-                  columns: [
-                    { header: "Tarih", value: (m) => m.movement_date, type: "date" },
-                    { header: "Ürün", value: (m) => pName(m.product_id), width: 36 },
-                    { header: "Depo", value: (m) => whName(m.warehouse_id) },
-                    { header: "Hareket", value: (m) => MOVEMENT_LABELS[m.movement_type] },
-                    { header: "Belge", value: (m) => m.document?.number ?? m.description },
-                    { header: "Miktar", value: (m) => Number(m.quantity), type: "qty" },
-                    { header: "Birim maliyet", value: (m) => (m.unit_cost === null ? "" : Number(m.unit_cost)), type: "money" },
-                  ],
-                },
-              ])
-            }
-          >
-            <Download /> Excel
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("open")}
+              title="Stok hareketlerini yeni sekmede aç ve yazdır"
+            >
+              <Printer className="size-4" /> <span className="hidden sm:inline">Yazdır / Görüntüle</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("download")}
+              title="Stok hareketlerini PDF olarak indir"
+            >
+              <FileText className="size-4" /> <span className="hidden sm:inline">PDF İndir</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                exportExcel("stok-hareketleri", [
+                  {
+                    name: "Hareketler",
+                    rows: moves.data ?? [],
+                    columns: [
+                      { header: "Tarih", value: (m) => m.movement_date, type: "date" },
+                      { header: "Ürün", value: (m) => pName(m.product_id), width: 36 },
+                      { header: "Depo", value: (m) => whName(m.warehouse_id) },
+                      { header: "Hareket", value: (m) => MOVEMENT_LABELS[m.movement_type] },
+                      { header: "Belge", value: (m) => m.document?.number ?? m.description },
+                      { header: "Miktar", value: (m) => Number(m.quantity), type: "qty" },
+                      { header: "Birim maliyet", value: (m) => (m.unit_cost === null ? "" : Number(m.unit_cost)), type: "money" },
+                    ],
+                  },
+                ])
+              }
+            >
+              <Download className="size-4" /> <span className="hidden sm:inline">Excel</span>
+            </Button>
+          </div>
         }
       />
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

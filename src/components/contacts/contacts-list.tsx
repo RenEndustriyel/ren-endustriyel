@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Upload, Download, Users, Phone } from "lucide-react";
+import { Plus, Upload, Download, Users, Phone, Printer, FileText } from "lucide-react";
 import { useContacts, useContactBalances, type Row } from "@/lib/data";
 import { formatMoney } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
@@ -22,7 +22,7 @@ type Contact = Row<"contacts"> & { balance: number };
 
 export function ContactsList({ kind }: { kind: "customer" | "supplier" }) {
   const router = useRouter();
-  const { canWrite } = useOrg();
+  const { org, canWrite } = useOrg();
   const contacts = useContacts();
   const balances = useContactBalances();
   const [q, setQ] = React.useState("");
@@ -94,13 +94,64 @@ export function ContactsList({ kind }: { kind: "customer" | "supplier" }) {
       },
     ]);
 
+  const handlePdf = async (mode: "download" | "open") => {
+    if (!org) return;
+    const { shareListPdf } = await import("@/lib/pdf/share");
+    const listTitle = isCustomer ? "MÜŞTERİ LİSTESİ" : "TEDARİKÇİ LİSTESİ";
+    const totalBalance = filtered.reduce((s, c) => s + (c.balance || 0), 0);
+    await shareListPdf({
+      org,
+      title: listTitle,
+      subtitle: `${filtered.length} Kayıt`,
+      orientation: "landscape",
+      fileName: isCustomer ? "musteriler" : "tedarikciler",
+      mode,
+      columns: [
+        { header: "Unvan", width: "28%" },
+        { header: "VKN / TCKN", width: "14%" },
+        { header: "Telefon", width: "14%" },
+        { header: "İl / İlçe", width: "16%" },
+        { header: "Tür", width: "14%" },
+        { header: "Bakiye", width: "14%", align: "right" },
+      ],
+      rows: filtered.map((c) => [
+        c.name,
+        c.tax_number || "—",
+        c.mobile || c.phone || "—",
+        [c.district, c.city].filter(Boolean).join(" / ") || "—",
+        c.kind === "both" ? "Müşteri + Tedarikçi" : c.kind === "customer" ? "Müşteri" : "Tedarikçi",
+        formatMoney(c.balance, "TRY"),
+      ]),
+      summary: [
+        { label: "Toplam Cari Sayısı", value: `${filtered.length} adet` },
+        { label: "Toplam Net Bakiye", value: `${totalBalance.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺` },
+      ],
+    });
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title={isCustomer ? "Müşteriler" : "Tedarikçiler"}
         description={`${rows.length} kayıt`}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("open")}
+              title="Cari listesini yeni sekmede aç ve yazdır"
+            >
+              <Printer className="size-4" /> <span className="hidden sm:inline">Yazdır / Görüntüle</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("download")}
+              title="Cari listesini PDF olarak indir"
+            >
+              <FileText className="size-4" /> <span className="hidden sm:inline">PDF İndir</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={exportRows}>
               <Download /> <span className="hidden sm:inline">Excel</span>
             </Button>
@@ -116,7 +167,7 @@ export function ContactsList({ kind }: { kind: "customer" | "supplier" }) {
                 </Button>
               </>
             )}
-          </>
+          </div>
         }
       />
 

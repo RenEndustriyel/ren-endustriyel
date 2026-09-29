@@ -288,7 +288,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
       sale_price_includes_vat: v.sale_price_includes_vat,
       sale_currency: v.sale_currency,
       purchase_price: v.purchase_price,
-      purchase_price_includes_vat: false,
+      purchase_price_includes_vat: product ? (product.purchase_price_includes_vat ?? false) : false,
       purchase_currency: v.purchase_currency,
       track_stock: v.type === "product" && v.track_stock,
       critical_stock: v.critical_stock || null,

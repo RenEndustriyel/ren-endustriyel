@@ -638,6 +638,13 @@ export function StatementPdf({
   carried,
   from,
   to,
+  title = "HESAP EKSTRESİ",
+  partyTitle = "Cari",
+  debitHeader = "Borç",
+  creditHeader = "Alacak",
+  carriedText = "Devreden",
+  note = "Ekstremizde mutabık olmadığınız hususları 15 gün içinde bildirmediğiniz takdirde bakiyenin kabul edilmiş sayılacağını rica ederiz.",
+  currency = "₺",
 }: {
   org: PdfOrg;
   logo?: string | null;
@@ -646,16 +653,23 @@ export function StatementPdf({
   carried: number;
   from: string;
   to: string;
+  title?: string;
+  partyTitle?: string;
+  debitHeader?: string;
+  creditHeader?: string;
+  carriedText?: string;
+  note?: string;
+  currency?: string;
 }) {
   const last = rows.length ? rows[rows.length - 1].balance : carried;
   const W = ["12%", "18%", "30%", "13%", "13%", "14%"];
   return (
-    <Document title={`Hesap Ekstresi ${contact.name}`} author={org.name}>
+    <Document title={`${title} - ${contact.name}`} author={org.name}>
       <Page size="A4" style={s.page}>
         <View style={s.header}>
           <OrgHeader org={org} logo={logo} />
           <View>
-            <Text style={s.title}>HESAP EKSTRESİ</Text>
+            <Text style={s.title}>{title}</Text>
             <View style={s.metaRow}>
               <Text style={s.metaLabel}>Dönem</Text>
               <Text style={[s.metaValue, { width: 130 }]}>{df(from)} – {df(to)}</Text>
@@ -663,13 +677,13 @@ export function StatementPdf({
           </View>
         </View>
         <View style={s.box}>
-          <Text style={s.boxLabel}>Cari</Text>
+          <Text style={s.boxLabel}>{partyTitle}</Text>
           <Text style={{ fontSize: 10, fontWeight: 700 }}>{contact.name}</Text>
           {contact.address ? <Text style={s.small}>{contact.address}</Text> : null}
-          {contact.tax_number ? <Text style={s.small}>VKN/TCKN: {contact.tax_number}{contact.tax_office ? ` · ${contact.tax_office} V.D.` : ""}</Text> : null}
+          {contact.tax_number ? <Text style={s.small}>{contact.tax_number}{contact.tax_office ? ` · ${contact.tax_office}` : ""}</Text> : null}
         </View>
         <View style={s.row} fixed>
-          {["Tarih", "İşlem", "Açıklama", "Borç", "Alacak", "Bakiye"].map((h, i) => (
+          {["Tarih", "İşlem", "Açıklama", debitHeader, creditHeader, "Bakiye"].map((h, i) => (
             <Text key={h} style={[s.th, { width: W[i] }, i >= 3 ? s.right : {}]}>
               {h}
             </Text>
@@ -677,7 +691,7 @@ export function StatementPdf({
         </View>
         <View style={s.row}>
           <Text style={[s.td, { width: W[0] }]}>{df(from)}</Text>
-          <Text style={[s.td, { width: W[1] }]}>Devreden</Text>
+          <Text style={[s.td, { width: W[1] }]}>{carriedText}</Text>
           <Text style={[s.td, { width: W[2] }]} />
           <Text style={[s.td, { width: W[3] }]} />
           <Text style={[s.td, { width: W[4] }]} />
@@ -695,13 +709,120 @@ export function StatementPdf({
         ))}
         <View style={s.totals} wrap={false}>
           <View style={s.grand}>
-            <Text>{last >= 0 ? "BORÇ BAKİYESİ" : "ALACAK BAKİYESİ"}</Text>
-            <Text>{nf(Math.abs(last))} ₺</Text>
+            <Text>{last >= 0 ? `${debitHeader.toUpperCase()} BAKİYESİ` : `${creditHeader.toUpperCase()} BAKİYESİ`}</Text>
+            <Text>{nf(Math.abs(last))} {currency}</Text>
           </View>
         </View>
-        <Text style={[s.small, { marginTop: 18 }]}>
-          Ekstremizde mutabık olmadığınız hususları 15 gün içinde bildirmediğiniz takdirde bakiyenin kabul edilmiş sayılacağını rica ederiz.
-        </Text>
+        {note ? (
+          <Text style={[s.small, { marginTop: 18 }]}>
+            {note}
+          </Text>
+        ) : null}
+        <Footer org={org} />
+      </Page>
+    </Document>
+  );
+}
+
+export type PdfListColumn = {
+  header: string;
+  width?: string;
+  align?: "left" | "right" | "center";
+};
+
+export function ListReportPdf({
+  org,
+  logo,
+  title,
+  subtitle,
+  columns,
+  rows,
+  summary,
+  orientation = "landscape",
+}: {
+  org: PdfOrg;
+  logo?: string | null;
+  title: string;
+  subtitle?: string;
+  columns: PdfListColumn[];
+  rows: (string | number)[][];
+  summary?: { label: string; value: string }[];
+  orientation?: "portrait" | "landscape";
+}) {
+  const autoWidth = `${Math.floor(100 / (columns.length || 1))}%`;
+  return (
+    <Document title={title} author={org.name}>
+      <Page size="A4" orientation={orientation} style={s.page}>
+        <View style={s.header}>
+          <OrgHeader org={org} logo={logo} />
+          <View>
+            <Text style={s.title}>{title}</Text>
+            {subtitle ? (
+              <View style={s.metaRow}>
+                <Text style={s.metaLabel}>Filtre / Dönem</Text>
+                <Text style={[s.metaValue, { width: 180 }]}>{subtitle}</Text>
+              </View>
+            ) : null}
+            <View style={s.metaRow}>
+              <Text style={s.metaLabel}>Rapor Tarihi</Text>
+              <Text style={[s.metaValue, { width: 180 }]}>{new Date().toLocaleDateString("tr-TR")}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Table Header */}
+        <View style={s.row} fixed>
+          {columns.map((col, i) => (
+            <Text
+              key={i}
+              style={[
+                s.th,
+                { width: col.width || autoWidth },
+                col.align === "right" ? s.right : col.align === "center" ? { textAlign: "center" } : {},
+              ]}
+            >
+              {col.header}
+            </Text>
+          ))}
+        </View>
+
+        {/* Table Rows */}
+        {rows.map((row, rIdx) => (
+          <View
+            key={rIdx}
+            style={[s.row, rIdx % 2 === 1 ? { backgroundColor: C.soft } : {}]}
+            wrap={false}
+          >
+            {row.map((cell, cIdx) => {
+              const col = columns[cIdx];
+              return (
+                <Text
+                  key={cIdx}
+                  style={[
+                    s.td,
+                    { width: col?.width || autoWidth },
+                    col?.align === "right" ? s.right : col?.align === "center" ? { textAlign: "center" } : {},
+                  ]}
+                >
+                  {cell !== null && cell !== undefined ? String(cell) : ""}
+                </Text>
+              );
+            })}
+          </View>
+        ))}
+
+        {/* Summary */}
+        {summary && summary.length > 0 ? (
+          <View style={[s.totals, { marginTop: 12 }]} wrap={false}>
+            {summary.map((sum, sIdx) => (
+              <View key={sIdx} style={s.totalRow}>
+                <Text style={{ fontSize: 8, color: C.muted }}>{sum.label}</Text>
+                <Text style={{ fontSize: 9, fontWeight: 700 }}>{sum.value}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         <Footer org={org} />
       </Page>
     </Document>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Download, HandCoins, Send, ArrowLeftRight, Archive } from "lucide-react";
+import { Pencil, Download, HandCoins, Send, ArrowLeftRight, Archive, Printer, FileText } from "lucide-react";
 import { useRow, useRpcQuery, useUpdate, type Row } from "@/lib/data";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
@@ -26,13 +26,19 @@ type StmtRow = { id: string; txn_date: string; type: string; direction: string; 
 export function AccountDetail({ id }: { id: string }) {
   const router = useRouter();
   const confirm = useConfirm();
-  const { isAdmin, canWrite } = useOrg();
+  const { org, isAdmin, canWrite } = useOrg();
   const acc = useRow<Row<"accounts">>("accounts", id);
   const { update } = useUpdate("accounts");
   const [from, setFrom] = React.useState(`${new Date().getFullYear()}-01-01`);
   const [to, setTo] = React.useState(isoDate());
   const stmt = useRpcQuery<StmtRow[]>("account_statement", { p_account: id, p_from: from, p_to: to });
   const [edit, setEdit] = React.useState(false);
+
+  const handlePdf = async (mode: "download" | "open") => {
+    if (!a || !org) return;
+    const { shareAccountStatementPdf } = await import("@/lib/pdf/share");
+    await shareAccountStatementPdf({ org, account: a, rows, from, to, mode });
+  };
 
   const a = acc.data;
   if (acc.isPending && !a) return <Skeleton className="h-64 rounded-card" />;
@@ -96,31 +102,38 @@ export function AccountDetail({ id }: { id: string }) {
       <div className="mb-3 flex flex-wrap items-end gap-2">
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" aria-label="Başlangıç" />
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" aria-label="Bitiş" />
-        <Button
-          size="sm"
-          variant="outline"
-          className="ml-auto"
-          onClick={() =>
-            exportExcel(`hesap-${a.name}`, [
-              {
-                name: "Hareketler",
-                title: `${a.name} hesap hareketleri (${formatDate(from)} - ${formatDate(to)})`,
-                rows,
-                columns: [
-                  { header: "Tarih", value: (r) => r.txn_date, type: "date" },
-                  { header: "İşlem", value: (r) => TYPE_LABELS[r.type] ?? r.type },
-                  { header: "Cari / karşı hesap", value: (r) => r.party, width: 30 },
-                  { header: "Açıklama", value: (r) => r.description, width: 30 },
-                  { header: "Giriş", value: (r) => Number(r.amount_in), type: "money" },
-                  { header: "Çıkış", value: (r) => Number(r.amount_out), type: "money" },
-                  { header: "Bakiye", value: (r) => Number(r.balance), type: "money" },
-                ],
-              },
-            ])
-          }
-        >
-          <Download /> Excel
-        </Button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => handlePdf("open")} title="Hesap hareketlerini yeni sekmede aç ve yazdır">
+            <Printer className="size-4" /> Yazdır / Görüntüle
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => handlePdf("download")} title="Hesap ekstresi PDF dosyasını indir">
+            <FileText className="size-4" /> PDF İndir
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              exportExcel(`hesap-${a.name}`, [
+                {
+                  name: "Hareketler",
+                  title: `${a.name} hesap hareketleri (${formatDate(from)} - ${formatDate(to)})`,
+                  rows,
+                  columns: [
+                    { header: "Tarih", value: (r) => r.txn_date, type: "date" },
+                    { header: "İşlem", value: (r) => TYPE_LABELS[r.type] ?? r.type },
+                    { header: "Cari / karşı hesap", value: (r) => r.party, width: 30 },
+                    { header: "Açıklama", value: (r) => r.description, width: 30 },
+                    { header: "Giriş", value: (r) => Number(r.amount_in), type: "money" },
+                    { header: "Çıkış", value: (r) => Number(r.amount_out), type: "money" },
+                    { header: "Bakiye", value: (r) => Number(r.balance), type: "money" },
+                  ],
+                },
+              ])
+            }
+          >
+            <Download className="size-4" /> Excel
+          </Button>
+        </div>
       </div>
       <DataTable
         rows={rows}

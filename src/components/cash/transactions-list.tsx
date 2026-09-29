@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Download, Plus, Wallet, Wand2, Sparkles } from "lucide-react";
+import { Download, Plus, Wallet, Wand2, Sparkles, Printer, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccounts, useRows, type Row } from "@/lib/data";
@@ -118,6 +118,44 @@ export function TransactionsList() {
   const tin = rows.filter((t) => t.direction === "in" && t.account_id).reduce((s, t) => s + Number(t.amount_try), 0);
   const tout = rows.filter((t) => t.direction === "out" && t.account_id).reduce((s, t) => s + Number(t.amount_try), 0);
 
+  const handlePdf = async (mode: "download" | "open") => {
+    if (!org) return;
+    const { shareListPdf } = await import("@/lib/pdf/share");
+    const totalTry = rows.reduce((s, r) => s + Number(r.amount_try), 0);
+    await shareListPdf({
+      org,
+      title: "TAHSİLAT VE ÖDEMELER",
+      subtitle: from || to ? `${formatDate(from || "2000-01-01")} - ${formatDate(to || isoDate())}` : "Tüm Hareketler",
+      orientation: "landscape",
+      fileName: "tahsilat-odemeler",
+      mode,
+      columns: [
+        { header: "Tarih", width: "12%" },
+        { header: "İşlem", width: "12%" },
+        { header: "Cari / Açıklama", width: "24%" },
+        { header: "Hesap", width: "16%" },
+        { header: "Ödeme Yöntemi", width: "12%" },
+        { header: "Tutar", width: "12%", align: "right" },
+        { header: "Tutar (TL)", width: "12%", align: "right" },
+      ],
+      rows: rows.map((t) => [
+        formatDate(t.txn_date),
+        TYPE_LABELS[t.type] ?? t.type,
+        party(t),
+        t.account?.name ?? "—",
+        t.method === "credit_card" ? "Kredi Kartı" : t.method === "bank_transfer" ? "Havale/EFT" : "Nakit",
+        `${Number(t.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${t.currency}`,
+        `${Number(t.amount_try).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺`,
+      ]),
+      summary: [
+        { label: "Toplam İşlem Sayısı", value: `${rows.length} adet` },
+        { label: "Toplam Giriş (TL)", value: `${tin.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺` },
+        { label: "Toplam Çıkış (TL)", value: `${tout.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺` },
+        { label: "Net Hacim (TL)", value: `${totalTry.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺` },
+      ],
+    });
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -137,6 +175,22 @@ export function TransactionsList() {
                 <span>{reconciling ? "Eşleştiriliyor..." : "Otomatik Eşleştir"}</span>
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("open")}
+              title="Hareketleri yeni sekmede aç ve yazdır"
+            >
+              <Printer className="size-4" /> <span className="hidden sm:inline">Yazdır / Görüntüle</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("download")}
+              title="Hareketleri PDF olarak indir"
+            >
+              <FileText className="size-4" /> <span className="hidden sm:inline">PDF İndir</span>
+            </Button>
             <Button
               size="sm"
               variant="outline"

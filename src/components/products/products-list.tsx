@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Upload, Download, Package, AlertTriangle } from "lucide-react";
+import { Plus, Upload, Download, Package, AlertTriangle, Printer, FileText } from "lucide-react";
 import { useCategories, useProducts, useUnits, type Row } from "@/lib/data";
 import { formatMoney, formatQty } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
@@ -40,35 +40,6 @@ export function ProductsList() {
   const [filter, setFilter] = React.useState<"active" | "critical" | "service" | "passive">("active");
   const [importOpen, setImportOpen] = React.useState(false);
 
-  // Otomatik Düzeltme: Alış faturaları ile girilmiş tüm ürünlerin alış fiyatını KDV hariç olarak normalize et
-  React.useEffect(() => {
-    if (!org?.id || !products.data) return;
-    const hasIncluded = products.data.some((p) => p.purchase_price_includes_vat === true);
-    if (hasIncluded) {
-      (async () => {
-        try {
-          const { count, error } = await supabase
-            .from("products")
-            .update(
-              {
-                purchase_price_includes_vat: false,
-                updated_at: new Date().toISOString(),
-              },
-              { count: "exact" },
-            )
-            .eq("org_id", org.id)
-            .eq("purchase_price_includes_vat", true);
-
-          if (!error && count && count > 0) {
-            toast.success(`${count} ürünün alış fiyatı KDV hariç olarak düzenlendi.`);
-            qc.invalidateQueries({ queryKey: ["products"] });
-          }
-        } catch (e) {
-          console.warn("purchase_price_includes_vat düzeltme hatası:", e);
-        }
-      })();
-    }
-  }, [org?.id, products.data, qc]);
 
   const unitName = (id: string | null) => units.data?.find((u) => u.id === id)?.name ?? "";
   const catName = (id: string | null) => cats.data?.find((c) => c.id === id)?.name ?? "";
@@ -147,7 +118,7 @@ export function ProductsList() {
         return buy > 0 ? (
           <span className="num font-medium text-muted">
             {formatMoney(buy, p.purchase_currency || p.sale_currency)}
-            <span className="block text-[10px] text-muted/80">KDV hariç</span>
+            <span className="block text-[10px] text-muted/80">{p.purchase_price_includes_vat ? "KDV dahil" : "KDV hariç"}</span>
           </span>
         ) : (
           <span className="text-xs text-muted/60">—</span>
@@ -213,13 +184,65 @@ export function ProductsList() {
       },
     ]);
 
+  const handlePdf = async (mode: "download" | "open") => {
+    if (!org) return;
+    const { shareListPdf } = await import("@/lib/pdf/share");
+    await shareListPdf({
+      org,
+      title: "ÜRÜN VE HİZMET LİSTESİ",
+      subtitle: `${rows.length} Ürün / Hizmet Kaydı`,
+      orientation: "landscape",
+      fileName: "urunler-listesi",
+      mode,
+      columns: [
+        { header: "Ürün Adı", width: "26%" },
+        { header: "Stok Kodu", width: "12%" },
+        { header: "Barkod", width: "12%" },
+        { header: "Kategori", width: "12%" },
+        { header: "Birim", width: "10%" },
+        { header: "Stok", width: "10%", align: "right" },
+        { header: "Alış Fiyatı", width: "9%", align: "right" },
+        { header: "Satış Fiyatı", width: "9%", align: "right" },
+      ],
+      rows: rows.map((p) => [
+        p.name,
+        p.code || "—",
+        p.barcode || "—",
+        catName(p.category_id) || "—",
+        unitName(p.unit_id) || "Adet",
+        formatQty(Number(p.stock_qty)),
+        Number(p.purchase_price) > 0 ? `${formatMoney(Number(p.purchase_price), p.purchase_currency || "TRY")} (${p.purchase_price_includes_vat ? "Dahil" : "Hariç"})` : "—",
+        Number(p.sale_price) > 0 ? `${formatMoney(Number(p.sale_price), p.sale_currency || "TRY")} (${p.sale_price_includes_vat ? "Dahil" : "Hariç"})` : "—",
+      ]),
+      summary: [
+        { label: "Toplam Listelenen Ürün", value: `${rows.length} adet` },
+      ],
+    });
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Ürün ve Hizmetler"
         description={`${all.length} kayıt`}
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("open")}
+              title="Ürün listesini yeni sekmede aç ve yazdır"
+            >
+              <Printer className="size-4" /> <span className="hidden sm:inline">Yazdır / Görüntüle</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handlePdf("download")}
+              title="Ürün listesini PDF olarak indir"
+            >
+              <FileText className="size-4" /> <span className="hidden sm:inline">PDF İndir</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={exportRows}>
               <Download /> <span className="hidden sm:inline">Excel</span>
             </Button>
@@ -235,7 +258,7 @@ export function ProductsList() {
                 </Button>
               </>
             )}
-          </>
+          </div>
         }
       />
 
