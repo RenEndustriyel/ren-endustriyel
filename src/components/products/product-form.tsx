@@ -117,19 +117,10 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
     totalSaleWithVat = r2(netSale + vatSaleAmount);
   }
 
-  let netBuy = purchasePriceWatch;
-  let vatBuyAmount = 0;
-  let totalBuyWithVat = purchasePriceWatch;
-
-  if (isVatInc) {
-    totalBuyWithVat = purchasePriceWatch;
-    netBuy = numVatRate > 0 ? r2(purchasePriceWatch / (1 + numVatRate / 100)) : purchasePriceWatch;
-    vatBuyAmount = r2(totalBuyWithVat - netBuy);
-  } else {
-    netBuy = purchasePriceWatch;
-    vatBuyAmount = r2((purchasePriceWatch * numVatRate) / 100);
-    totalBuyWithVat = r2(netBuy + vatBuyAmount);
-  }
+  // Alış fiyatı her zaman KDV hariç olarak hesaplanır ve saklanır
+  const netBuy = purchasePriceWatch;
+  const vatBuyAmount = r2((purchasePriceWatch * numVatRate) / 100);
+  const totalBuyWithVat = r2(netBuy + vatBuyAmount);
 
   const initialPurchase = Number(product?.purchase_price ?? 0);
   const initialSale = Number(product?.sale_price ?? 0);
@@ -250,20 +241,18 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
   const handleVatIncludedToggle = (checked: boolean) => {
     const vatRate = Number(form.getValues("vat_rate") || 20);
     const sPrice = form.getValues("sale_price") || 0;
-    const pBuy = form.getValues("purchase_price") || 0;
 
     form.setValue("sale_price_includes_vat", checked, { shouldDirty: true });
-    form.setValue("purchase_price_includes_vat", checked, { shouldDirty: true });
+    // Alış fiyatı her zaman KDV Hariçtir
+    form.setValue("purchase_price_includes_vat", false, { shouldDirty: true });
 
     if (vatRate > 0) {
       if (checked) {
-        // Hariçten Dahile geçiş
+        // Satış: Hariçten Dahile geçiş
         if (sPrice > 0) form.setValue("sale_price", r2(sPrice * (1 + vatRate / 100)), { shouldDirty: true });
-        if (pBuy > 0) form.setValue("purchase_price", r2(pBuy * (1 + vatRate / 100)), { shouldDirty: true });
       } else {
-        // Dahilden Hariçe geçiş
+        // Satış: Dahilden Hariçe geçiş
         if (sPrice > 0) form.setValue("sale_price", r2(sPrice / (1 + vatRate / 100)), { shouldDirty: true });
-        if (pBuy > 0) form.setValue("purchase_price", r2(pBuy / (1 + vatRate / 100)), { shouldDirty: true });
       }
     }
   };
@@ -299,13 +288,13 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
       sale_price_includes_vat: v.sale_price_includes_vat,
       sale_currency: v.sale_currency,
       purchase_price: v.purchase_price,
-      purchase_price_includes_vat: v.purchase_price_includes_vat,
+      purchase_price_includes_vat: false,
       purchase_currency: v.purchase_currency,
       track_stock: v.type === "product" && v.track_stock,
       critical_stock: v.critical_stock || null,
       notes: v.notes.trim() || null,
       is_active: v.is_active,
-      ...(product ? {} : { avg_cost: v.opening_cost || (v.purchase_price_includes_vat ? v.purchase_price / (1 + Number(v.vat_rate) / 100) : v.purchase_price) }),
+      ...(product ? {} : { avg_cost: v.opening_cost || v.purchase_price }),
     };
     const res = await saveProduct.save<Product>(row, product ? "Ürün güncellendi" : "Ürün oluşturuldu");
 
@@ -427,10 +416,10 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
               ))}
             </div>
 
-            {/* Tek KDV Dahil Switch'i */}
+            {/* Satış KDV Dahil Switch'i */}
             <label className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-surface px-2.5 py-1 text-xs font-semibold text-text cursor-pointer select-none shadow-2xs">
               <Switch checked={isVatInc} onCheckedChange={handleVatIncludedToggle} />
-              <span>{isVatInc ? "KDV Dahil" : "KDV Hariç"}</span>
+              <span>Satış: {isVatInc ? "KDV Dahil" : "KDV Hariç"}</span>
             </label>
 
             {/* Tek Para Birimi Seçimi */}
@@ -455,7 +444,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           <div className="flex flex-col justify-between gap-2 rounded-xl border border-border bg-surface p-3.5 shadow-xs">
             <div>
               <div className="mb-2 flex items-center justify-between text-xs font-bold text-muted">
-                <span>1. ALIŞ FİYATI</span>
+                <span>1. ALIŞ FİYATI (KDV HARİÇ)</span>
                 <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold">{currency}</span>
               </div>
               <Controller
@@ -466,7 +455,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
                     value={field.value}
                     onChange={handlePurchasePriceChange}
                     decimals={4}
-                    aria-label="Alış fiyatı"
+                    aria-label="Alış fiyatı (KDV hariç)"
                     placeholder="0,00"
                     className="h-10 text-base font-semibold"
                   />
@@ -474,11 +463,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
               />
             </div>
             <div className="text-[11px] text-muted">
-              {isVatInc ? (
-                <span>KDV Dahil · Net: {formatMoney(netBuy, currency)}</span>
-              ) : (
-                <span>KDV Hariç · +%{numVatRate} KDV ile: {formatMoney(totalBuyWithVat, currency)}</span>
-              )}
+              <span>KDV Hariç · +%{numVatRate} KDV ile: {formatMoney(totalBuyWithVat, currency)}</span>
             </div>
           </div>
 
@@ -531,7 +516,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           <div className="flex flex-col justify-between gap-2 rounded-xl border-2 border-primary/50 bg-surface p-3.5 shadow-sm">
             <div>
               <div className="mb-2 flex items-center justify-between text-xs font-bold text-primary">
-                <span>3. SATIŞ FİYATI</span>
+                <span>3. SATIŞ FİYATI ({isVatInc ? "KDV DAHİL" : "KDV HARİÇ"})</span>
                 <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">{currency}</span>
               </div>
               <Controller

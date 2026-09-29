@@ -14,9 +14,35 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.1.1";
+export const LATEST_VERSION = "2.1.2";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.1.2",
+    date: "29 Eylül 2026",
+    title: "Alış Faturası ve Ürün Kartlarında KDV Hariç Alış Fiyatı Standardizasyonu & Otomatik Düzeltme",
+    badge: "Önemli İyileştirme",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Tüm Ürünlerin Alış Fiyatları KDV Hariç Olarak Sabitlendi",
+        description:
+          "Alış faturaları ile girilen tüm ürünlerin birim fiyatları kesin ve kalıcı olarak KDV Hariç olarak normalize edildi. Sistemde 'KDV dahil' görünen eski kayıtlar arka planda otomatik onarılarak KDV Hariç standardına getirildi.",
+      },
+      {
+        type: "duzeltme",
+        title: "Ürün Kartı Fiyat & KDV Anahtarı Bağımsızlaştırıldı",
+        description:
+          "Ürün kartı ekleme ve düzenleme ekranında satış fiyatı için KDV Dahil seçildiğinde alış fiyatının da hatalı şekilde KDV Dahil olarak değişmesi engellendi; alış fiyatı 'KDV Hariç' olarak ayrıştırıldı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Alış Faturası Kaydında Ürün Kartı Alış Fiyatı Otomatik Güncelleme",
+        description:
+          "Alış faturası ve irsaliyelerinde ürün fiyatı girildiğinde, ürün kartındaki alış fiyatı ve KDV oranı otomatik olarak KDV hariç net tutar üzerinden hafızaya alınır.",
+      },
+    ],
+  },
   {
     version: "2.1.1",
     date: "29 Eylül 2026",

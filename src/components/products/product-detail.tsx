@@ -103,7 +103,7 @@ export function ProductDetail({ id }: { id: string }) {
             label="Alış fiyatı"
             value={Number(p.purchase_price)}
             currency={p.purchase_currency || p.sale_currency}
-            sub={p.purchase_price_includes_vat ? "KDV dahil" : "KDV hariç"}
+            sub="KDV hariç"
           />
         )}
         <Stat

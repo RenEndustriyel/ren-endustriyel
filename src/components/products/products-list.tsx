@@ -20,6 +20,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScanButton } from "@/components/shared/barcode-scanner";
 import { cn } from "@/lib/utils";
 import { ProductImport } from "./product-import";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 type Product = Row<"products">;
 
@@ -27,7 +30,8 @@ export const isCritical = (p: Product) => p.track_stock && p.type === "product" 
 
 export function ProductsList() {
   const router = useRouter();
-  const { canWrite, role } = useOrg();
+  const qc = useQueryClient();
+  const { org, canWrite, role } = useOrg();
   const products = useProducts();
   const units = useUnits();
   const cats = useCategories("product");
@@ -35,6 +39,37 @@ export function ProductsList() {
   const [cat, setCat] = React.useState("");
   const [filter, setFilter] = React.useState<"active" | "critical" | "service" | "passive">("active");
   const [importOpen, setImportOpen] = React.useState(false);
+
+  // Otomatik Düzeltme: Alış faturaları ile girilmiş tüm ürünlerin alış fiyatını KDV hariç olarak normalize et
+  React.useEffect(() => {
+    if (!org?.id || !products.data) return;
+    const hasIncluded = products.data.some((p) => p.purchase_price_includes_vat === true);
+    if (hasIncluded) {
+      (async () => {
+        try {
+          const { count, error } = await supabase
+            .from("products")
+            .update(
+              {
+                purchase_price_includes_vat: false,
+                updated_at: new Date().toISOString(),
+              },
+              { count: "exact" },
+            )
+            .eq("org_id", org.id)
+            .eq("purchase_price_includes_vat", true);
+
+          if (!error && count && count > 0) {
+            toast.success(`${count} ürünün alış fiyatı KDV hariç olarak düzenlendi.`);
+            qc.invalidateQueries({ queryKey: ["products"] });
+          }
+        } catch (e) {
+          console.warn("purchase_price_includes_vat düzeltme hatası:", e);
+        }
+      })();
+    }
+  }, [org?.id, products.data, qc]);
+
   const unitName = (id: string | null) => units.data?.find((u) => u.id === id)?.name ?? "";
   const catName = (id: string | null) => cats.data?.find((c) => c.id === id)?.name ?? "";
   const showCost = role !== "staff";
@@ -112,7 +147,7 @@ export function ProductsList() {
         return buy > 0 ? (
           <span className="num font-medium text-muted">
             {formatMoney(buy, p.purchase_currency || p.sale_currency)}
-            <span className="block text-[10px] text-muted/80">{p.purchase_price_includes_vat ? "KDV dahil" : "KDV hariç"}</span>
+            <span className="block text-[10px] text-muted/80">KDV hariç</span>
           </span>
         ) : (
           <span className="text-xs text-muted/60">—</span>
