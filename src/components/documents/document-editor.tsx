@@ -36,6 +36,13 @@ import { ContactPicker } from "@/components/contacts/contact-picker";
 import { WritableProductPicker } from "@/components/stock/writable-product-picker";
 import { MultiDiscountInput } from "./multi-discount-input";
 import { PriceUpdateDialog, type PriceDiffItem } from "./price-update-dialog";
+import { RenAiModal } from "@/components/ai/ren-ai-modal";
+import {
+  analyzePurchaseDiscrepancies,
+  saveAiAlerts,
+  type RenAiDiscrepancy,
+  type PastPurchaseLine,
+} from "@/lib/ren-ai";
 import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 
@@ -111,12 +118,16 @@ export function DocumentEditor({
   sourceId,
   copyId,
   contactId,
+  initialLine,
+  initialNotes,
 }: {
   type: DocType;
   editId?: string | null;
   sourceId?: string | null;
   copyId?: string | null;
   contactId?: string | null;
+  initialLine?: Partial<EditorLine>;
+  initialNotes?: string;
 }) {
   const router = useRouter();
   const { org } = useOrg();
@@ -134,6 +145,8 @@ export function DocumentEditor({
       isEdit={!!existing.data}
       isConversion={!!sourceId && !!source.data && !existing.data}
       contactId={contactId}
+      initialLine={initialLine}
+      initialNotes={initialNotes}
       defaultVat={Number(org?.default_vat_rate ?? 20)}
       onDone={(id) => router.replace(`${cfg.base}/detay?id=${id}`)}
     />
@@ -146,6 +159,8 @@ function EditorInner({
   isEdit,
   isConversion,
   contactId,
+  initialLine,
+  initialNotes,
   defaultVat,
   onDone,
 }: {
@@ -154,6 +169,8 @@ function EditorInner({
   isEdit: boolean;
   isConversion: boolean;
   contactId?: string | null;
+  initialLine?: Partial<EditorLine>;
+  initialNotes?: string;
   defaultVat: number;
   onDone: (id: string) => void;
 }) {
@@ -194,6 +211,10 @@ function EditorInner({
   const [showMore, setShowMore] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // REN Yapay Zeka Kâr Koruma Durumları
+  const [renAiModalOpen, setRenAiModalOpen] = React.useState(false);
+  const [renAiDiscrepancies, setRenAiDiscrepancies] = React.useState<RenAiDiscrepancy[]>([]);
+
   // Alış faturasında ürün kartı alış fiyatı güncelleme modalı durumları
   const [priceDiffModalOpen, setPriceDiffModalOpen] = React.useState(false);
   const [priceDiffItems, setPriceDiffItems] = React.useState<PriceDiffItem[]>([]);
@@ -219,7 +240,7 @@ function EditorInner({
       discount_type: (base?.discount_type as "rate" | "amount") ?? "rate",
       discount_value: Number(base?.discount_value ?? 0),
       description: base?.description ?? "",
-      notes: base?.notes ?? "",
+      notes: base?.notes ?? initialNotes ?? "",
       terms: base?.terms ?? "",
       source_document_id: fromSource ? base!.id : isEdit ? base?.source_document_id ?? null : null,
       // irsaliyeden faturaya dönüşümde stok irsaliyede düşülmüştür
@@ -240,7 +261,12 @@ function EditorInner({
           discount_str: Number(l.discount_rate) > 0 ? String(l.discount_rate) : "",
           vat_rate: Number(l.vat_rate),
         }))
-      : [emptyLine(defaultVat)],
+      : initialLine
+        ? [{
+            ...emptyLine(Number(initialLine.vat_rate ?? defaultVat)),
+            ...initialLine,
+          }]
+        : [emptyLine(defaultVat)],
   );
   const [pay, setPay] = React.useState({ enabled: !isEdit && type === "pos_sale", account_id: "", method: "cash" });
 
@@ -328,6 +354,18 @@ function EditorInner({
   );
 
   const [focusLineId, setFocusLineId] = React.useState<string | null>(null);
+
+  // Yeni satır eklendiğinde veya satır odağı değiştiğinde ekranı akıcı şekilde yukarı kaydırıp yeni satırı ortala
+  React.useEffect(() => {
+    if (!focusLineId) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`doc-line-row-${focusLineId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [focusLineId]);
 
   const setLine = (i: number, patch: Partial<EditorLine>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
 
@@ -458,6 +496,58 @@ function EditorInner({
     }
   };
 
+  const checkPriceDiffsAndSave = (status?: string) => {
+    const valid = lines.filter((l) => l.product_id || l.description?.trim());
+
+    // Eğer alış belgesi ise ve fiyat veya KDV farkı olan ürünler varsa onay diyalogu aç
+    if (cfg.side === "purchase") {
+      const diffs: PriceDiffItem[] = [];
+      const seenProductIds = new Set<string>();
+
+      for (const l of valid) {
+        if (!l.product_id || seenProductIds.has(l.product_id)) continue;
+        seenProductIds.add(l.product_id);
+
+        const p = products.data?.find((x) => x.id === l.product_id);
+        if (!p) continue;
+
+        const newNet = calcNetPurchasePrice(l, p);
+        const curBuy = Number(p.purchase_price ?? 0);
+        const diff = Math.round((newNet - curBuy + Number.EPSILON) * 100) / 100;
+        const curVat = Number(p.vat_rate ?? 20);
+        const newVat = Number(l.vat_rate ?? 20);
+        const vatDiff = curVat !== newVat;
+
+        // Fiyat farkı varsa veya ilk alış fiyatı tanımlanacaksa veya KDV oranı değişmişse
+        if ((Math.abs(diff) >= 0.01 && newNet > 0) || vatDiff) {
+          const pct = curBuy > 0 ? Math.round((diff / curBuy) * 10000) / 100 : 100;
+          diffs.push({
+            productId: p.id,
+            productName: p.name,
+            productCode: p.code,
+            currentPrice: curBuy,
+            newNetPrice: newNet > 0 ? newNet : curBuy,
+            diff,
+            percentChange: pct,
+            currency: p.purchase_currency || doc.currency,
+            selected: true,
+            currentVatRate: curVat,
+            newVatRate: newVat,
+          });
+        }
+      }
+
+      if (diffs.length > 0) {
+        setPriceDiffItems(diffs);
+        setPendingStatus(status);
+        setPriceDiffModalOpen(true);
+        return;
+      }
+    }
+
+    performSave(status);
+  };
+
   const handleSubmitClick = async (status?: string) => {
     setError(null);
     const valid = lines.filter((l) => l.product_id || l.description?.trim());
@@ -474,48 +564,79 @@ function EditorInner({
       if (!ok) return;
     }
 
-    // Eğer alış belgesi ise ve fiyat farkı olan ürünler varsa onay diyalogu aç
-    if (cfg.side === "purchase") {
-      const diffs: PriceDiffItem[] = [];
-      const seenProductIds = new Set<string>();
+    // 1. REN YAPAY ZEKA KÂR KORUMA KONTROLÜ (Alış belgelerinde aynı tedarikçiden iskonto kaybı ve fiyat farkı denetimi)
+    if (cfg.side === "purchase" && doc.contact_id) {
+      try {
+        const { data: pastLines } = await supabase
+          .from("document_lines")
+          .select(`
+            id,
+            product_id,
+            description,
+            quantity,
+            unit_price,
+            discount_rate,
+            vat_rate,
+            documents!inner (
+              id,
+              number,
+              issue_date,
+              contact_id,
+              doc_type,
+              currency
+            )
+          `)
+          .eq("documents.contact_id", doc.contact_id)
+          .in("documents.doc_type", ["purchase_invoice", "purchase_delivery"])
+          .neq("documents.id", doc.id)
+          .order("created_at", { ascending: false })
+          .limit(100);
 
-      for (const l of valid) {
-        if (!l.product_id || seenProductIds.has(l.product_id)) continue;
-        seenProductIds.add(l.product_id);
+        if (pastLines && pastLines.length > 0) {
+          const mappedPast: PastPurchaseLine[] = pastLines.map((pl: any) => ({
+            id: pl.id,
+            product_id: pl.product_id,
+            description: pl.description,
+            quantity: Number(pl.quantity),
+            unit_price: Number(pl.unit_price),
+            discount_rate: Number(pl.discount_rate || 0),
+            vat_rate: Number(pl.vat_rate || 0),
+            document: {
+              id: pl.documents.id,
+              number: pl.documents.number,
+              issue_date: pl.documents.issue_date,
+              contact_id: pl.documents.contact_id,
+              currency: pl.documents.currency,
+            },
+          }));
 
-        const p = products.data?.find((x) => x.id === l.product_id);
-        if (!p) continue;
-
-        const newNet = calcNetPurchasePrice(l, p);
-        const curBuy = Number(p.purchase_price ?? 0);
-        const diff = Math.round((newNet - curBuy + Number.EPSILON) * 100) / 100;
-
-        // Fark varsa veya ilk alış fiyatı tanımlanacaksa
-        if (Math.abs(diff) >= 0.01 && newNet > 0) {
-          const pct = curBuy > 0 ? Math.round((diff / curBuy) * 10000) / 100 : 100;
-          diffs.push({
-            productId: p.id,
-            productName: p.name,
-            productCode: p.code,
-            currentPrice: curBuy,
-            newNetPrice: newNet,
-            diff,
-            percentChange: pct,
-            currency: p.purchase_currency || doc.currency,
-            selected: true,
+          const discResults = analyzePurchaseDiscrepancies({
+            currentDoc: {
+              id: doc.id,
+              number: doc.number,
+              issue_date: doc.issue_date,
+              contact_id: doc.contact_id,
+            },
+            currentLines: valid,
+            pastLines: mappedPast,
+            contactName: contact?.name || "Tedarikçi",
+            currency: doc.currency,
           });
-        }
-      }
 
-      if (diffs.length > 0) {
-        setPriceDiffItems(diffs);
-        setPendingStatus(status);
-        setPriceDiffModalOpen(true);
-        return;
+          if (discResults.length > 0) {
+            saveAiAlerts(discResults, org?.id);
+            setRenAiDiscrepancies(discResults);
+            setPendingStatus(status);
+            setRenAiModalOpen(true);
+            return;
+          }
+        }
+      } catch (aiErr) {
+        console.warn("REN AI analiz hatası:", aiErr);
       }
     }
 
-    performSave(status);
+    checkPriceDiffsAndSave(status);
   };
 
   const handleConfirmWithPriceUpdate = async (selectedIds: string[]) => {
@@ -523,13 +644,22 @@ function EditorInner({
     try {
       const toUpdate = priceDiffItems.filter((item) => selectedIds.includes(item.productId));
       for (const item of toUpdate) {
+        const payload: {
+          purchase_price: number;
+          purchase_price_includes_vat: boolean;
+          updated_at: string;
+          vat_rate?: number;
+        } = {
+          purchase_price: item.newNetPrice,
+          purchase_price_includes_vat: false,
+          updated_at: new Date().toISOString(),
+        };
+        if (item.newVatRate !== undefined && Number.isFinite(item.newVatRate)) {
+          payload.vat_rate = item.newVatRate;
+        }
         await supabase
           .from("products")
-          .update({
-            purchase_price: item.newNetPrice,
-            purchase_price_includes_vat: false,
-            updated_at: new Date().toISOString(),
-          })
+          .update(payload)
           .eq("id", item.productId);
       }
       await qc.invalidateQueries({ queryKey: ["products"] });
@@ -655,7 +785,15 @@ function EditorInner({
             </div>
             <div className="divide-y divide-border">
               {lines.map((l, i) => (
-                <div key={l.id} className="flex flex-col gap-2 px-4 py-3">
+                <div
+                  key={l.id}
+                  id={`doc-line-row-${l.id}`}
+                  data-line-row="true"
+                  className={cn(
+                    "flex flex-col gap-2 px-4 py-3 transition-colors duration-200",
+                    focusLineId === l.id && "bg-primary-soft/15 ring-1 ring-primary/30 rounded-lg",
+                  )}
+                >
                   <div className="flex items-start gap-2">
                     <span className="mt-2.5 w-5 shrink-0 text-center text-xs text-muted">{i + 1}</span>
                     <div className="min-w-0 flex-1">
@@ -677,6 +815,12 @@ function EditorInner({
                           setLine(i, { description: text, product_id: null });
                         }}
                         autoFocus={focusLineId === l.id}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAdvanceToNextLine(i);
+                          }
+                        }}
                         placeholder="Ürün / hizmet adı yazın veya stoktan arayın…"
                       />
                     </div>
@@ -691,6 +835,12 @@ function EditorInner({
                         value={l.quantity}
                         decimals={3}
                         onChange={(n) => setLine(i, { quantity: n })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAdvanceToNextLine(i);
+                          }
+                        }}
                       />
                     </label>
                     <label className="text-[11px] text-muted">
@@ -907,6 +1057,17 @@ function EditorInner({
         onConfirmWithPriceUpdate={handleConfirmWithPriceUpdate}
         onConfirmWithoutPriceUpdate={handleConfirmWithoutPriceUpdate}
         saving={updatingPrices || saveDoc.isPending}
+      />
+
+      <RenAiModal
+        open={renAiModalOpen}
+        onOpenChange={setRenAiModalOpen}
+        discrepancies={renAiDiscrepancies}
+        onProceedSave={() => {
+          setRenAiModalOpen(false);
+          checkPriceDiffsAndSave(pendingStatus);
+        }}
+        currency={doc.currency}
       />
     </div>
   );

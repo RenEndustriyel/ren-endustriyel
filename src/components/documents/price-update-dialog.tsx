@@ -17,6 +17,8 @@ export type PriceDiffItem = {
   percentChange: number;
   currency: string;
   selected: boolean;
+  currentVatRate?: number;
+  newVatRate?: number;
 };
 
 export function PriceUpdateDialog({
@@ -71,15 +73,15 @@ export function PriceUpdateDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title="Alış Fiyatı Güncelleme Bildirimi"
-        description="Faturadaki iskonto sonrası KDV hariç net alış fiyatları ürün kartlarındaki kayıtlı fiyatlardan farklı."
+        title="Alış Fiyatı ve KDV Güncelleme Bildirimi"
+        description="Faturadaki iskonto sonrası KDV hariç net alış fiyatı veya KDV oranı, ürün kartlarındaki kayıtlı değerlerden farklı."
         className="sm:max-w-2xl"
       >
         <div className="space-y-4 pt-1">
           <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
             <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="leading-relaxed">
-              <strong>Fiyat Farkı Tespit Edildi:</strong> Aşağıdaki ürünlerin faturadaki net alış fiyatı (iskontolar düşülmüş, KDV hariç) ile karttaki kayıtlı fiyatı uyuşmuyor. İşaretlediğiniz ürünlerin kartındaki alış fiyatı güncellenecektir.
+              <strong>Fiyat / KDV Farkı Tespit Edildi:</strong> Aşağıdaki ürünlerin faturadaki net alış fiyatı veya KDV oranı ile stok kartındaki kayıtlı değerleri farklı. İşaretlediğiniz ürünlerin kartındaki alış fiyatı ve KDV oranı kalıcı olarak hafızaya alınıp güncellenecektir.
             </div>
           </div>
 
@@ -100,6 +102,7 @@ export function PriceUpdateDialog({
                   <th className="p-3 text-right">Mevcut Alış</th>
                   <th className="p-3 text-center w-8"></th>
                   <th className="p-3 text-right">Yeni Net Alış</th>
+                  <th className="p-3 text-center">KDV</th>
                   <th className="p-3 text-right">Fark / Değişim</th>
                 </tr>
               </thead>
@@ -107,6 +110,7 @@ export function PriceUpdateDialog({
                 {items.map((it) => {
                   const isChecked = !!selectedMap[it.productId];
                   const isIncrease = it.diff > 0;
+                  const vatChanged = it.newVatRate !== undefined && it.currentVatRate !== undefined && it.newVatRate !== it.currentVatRate;
                   return (
                     <tr
                       key={it.productId}
@@ -143,23 +147,36 @@ export function PriceUpdateDialog({
                       <td className="p-3 text-right font-bold text-text">
                         {formatMoney(it.newNetPrice, it.currency)}
                       </td>
+                      <td className="p-3 text-center">
+                        {vatChanged ? (
+                          <span className="inline-flex items-center rounded-md bg-amber-500/15 px-1.5 py-0.5 font-bold text-amber-700 dark:text-amber-300">
+                            %{it.currentVatRate} ➔ %{it.newVatRate}
+                          </span>
+                        ) : (
+                          <span className="text-muted font-medium">%{it.newVatRate ?? it.currentVatRate ?? 20}</span>
+                        )}
+                      </td>
                       <td className="p-3 text-right font-semibold">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px]",
-                            isIncrease
-                              ? "bg-danger-soft text-danger"
-                              : "bg-success-soft text-success",
-                          )}
-                        >
-                          {isIncrease ? (
-                            <TrendingUp className="size-3" />
-                          ) : (
-                            <TrendingDown className="size-3" />
-                          )}
-                          {isIncrease ? "+" : ""}
-                          {formatMoney(it.diff, it.currency)} (%{it.percentChange}%)
-                        </span>
+                        {Math.abs(it.diff) >= 0.01 ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px]",
+                              isIncrease
+                                ? "bg-danger-soft text-danger"
+                                : "bg-success-soft text-success",
+                            )}
+                          >
+                            {isIncrease ? (
+                              <TrendingUp className="size-3" />
+                            ) : (
+                              <TrendingDown className="size-3" />
+                            )}
+                            {isIncrease ? "+" : ""}
+                            {formatMoney(it.diff, it.currency)} (%{it.percentChange}%)
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted font-normal">Fiyat Aynı</span>
+                        )}
                       </td>
                     </tr>
                   );

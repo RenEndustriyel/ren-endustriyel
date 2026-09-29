@@ -34,6 +34,7 @@ import {
   FilePlus,
   Inbox,
   Send,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/providers/org-provider";
@@ -56,6 +57,7 @@ export const NAV: NavGroup[] = [
     title: "",
     items: [
       { title: "Güncel Durum", href: "/panel", icon: LayoutDashboard, keywords: "panel özet dashboard" },
+      { title: "REN Yapay Zeka", href: "/yapay-zeka", icon: Sparkles, keywords: "yapay zeka ai zarar önleme kâr koruma fiyat farkı asistan" },
       { title: "Hızlı Satış", href: "/hizli-satis", icon: Zap, keywords: "pos kasa barkod" },
     ],
   },

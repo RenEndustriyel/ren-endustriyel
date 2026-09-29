@@ -24,7 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRows, useProducts } from "@/lib/data";
 import { formatMoney } from "@/lib/format";
-import { ProductPicker } from "@/components/stock/product-picker";
+import { cn } from "@/lib/utils";
+import { WritableProductPicker } from "@/components/stock/writable-product-picker";
 import { MultiDiscountInput } from "@/components/documents/multi-discount-input";
 import { GibPreviewModal } from "@/components/e-invoice/gib-preview-modal";
 import {
@@ -163,6 +164,18 @@ export default function EFaturaOlusturPage() {
       setFocusLineId(nextId);
     }
   };
+
+  // Yeni satır eklendiğinde veya satır odağı değiştiğinde ekranı akıcı şekilde yukarı kaydırıp yeni satırı ortala
+  React.useEffect(() => {
+    if (!focusLineId) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`efatura-line-row-${focusLineId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [focusLineId]);
 
   const removeLine = (idx: number) => {
     if (lines.length <= 1) {
@@ -484,29 +497,43 @@ export default function EFaturaOlusturPage() {
             </thead>
             <tbody className="divide-y divide-border/60">
               {lines.map((line, idx) => (
-                <tr key={line.id} className="group hover:bg-surface-2/40">
+                <tr
+                  key={line.id}
+                  id={`efatura-line-row-${line.id}`}
+                  data-line-row="true"
+                  className={cn(
+                    "group transition-colors duration-200 hover:bg-surface-2/40",
+                    focusLineId === line.id && "bg-primary-soft/15 ring-1 ring-primary/30",
+                  )}
+                >
                   <td className="py-2 pl-1 text-muted text-center">{idx + 1}</td>
 
                   {/* Ürün Seçici / İsmi */}
                   <td className="py-2 px-2">
-                    <ProductPicker
-                      value={line.product_id ?? null}
-                      autoOpen={focusLineId === line.id}
-                      onChange={(id) => {
-                        if (!id) return;
-                        const p = products.find((prod) => prod.id === id);
-                        if (p) {
-                          updateLine(idx, {
-                            product_id: p.id,
-                            name: p.name,
-                            unit_price: Number(p.sale_price || 0),
-                            vat_rate: Number(p.vat_rate ?? 20),
-                            unit: (p as any).unit || "Adet",
-                          });
+                    <WritableProductPicker
+                      productId={line.product_id ?? null}
+                      description={line.name}
+                      autoFocus={focusLineId === line.id}
+                      placeholder="Ürün adı yazın veya stoktan arayın…"
+                      onProductSelect={(p) => {
+                        setFocusLineId(null);
+                        updateLine(idx, {
+                          product_id: p.id,
+                          name: p.name,
+                          unit_price: Number(p.sale_price || 0),
+                          vat_rate: Number(p.vat_rate ?? 20),
+                          unit: (p as any).unit || "Adet",
+                        });
+                      }}
+                      onDescriptionChange={(text) => {
+                        updateLine(idx, { name: text, product_id: undefined });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAdvanceToNextLine(idx);
                         }
                       }}
-                      onCreate={(name) => updateLine(idx, { name, unit_price: 0, vat_rate: 20 })}
-                      placeholder="Ürün seçin veya yeni ürün yazın..."
                     />
                   </td>
 
@@ -518,6 +545,12 @@ export default function EFaturaOlusturPage() {
                       step="any"
                       value={line.quantity}
                       onChange={(e) => updateLine(idx, { quantity: parseFloat(e.target.value) || 0 })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAdvanceToNextLine(idx);
+                        }
+                      }}
                       className="h-8 text-right text-xs"
                     />
                   </td>

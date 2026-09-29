@@ -14,14 +14,52 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "1.3.3";
+export const LATEST_VERSION = "2.0.0";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.0.0",
+    date: "29 Eylül 2026",
+    title: "REN Yapay Zeka (Kâr Koruma Kalkanı), Otomatik Ekran Kaydırma & KDV Hafızası",
+    badge: "Büyük Ana Güncelleme",
+    items: [
+      {
+        type: "yeni",
+        title: "REN Yapay Zeka · Kâr Koruma ve Finansal Denetim Kalkanı",
+        description:
+          "Alış faturaları kaydedilirken aynı tedarikçiden yapılan geçmiş alımlar anlık taranır. Tedarikçi önceki faturada iskonto uygulayıp yenisinde uygulamadıysa veya birim fiyatı artırdıysa REN AI aradaki net zararı hesaplar, uyarır ve tek tıkla Fiyat Farkı Faturası kesmenizi sağlar.",
+      },
+      {
+        type: "yeni",
+        title: "1-Tıkla Fiyat Farkı Faturası ve WhatsApp İtiraz Metni",
+        description:
+          "Yapay zekanın tespit ettiği iskonto kayıpları için doğrudan tedarikçiye düzenlenecek Fiyat Farkı Faturası şablonu oluşturulabilir; tek tıkla WhatsApp veya E-Posta itiraz metni kopyalanabilir.",
+      },
+      {
+        type: "yeni",
+        title: "REN Yapay Zeka Finansal Asistan & Komuta Merkezi",
+        description:
+          "Sol menüye eklenen 'REN Yapay Zeka' merkezi ile toplam kâr kayıpları, bekleyen fiyat farkları ve tedarikçi fiyat oynaklıkları 7/24 izlenir; akıllı asistana şirket verileriyle ilgili sorular sorulabilir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Fatura ve Giriş Satırlarında Otomatik Ekran Kaydırma",
+        description:
+          "Fatura, sipariş ve irsaliyelerde ürün ve fiyat bilgisi girilip Enter ile alt satıra geçildiğinde ekran akıcı bir şekilde yukarı kayarak yeni satırı ekranın tam ortasına getirir; fareyle aşağı kaydırma zorunluluğu kalktı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Alışlarda Ürün Kartı KDV Hafızası",
+        description:
+          "Alış faturalarında girilen veya güncellenen KDV oranları stok kartı hafızasına da kalıcı olarak işlenir; bir sonraki işlemde ürün seçildiğinde en son alıştaki güncel KDV oranı otomatik yüklenir.",
+      },
+    ],
+  },
   {
     version: "1.3.3",
     date: "29 Eylül 2026",
     title: "Sade Satır Girişi, Doğrudan KDV, GİB & Satış Notu Çıktıları ve Eksi Stok Bildirimi",
-    badge: "Mevcut Sürüm",
+    badge: "Önceki Sürüm",
     items: [
       {
         type: "yeni",

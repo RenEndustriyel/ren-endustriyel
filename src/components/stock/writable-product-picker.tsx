@@ -42,11 +42,17 @@ export function WritableProductPicker({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  // Otomatik odaklanma
+  // Otomatik odaklanma ve ekranı akıcı olarak satıra kaydırma
   React.useEffect(() => {
     if (autoFocus) {
-      inputRef.current?.focus();
+      inputRef.current?.focus({ preventScroll: true });
       inputRef.current?.select();
+      const parentRow = inputRef.current?.closest("[data-line-row]");
+      if (parentRow) {
+        parentRow.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
   }, [autoFocus]);
 
