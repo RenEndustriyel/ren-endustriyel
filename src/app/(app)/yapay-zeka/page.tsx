@@ -29,6 +29,8 @@ import {
   HelpCircle,
   Package,
   Lightbulb,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/page-header";
@@ -44,6 +46,7 @@ import {
   getAiStats,
   updateAiAlertStatus,
   saveAiAlerts,
+  deleteAiAlert,
 } from "@/lib/ren-ai";
 import {
   generateDailyBriefing,
@@ -110,9 +113,13 @@ export default function RenAiPage() {
 
   const stats = React.useMemo(() => getAiStats(alerts), [alerts]);
 
-  // Filtreleme
+  // Filtreleme: Çözüldü olarak işaretlenenler aktif listeden kaldırılır
   const filteredAlerts = React.useMemo(() => {
     return alerts.filter((a) => {
+      // Çözüldü olarak işaretlenenler varsayılan olarak tüm aktif filtrelerden kaldırılır
+      if (filterType !== "resolved" && a.status === "accepted") return false;
+      if (filterType === "resolved" && a.status !== "accepted") return false;
+
       if (filterType === "pending" && a.status !== "pending") return false;
       if (filterType === "invoiced" && a.status !== "invoiced") return false;
       if (filterType === "discount" && !a.type.includes("discount")) return false;
@@ -152,7 +159,17 @@ export default function RenAiPage() {
 
   const handleMarkResolved = (item: RenAiDiscrepancy) => {
     updateAiAlertStatus(item.id, "accepted", org?.id);
-    toast.success("Fark çözüldü olarak işaretlendi.");
+    toast.success("Fark çözüldü olarak işaretlendi ve listeden kaldırıldı.");
+  };
+
+  const handleUnmarkResolved = (item: RenAiDiscrepancy) => {
+    updateAiAlertStatus(item.id, "pending", org?.id);
+    toast.success("Kayıt tekrar aktif inceleme listesine alındı.");
+  };
+
+  const handleDeleteAlert = (item: RenAiDiscrepancy) => {
+    deleteAiAlert(item.id, org?.id);
+    toast.success("Kayıt sistemden kalıcı olarak silindi.");
   };
 
   // Yapay Zeka Akıllı Asistan Soru Cevaplayıcı
@@ -480,11 +497,12 @@ export default function RenAiPage() {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             <div className="flex flex-wrap gap-1.5">
               {[
-                { id: "all", label: "Tümü" },
+                { id: "all", label: "Tümü (Aktif)" },
                 { id: "pending", label: "Fatura Bekleyenler" },
                 { id: "discount", label: "İskonto Kayıpları" },
                 { id: "price", label: "Fiyat Artışları" },
                 { id: "invoiced", label: "Faturası Kesilenler" },
+                { id: "resolved", label: "Çözülenler (Arşiv)" },
               ].map((f) => (
                 <button
                   key={f.id}
@@ -521,14 +539,18 @@ export default function RenAiPage() {
                 <ShieldCheck className="size-7" />
               </div>
               <h3 className="mt-3 text-base font-bold text-text">
-                {alerts.length === 0
+                {filterType === "resolved"
+                  ? "Çözülen Kayıt Bulunmuyor"
+                  : alerts.length === 0
                   ? "Henüz Kayıtlı Fiyat Farkı Bulunmuyor"
-                  : "Bu Kriterde Kayıt Bulunamadı"}
+                  : "Bu Kriterde Aktif Kayıt Bulunamadı"}
               </h3>
               <p className="mt-1 text-xs text-muted max-w-md mx-auto leading-relaxed">
-                {alerts.length === 0
+                {filterType === "resolved"
+                  ? "'Çözüldü Olarak İşaretle' dediğiniz kayıtlar burada arşivlenir."
+                  : alerts.length === 0
                   ? "Alış faturası kaydettiğinizde tedarikçinin önceki iskontoları unutup unutmadığı veya fiyat artırıp artırmadığı otomatik olarak taranıp burada listelenecektir."
-                  : "Filtre kriterlerinizi değiştirerek diğer kayıtlara göz atabilirsiniz."}
+                  : "Çözülen kayıtlar listeden gizlenmiştir. Diğer filtreleri veya 'Çözülenler (Arşiv)' sekmesini inceleyebilirsiniz."}
               </p>
               <div className="mt-4">
                 <Button
@@ -548,6 +570,7 @@ export default function RenAiPage() {
                 const isPending = item.status === "pending";
                 const isInvoiced = item.status === "invoiced";
                 const isDisputed = item.status === "disputed";
+                const isResolved = item.status === "accepted";
                 const isMissingDisc = item.type === "discount_missing";
 
                 return (
@@ -557,6 +580,7 @@ export default function RenAiPage() {
                       "p-4 transition-all hover:border-purple-400/50 shadow-xs",
                       isPending && "border-l-4 border-l-red-500",
                       isInvoiced && "border-l-4 border-l-emerald-500 opacity-90",
+                      isResolved && "border-l-4 border-l-slate-400 opacity-75 bg-surface-2/40",
                     )}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -577,7 +601,11 @@ export default function RenAiPage() {
                             </span>
                           )}
 
-                          {isInvoiced ? (
+                          {isResolved ? (
+                            <span className="inline-flex items-center gap-1 rounded bg-slate-500/15 px-2 py-0.5 text-[10.5px] font-bold text-slate-700 dark:text-slate-300">
+                              <CheckCircle2 className="size-3 text-emerald-500" /> Çözüldü & Listeden Kaldırıldı
+                            </span>
+                          ) : isInvoiced ? (
                             <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-2 py-0.5 text-[10.5px] font-bold text-emerald-700 dark:text-emerald-300">
                               <Check className="size-3" /> Faturası Kesildi
                             </span>
@@ -607,7 +635,7 @@ export default function RenAiPage() {
 
                       <div className="text-right sm:self-center shrink-0">
                         <div className="text-[11px] text-muted font-medium">Toplam Zarar / Fark</div>
-                        <div className="font-mono text-lg font-bold text-red-600 dark:text-red-400">
+                        <div className={cn("font-mono text-lg font-bold", isResolved ? "text-slate-500 line-through" : "text-red-600 dark:text-red-400")}>
                           +{formatMoney(item.totalLoss, item.currency)}
                         </div>
                       </div>
@@ -653,47 +681,74 @@ export default function RenAiPage() {
 
                     {/* AKSİYONLAR */}
                     <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-2.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCopyWhatsapp(item)}
-                        className="text-xs h-8 gap-1.5"
-                      >
-                        {copiedId === item.id ? (
-                          <>
-                            <Check className="size-3.5 text-emerald-500" />
-                            <span>Kopyalandı!</span>
-                          </>
-                        ) : (
-                          <>
-                            <MessageSquare className="size-3.5 text-emerald-600" />
-                            <span>WhatsApp İtiraz Metni</span>
-                          </>
-                        )}
-                      </Button>
+                      {isResolved ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUnmarkResolved(item)}
+                            className="text-xs h-8 gap-1.5"
+                          >
+                            <RotateCcw className="size-3.5 text-blue-500" />
+                            <span>Listeye Geri Al</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteAlert(item)}
+                            className="text-xs h-8 gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                          >
+                            <Trash2 className="size-3.5" />
+                            <span>Kalıcı Olarak Sil</span>
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyWhatsapp(item)}
+                            className="text-xs h-8 gap-1.5"
+                          >
+                            {copiedId === item.id ? (
+                              <>
+                                <Check className="size-3.5 text-emerald-500" />
+                                <span>Kopyalandı!</span>
+                              </>
+                            ) : (
+                              <>
+                                <MessageSquare className="size-3.5 text-emerald-600" />
+                                <span>WhatsApp İtiraz Metni</span>
+                              </>
+                            )}
+                          </Button>
 
-                      {!isInvoiced && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleMarkResolved(item)}
-                          className="text-xs h-8"
-                        >
-                          Çözüldü Olarak İşaretle
-                        </Button>
+                          {!isInvoiced && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleMarkResolved(item)}
+                              className="text-xs h-8"
+                            >
+                              Çözüldü Olarak İşaretle
+                            </Button>
+                          )}
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => handleCreatePriceDiffInvoice(item)}
+                            className="text-xs h-8 gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs"
+                          >
+                            <Receipt className="size-3.5" />
+                            <span>Fiyat Farkı Faturası Kes</span>
+                          </Button>
+                        </>
                       )}
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => handleCreatePriceDiffInvoice(item)}
-                        className="text-xs h-8 gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs"
-                      >
-                        <Receipt className="size-3.5" />
-                        <span>Fiyat Farkı Faturası Kes</span>
-                      </Button>
                     </div>
                   </Card>
                 );

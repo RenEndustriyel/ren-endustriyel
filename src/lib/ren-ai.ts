@@ -100,9 +100,23 @@ export function updateAiAlertStatus(
   }
 }
 
+/** Belirli bir uyarıyı yerel depodan tamamen siler */
+export function deleteAiAlert(alertId: string, orgId?: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const alerts = getStoredAiAlerts(orgId);
+    const updated = alerts.filter((a) => a.id !== alertId);
+    localStorage.setItem(`${STORAGE_KEY}_${orgId || "default"}`, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent("ren_ai_alerts_updated"));
+  } catch (e) {
+    console.error("REN AI alert silme hatası:", e);
+  }
+}
+
 /** İstatistikleri hesaplar */
 export function getAiStats(alerts: RenAiDiscrepancy[]): RenAiStats {
-  const suppliers = new Set(alerts.map((a) => a.contactId));
+  const activeAlerts = alerts.filter((a) => a.status !== "accepted");
+  const suppliers = new Set(activeAlerts.map((a) => a.contactId));
   let totalLossDetected = 0;
   let totalLossInvoiced = 0;
   let totalLossDisputed = 0;
@@ -110,6 +124,7 @@ export function getAiStats(alerts: RenAiDiscrepancy[]): RenAiStats {
   let invoicedCount = 0;
 
   for (const a of alerts) {
+    if (a.status === "accepted") continue;
     totalLossDetected += a.totalLoss;
     if (a.status === "invoiced") {
       totalLossInvoiced += a.totalLoss;

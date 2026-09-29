@@ -14,9 +14,29 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.1.0";
+export const LATEST_VERSION = "2.1.1";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.1.1",
+    date: "29 Eylül 2026",
+    title: "Zarar Önleme & Fiyat Farkı Çözülen Kayıtların Listeden Kaldırılması & Arşiv Yönetimi",
+    badge: "İyileştirme Güncellemesi",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Çözülen Fiyat Farklarının Listeden Otomatik Kaldırılması",
+        description:
+          "Zarar Önleme & Fiyat Farkları modülünde 'Çözüldü Olarak İşaretle' butonuna basıldığında kayıt anında aktif inceleme listesinden ve toplam zarar sayacından kaldırılır; temiz ve odaklı bir görünüm sağlanır.",
+      },
+      {
+        type: "yeni",
+        title: "Çözülenler (Arşiv) Sekmesi, Geri Alma ve Kalıcı Silme",
+        description:
+          "Çözülen tüm geçmiş kayıtlar yeni eklenen 'Çözülenler (Arşiv)' filtresi altında incelenebilir; istenirse tek tıkla 'Listeye Geri Al' denilerek aktif takibe döndürülebilir veya kalıcı olarak silinebilir.",
+      },
+    ],
+  },
   {
     version: "2.1.0",
     date: "29 Eylül 2026",
