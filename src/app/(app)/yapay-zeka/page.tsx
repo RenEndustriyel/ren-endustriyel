@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Sun,
   Sparkles,
   ShieldAlert,
   ShieldCheck,
@@ -27,6 +28,7 @@ import {
   Layers,
   HelpCircle,
   Package,
+  Lightbulb,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/page-header";
@@ -43,19 +45,27 @@ import {
   updateAiAlertStatus,
   saveAiAlerts,
 } from "@/lib/ren-ai";
-import { useContacts, useProducts, useRows, type Row } from "@/lib/data";
+import {
+  generateDailyBriefing,
+  type RenAiDailyBriefing,
+} from "@/lib/ren-ai-briefing";
+import { DailyBriefingWidget } from "@/components/ai/daily-briefing-widget";
+import { useContacts, useProducts } from "@/lib/data";
 
 export default function RenAiPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { org } = useOrg();
   const contacts = useContacts();
   const products = useProducts();
 
+  const initialTab = (searchParams.get("tab") as "briefing" | "alerts" | "assistant") || "briefing";
+  const [activeTab, setActiveTab] = React.useState<"briefing" | "alerts" | "assistant">(initialTab);
   const [alerts, setAlerts] = React.useState<RenAiDiscrepancy[]>([]);
-  const [activeTab, setActiveTab] = React.useState<"alerts" | "assistant" | "suppliers">("alerts");
   const [filterType, setFilterType] = React.useState<string>("all");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const [briefingData, setBriefingData] = React.useState<RenAiDailyBriefing | null>(null);
 
   // Asistan Sohbet Durumları
   const [chatMessages, setChatMessages] = React.useState<
@@ -63,12 +73,20 @@ export default function RenAiPage() {
   >([
     {
       sender: "ai",
-      text: "Merhaba! Ben **REN Yapay Zeka Kâr Koruma Asistanınız**. İşletmenizin zarar etmesini önlemek için alış faturalarınızı, tedarikçi iskontolarını ve maliyet değişimlerini 7/24 denetliyorum. Aşağıdaki hızlı sorulardan birini seçebilir veya aklınıza gelen herhangi bir finansal konuyu sorabilirsiniz.",
+      text: "Merhaba! Ben **REN Yapay Zeka Baş Finans ve Operasyon Danışmanınız (AI CFO)**. \n\nİşletmenizin bir kuruş dahi zarar etmemesi için her sabah **günlük tahsilat/ödeme brifingi** hazırlıyor, tedarikçi iskonto kaçaklarını denetliyor, **uzun süredir satılmayan ürünlere kâr artırıcı kampanya fikirleri** üretiyor ve **çok satan yıldız ürünlerinizi** takip ediyorum.\n\nAşağıdaki hızlı analiz butonlarından birini seçebilir veya serbestçe aklınıza gelen herhangi bir finansal konuyu sorabilirsiniz.",
       time: "Şimdi",
     },
   ]);
   const [chatInput, setChatInput] = React.useState("");
   const [isTyping, setIsTyping] = React.useState(false);
+
+  // URL'den tab parametresi değişirse
+  React.useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t === "briefing" || t === "alerts" || t === "assistant") {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
 
   // Yerel depodaki uyarıları yükle ve dinle
   const loadAlerts = React.useCallback(() => {
@@ -82,6 +100,13 @@ export default function RenAiPage() {
     window.addEventListener("ren_ai_alerts_updated", handleUpdate);
     return () => window.removeEventListener("ren_ai_alerts_updated", handleUpdate);
   }, [loadAlerts]);
+
+  // Canlı brifing verisini önceden asistan için de çek
+  React.useEffect(() => {
+    if (org?.id) {
+      generateDailyBriefing(org.id).then(setBriefingData).catch(console.error);
+    }
+  }, [org?.id]);
 
   const stats = React.useMemo(() => getAiStats(alerts), [alerts]);
 
@@ -131,7 +156,7 @@ export default function RenAiPage() {
   };
 
   // Yapay Zeka Akıllı Asistan Soru Cevaplayıcı
-  const handleSendPrompt = (questionText: string) => {
+  const handleSendPrompt = async (questionText: string) => {
     const q = questionText.trim();
     if (!q) return;
 
@@ -145,6 +170,16 @@ export default function RenAiPage() {
     setChatInput("");
     setIsTyping(true);
 
+    let currentBrief = briefingData;
+    if (!currentBrief && org?.id) {
+      try {
+        currentBrief = await generateDailyBriefing(org.id);
+        setBriefingData(currentBrief);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     setTimeout(() => {
       let reply = "";
       let actionUrl: string | undefined = undefined;
@@ -152,40 +187,138 @@ export default function RenAiPage() {
 
       const qLower = q.toLowerCase();
 
-      if (qLower.includes("fark") || qLower.includes("fatura") || qLower.includes("zarar")) {
+      // 1. SABAH BRİFİNGİ / GÜNÜN ÖZETİ
+      if (
+        qLower.includes("sabah") ||
+        qLower.includes("brifing") ||
+        qLower.includes("bugün") ||
+        qLower.includes("günlük") ||
+        qLower.includes("özet")
+      ) {
+        if (currentBrief) {
+          reply = `☀️ **GÜNLÜK SABAH YÖNETİCİ BRİFİNGİ (${currentBrief.formattedDate})**\n\n` +
+            `💰 **Nakit & Finans Durumu:**\n` +
+            `• Bugün beklenen tahsilatlar: **${formatMoney(currentBrief.totalExpectedInflow)}** (${currentBrief.todayCollections.length} fatura)\n` +
+            `• Bugün yapılacak ödemeler: **${formatMoney(currentBrief.totalExpectedOutflow)}** (${currentBrief.todayPayments.length} ödeme)\n` +
+            `• Net Günlük Nakit Farkı: **${currentBrief.netCashForecast >= 0 ? "+" : ""}${formatMoney(currentBrief.netCashForecast)}**\n\n` +
+            `🚀 **Çok Satanlar:** Son 30 günde öne çıkan ${currentBrief.topSellers.length} yıldız ürününüz var.\n` +
+            `🧊 **Hareketsiz Stoklar:** Son 30 gündür satılmayan ${currentBrief.slowMoving.length} ürün depoda **${formatMoney(currentBrief.totalIdleCapital)}** sermaye bağlıyor. Bu ürünler için kampanya fikirleri hazır!`;
+          actionUrl = "#briefing";
+          actionText = "Detaylı Sabah Brifingini Aç";
+        } else {
+          reply = "Bugünkü sabah brifingi verileri hazırlandı. Yukarıdaki 'Günlük Sabah Brifingi' sekmesinden tahsilat, ödeme ve kampanya detaylarını inceleyebilirsiniz.";
+        }
+      }
+
+      // 2. UZUN ZAMANDIR SATILMAYAN ÜRÜNLER & KAMPANYA FİKİRLERİ
+      else if (
+        qLower.includes("satılmayan") ||
+        qLower.includes("hareketsiz") ||
+        qLower.includes("ölü stok") ||
+        qLower.includes("kampanya") ||
+        qLower.includes("yavaş")
+      ) {
+        if (currentBrief && currentBrief.slowMoving.length > 0) {
+          const list = currentBrief.slowMoving.slice(0, 4);
+          let itemsText = list
+            .map(
+              (p) =>
+                `• **${p.name}** (Stok: ${p.stockQty} Adet, Bağlı Sermaye: ${formatMoney(p.idleCapital)})\n` +
+                `  💡 *AI Kampanya Önerisi:* ${p.aiCampaignTitle} (%${p.suggestedDiscountRate} İskonto). ${p.aiCampaignIdea}`,
+            )
+            .join("\n\n");
+
+          reply = `🧊 **UZUN SÜREDİR SATILMAYAN ÜRÜNLER VE YAPAY ZEKA KAMPANYA FİKİRLERİ:**\n\n` +
+            `Deponuzda son 30 gündür satışı olmayan ve yaklaşık **${formatMoney(currentBrief.totalIdleCapital)}** atıl sermaye bağlayan ${currentBrief.slowMoving.length} kalem ürün tespit ettim:\n\n` +
+            `${itemsText}\n\n` +
+            `Bu ürünleri nakde çevirmek için doğrudan kampanyalı satış teklifi oluşturabilir veya ilgili müşterilerinize WhatsApp üzerinden kampanya metni paylaşabilirsiniz.`;
+          actionUrl = "#briefing";
+          actionText = "Kampanya Teklifi Hazırla";
+        } else {
+          reply = "Harika bir envanter yönetimi! Son 30 gün içinde depodaki tüm ürünleriniz düzenli olarak satılmış görünüyor; atıl / ölü stok tespit edilmedi.";
+        }
+      }
+
+      // 3. ÇOK SATAN ÜRÜNLER VE TRENDLER
+      else if (
+        qLower.includes("çok satan") ||
+        qLower.includes("yıldız") ||
+        qLower.includes("hızlı") ||
+        qLower.includes("trend")
+      ) {
+        if (currentBrief && currentBrief.topSellers.length > 0) {
+          const list = currentBrief.topSellers.slice(0, 5);
+          let itemsText = list
+            .map(
+              (p, idx) =>
+                `${idx + 1}. **${p.name}**\n` +
+                `   Satış: ${p.soldQty} Adet · Ciro: ${formatMoney(p.totalRevenue)} · Kalan Stok: ${p.stockQty} Adet (${p.daysOfStockLeft < 999 ? `~${p.daysOfStockLeft} gün yetecek` : "Yeterli"})`,
+            )
+            .join("\n");
+
+          reply = `🚀 **SON 30 GÜNÜN EN ÇOK SATAN YILDIZ ÜRÜNLERİ:**\n\n${itemsText}\n\n💡 *Yapay Zeka Notu:* Hızlı tükenen ürünlerin stok mevcudunu erkenden sipariş vererek tedarikçi fiyat artışlarından önce güvenceye almanızı öneririm.`;
+        } else {
+          reply = "Son 30 güne ait satış faturalarından çok satan ürün trendleri hesaplanıyor.";
+        }
+      }
+
+      // 4. MÜŞTERİLER & TAHSİLAT HATIRLATMALARI
+      else if (
+        qLower.includes("müşteri") ||
+        qLower.includes("alacak") ||
+        qLower.includes("tahsilat") ||
+        qLower.includes("borçlu") ||
+        qLower.includes("geciken")
+      ) {
+        if (currentBrief && currentBrief.todayCollections.length > 0) {
+          const debtors = currentBrief.todayCollections.slice(0, 5);
+          let dText = debtors
+            .map(
+              (d) =>
+                `• **${d.contactName}**: ${formatMoney(d.amount)} (${d.isOverdue ? `⚠️ ${d.daysDiff} gün gecikmede` : "Bugün vadeli"})`,
+            )
+            .join("\n");
+
+          reply = `👥 **MÜŞTERİ TAHSİLAT VE ALACAK RADARI:**\n\n` +
+            `Bugün tahsil edilmesi gereken veya vadesi geciken toplam **${formatMoney(currentBrief.totalExpectedInflow)}** alacağınız bulunmaktadır:\n\n` +
+            `${dText}\n\n` +
+            `Bu müşterilere tek tıkla nazik WhatsApp ödeme hatırlatması gönderebilirsiniz.`;
+          actionUrl = "#briefing";
+          actionText = "Tahsilatları Gör & WhatsApp Gönder";
+        } else {
+          reply = "Tebrikler! Şu an için vadesi gecikmiş veya tahsilat bekleyen acil müşteri alacağı bulunmuyor.";
+        }
+      }
+
+      // 5. TEDARİKÇİ FİYAT FARKI & İSKONTO KAYIPLARI
+      else if (
+        qLower.includes("fark") ||
+        qLower.includes("fatura") ||
+        qLower.includes("zarar") ||
+        qLower.includes("tedarikçi") ||
+        qLower.includes("iskonto")
+      ) {
         const pending = alerts.filter((a) => a.status === "pending");
         if (pending.length > 0) {
           const totalP = pending.reduce((s, a) => s + a.totalLoss, 0);
-          reply = `Şu anda sistemde **${pending.length} adet** alımda iskonto kaybı veya fiyat farkı tespit edilmiş durumda. Toplam kesilebilecek fiyat farkı faturası tutarı: **${formatMoney(totalP)}** (+KDV).\n\nÖne çıkan tedarikçiler: ${Array.from(new Set(pending.map((p) => p.contactName))).slice(0, 3).join(", ")}. Fiyat farkı faturası keserek bu tutarı cari hesabınızdan düşebilir veya nakit iadesi talep edebilirsiniz.`;
+          reply = `⚠️ **TEDARİKÇİ İSKONTO VE FİYAT FARKI DENETİMİ:**\n\n` +
+            `Sistemde **${pending.length} adet** alımda iskonto kaybı veya fiyat artışı tespit edildi. Toplam kesilebilecek Fiyat Farkı Faturası tutarı: **${formatMoney(totalP)}** (+KDV).\n\n` +
+            `Öne çıkan tedarikçiler: ${Array.from(new Set(pending.map((p) => p.contactName))).slice(0, 3).join(", ")}.\n\n` +
+            `Fiyat Farkı Faturası keserek bu tutarı cari hesabınızdan mahsup edebilir veya nakit iadesi talep edebilirsiniz.`;
           actionUrl = "#alerts";
-          actionText = "Bekleyen Farkları Listele";
+          actionText = "Bekleyen Farkları Listele & Fatura Kes";
         } else {
-          reply = "Harika haber! Şu anda kayıtlı alışlarınızda bekleyen herhangi bir iskonto kaybı veya çözülmemiş fiyat farkı bulunmuyor. Yeni bir alış faturası girdiğinizde anlık olarak denetleyeceğim.";
+          reply = "Alış faturalarınız düzenli denetleniyor. Şu anda bekleyen bir iskonto kaybı veya fiyat artışı tespit edilmedi.";
         }
-      } else if (qLower.includes("tedarikçi") || qLower.includes("arttırdı") || qLower.includes("artırdı")) {
-        const suppliersWithLoss = Array.from(new Set(alerts.map((a) => a.contactName)));
-        if (suppliersWithLoss.length > 0) {
-          reply = `Son kayıtlarda fiyat artışı veya iskonto kısıtlaması yapan **${suppliersWithLoss.length} tedarikçi** tespit edildi:\n\n• ${suppliersWithLoss.join("\n• ")}\n\nBu firmalarla sözleşmeli iskonto oranlarınızı teyit etmenizi ve düzenlenen son faturalar için fiyat farkı faturası talep etmenizi öneririm.`;
-        } else {
-          reply = "İncelediğim son alış faturalarında tedarikçilerinizin fiyat artırdığına veya iskontoları kestiğine dair aktif bir kayıt bulunmuyor.";
-        }
-      } else if (qLower.includes("iskonto")) {
-        const discAlerts = alerts.filter((a) => a.type.includes("discount"));
-        if (discAlerts.length > 0) {
-          const totalDiscLoss = discAlerts.reduce((s, a) => s + a.totalLoss, 0);
-          reply = `Önceki alımlarda iskonto uygulanıp, son alımlarda **iskonto uygulanmayan veya düşürülen** toplam **${discAlerts.length} kalem ürün** var. Toplam iskonto kaybınız: **${formatMoney(totalDiscLoss)}**.\n\nTedarikçiler faturalama sırasında anlaşmalı iskontoları unutmuş olabilir. İtiraz metnini WhatsApp üzerinden tek tıkla paylaşabilirsiniz.`;
-        } else {
-          reply = "İskonto kaybı tespit edilen herhangi bir alışınız bulunmamaktadır. Tüm iskontolar düzenli yansıtılmış görünüyor.";
-        }
-      } else {
-        reply = `Sorunuz analiz edildi. REN Yapay Zeka işletmenizin kâr marjını korumak için alış ve satış hareketlerini sürekli karşılaştırır. 
+      }
 
-Şu anki özet durumunuz:
-• İncelenen Uyarı Sayısı: **${alerts.length} adet**
-• Bekleyen Fiyat Farkı Potansiyeli: **${formatMoney(stats.totalLossDetected - stats.totalLossInvoiced)}**
-• Başarıyla Kurtarılan Tutar: **${formatMoney(stats.totalLossInvoiced)}**
-
-Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Faturası kesmenizi sağlayacaktır.`;
+      // 6. GENEL TAVSİYE
+      else {
+        reply = `Sorunuz analiz edildi. REN Yapay Zeka işletmenizi 3 temel eksende korur ve büyütür:\n\n` +
+          `1. ☀️ **Sabah Brifingi:** Her sabah vadesi gelen ödemeler, tahsilatlar ve likidite dengesi.\n` +
+          `2. 🧊 **Ölü Stok & Kampanyalar:** Satılmayan ürünleri nakde çevirmek için paket ve indirim fikirleri.\n` +
+          `3. 🛡️ **Kâr Kalkanı:** Tedarikçi iskonto unutmaları ve fiyat artışlarında 1-tıkla Fiyat Farkı Faturası.\n\n` +
+          `Dilediğiniz konuyu sormaya devam edebilirsiniz.`;
       }
 
       setChatMessages((prev) => [
@@ -199,7 +332,7 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
         },
       ]);
       setIsTyping(false);
-    }, 600);
+    }, 500);
   };
 
   return (
@@ -212,75 +345,41 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
               <Sparkles className="size-5 animate-spin-slow" />
             </div>
             <h1 className="text-xl font-bold tracking-tight text-text">
-              REN Yapay Zeka · Kâr Koruma Kalkanı
+              REN Yapay Zeka · Kâr Koruma ve Finansal Denetim Kalkanı
             </h1>
           </div>
           <p className="text-xs text-muted mt-1">
-            Tedarikçi alışlarındaki iskonto kayıplarını ve fiyat farklarını anlık denetleyen akıllı finansal koruma merkezi.
+            Günlük sabah brifingi, tedarikçi iskonto denetimi, hareketsiz stok kampanya fikirleri ve finansal asistan.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shadow-2xs">
             <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-            7/24 Canlı Denetim Aktif
+            7/24 Aktif Kâr Kalkanı
           </span>
         </div>
       </div>
 
-      {/* METRİK KARTLARI */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent p-4">
-          <div className="flex items-center justify-between text-muted text-xs">
-            <span>Tespit Edilen Zarar</span>
-            <ShieldAlert className="size-4 text-purple-600" />
-          </div>
-          <div className="mt-2 font-mono text-xl font-bold text-red-600 dark:text-red-400">
-            {formatMoney(stats.totalLossDetected)}
-          </div>
-          <div className="mt-1 text-[11px] text-muted">
-            {stats.pendingCount} işlem faturası bekliyor
-          </div>
-        </Card>
-
-        <Card className="border-border p-4">
-          <div className="flex items-center justify-between text-muted text-xs">
-            <span>Kurtarılan / Kesilen</span>
-            <CheckCircle2 className="size-4 text-emerald-600" />
-          </div>
-          <div className="mt-2 font-mono text-xl font-bold text-emerald-600 dark:text-emerald-400">
-            {formatMoney(stats.totalLossInvoiced)}
-          </div>
-          <div className="mt-1 text-[11px] text-muted">
-            {stats.invoicedCount} fiyat farkı faturası kesildi
-          </div>
-        </Card>
-
-        <Card className="border-border p-4">
-          <div className="flex items-center justify-between text-muted text-xs">
-            <span>İskonto Kaçakları</span>
-            <TrendingDown className="size-4 text-amber-500" />
-          </div>
-          <div className="mt-2 font-mono text-xl font-bold text-text">
-            {alerts.filter((a) => a.type.includes("discount")).length} Kalem
-          </div>
-          <div className="mt-1 text-[11px] text-muted">Uygulanmayan iskontolar</div>
-        </Card>
-
-        <Card className="border-border p-4">
-          <div className="flex items-center justify-between text-muted text-xs">
-            <span>İncelenen Tedarikçi</span>
-            <Building2 className="size-4 text-indigo-500" />
-          </div>
-          <div className="mt-2 font-mono text-xl font-bold text-text">
-            {stats.supplierCount} Firma
-          </div>
-          <div className="mt-1 text-[11px] text-muted">Kayıtlı fiyat geçmişi</div>
-        </Card>
-      </div>
-
       {/* SEKME BAŞLIKLARI */}
       <div className="flex border-b border-border">
+        <button
+          type="button"
+          onClick={() => setActiveTab("briefing")}
+          className={cn(
+            "flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-semibold transition-colors",
+            activeTab === "briefing"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted hover:text-text",
+          )}
+        >
+          <Sun className="size-4 text-amber-500" />
+          Günlük Sabah Brifingi
+          <span className="rounded-full bg-amber-500/15 px-1.5 py-0.2 text-[10px] font-bold text-amber-600">
+            GÜNLÜK
+          </span>
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveTab("alerts")}
@@ -291,7 +390,7 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
               : "border-transparent text-muted hover:text-text",
           )}
         >
-          <ShieldAlert className="size-4" />
+          <ShieldAlert className="size-4 text-red-500" />
           Zarar Önleme & Fiyat Farkları
           {stats.pendingCount > 0 && (
             <span className="rounded-full bg-red-500/15 px-1.5 py-0.2 text-[10px] font-bold text-red-600">
@@ -318,9 +417,65 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
         </button>
       </div>
 
-      {/* SEKME 1: ZARAR ÖNLEME & FARK LİSTESİ */}
+      {/* SEKME 1: GÜNLÜK SABAH BRİFİNGİ */}
+      {activeTab === "briefing" && (
+        <DailyBriefingWidget variant="full" />
+      )}
+
+      {/* SEKME 2: ZARAR ÖNLEME & FİYAT FARKLARI (FATURA KALKANI) */}
       {activeTab === "alerts" && (
-        <div className="space-y-3.5">
+        <div className="space-y-4">
+          {/* METRİK KARTLARI */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent p-4">
+              <div className="flex items-center justify-between text-muted text-xs">
+                <span>Tespit Edilen Zarar</span>
+                <ShieldAlert className="size-4 text-purple-600" />
+              </div>
+              <div className="mt-2 font-mono text-xl font-bold text-red-600 dark:text-red-400">
+                {formatMoney(stats.totalLossDetected)}
+              </div>
+              <div className="mt-1 text-[11px] text-muted">
+                {stats.pendingCount} işlem faturası bekliyor
+              </div>
+            </Card>
+
+            <Card className="border-border p-4">
+              <div className="flex items-center justify-between text-muted text-xs">
+                <span>Kurtarılan / Kesilen</span>
+                <CheckCircle2 className="size-4 text-emerald-600" />
+              </div>
+              <div className="mt-2 font-mono text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                {formatMoney(stats.totalLossInvoiced)}
+              </div>
+              <div className="mt-1 text-[11px] text-muted">
+                {stats.invoicedCount} fiyat farkı faturası kesildi
+              </div>
+            </Card>
+
+            <Card className="border-border p-4">
+              <div className="flex items-center justify-between text-muted text-xs">
+                <span>İskonto Kaçakları</span>
+                <TrendingDown className="size-4 text-amber-500" />
+              </div>
+              <div className="mt-2 font-mono text-xl font-bold text-text">
+                {alerts.filter((a) => a.type.includes("discount")).length} Kalem
+              </div>
+              <div className="mt-1 text-[11px] text-muted">Uygulanmayan iskontolar</div>
+            </Card>
+
+            <Card className="border-border p-4">
+              <div className="flex items-center justify-between text-muted text-xs">
+                <span>İncelenen Tedarikçi</span>
+                <Building2 className="size-4 text-indigo-500" />
+              </div>
+              <div className="mt-2 font-mono text-xl font-bold text-text">
+                {stats.supplierCount} Firma
+              </div>
+              <div className="mt-1 text-[11px] text-muted">Kayıtlı fiyat geçmişi</div>
+            </Card>
+          </div>
+
           {/* FİLTRE VE ARAMA ÇUBUĞU */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
             <div className="flex flex-wrap gap-1.5">
@@ -548,9 +703,9 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
         </div>
       )}
 
-      {/* SEKME 2: YAPAY ZEKA ASİSTANI (SOHBET VE FİNANSAL ZEKA) */}
+      {/* SEKME 3: YAPAY ZEKA ASİSTANI (SOHBET VE FİNANSAL ZEKA) */}
       {activeTab === "assistant" && (
-        <Card className="flex flex-col h-[580px] border-purple-500/30 overflow-hidden shadow-sm">
+        <Card className="flex flex-col h-[600px] border-purple-500/30 overflow-hidden shadow-sm">
           {/* ASİSTAN ÜST BİLGİ */}
           <div className="flex items-center justify-between border-b border-border bg-surface-2 px-4 py-3">
             <div className="flex items-center gap-2.5">
@@ -609,7 +764,10 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
                       <Button
                         type="button"
                         size="sm"
-                        onClick={() => setActiveTab("alerts")}
+                        onClick={() => {
+                          if (msg.actionUrl === "#briefing") setActiveTab("briefing");
+                          else if (msg.actionUrl === "#alerts") setActiveTab("alerts");
+                        }}
                         className="text-[11px] h-7 bg-primary text-white"
                       >
                         {msg.actionText || "Görüntüle"}
@@ -634,10 +792,11 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
           <div className="border-t border-border bg-surface px-4 py-2 flex items-center gap-1.5 overflow-x-auto thin-scroll">
             <span className="text-[10px] font-semibold text-muted shrink-0">Hızlı Sor:</span>
             {[
+              "Bugünkü sabah brifingimi özetle",
+              "Hangi ürünler satılmıyor ve kampanya fikrin nedir?",
+              "En çok satan yıldız ürünlerim hangileri?",
+              "Hangi müşterilere ödeme hatırlatması yapmalıyım?",
               "Hangi tedarikçiler fiyat artırdı?",
-              "İskonto kaybı yaşadığım alışlar hangileri?",
-              "Toplam ne kadar fiyat farkı faturası kesebilirim?",
-              "Kâr marjımı nasıl koruyabilirim?",
             ].map((chip) => (
               <button
                 key={chip}
@@ -663,7 +822,7 @@ Alış yaparken sistem sizi anlık olarak uyaracak ve tek tıkla Fiyat Farkı Fa
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Yapay zekaya tedarikçiler, iskonto kayıpları veya fiyat farkları hakkında soru sorun..."
+                placeholder="Yapay zekaya brifing, tahsilatlar, ölü stoklar veya tedarikçiler hakkında soru sorun..."
                 className="h-9 flex-1 rounded-xl border border-border bg-surface px-3 text-xs focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
               <Button

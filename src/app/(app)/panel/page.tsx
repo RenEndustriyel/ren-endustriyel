@@ -25,6 +25,7 @@ import { triggerLiveRatesRefresh } from "@/lib/rates";
 import { Card } from "@/components/ui/card";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { DailyBriefingWidget } from "@/components/ai/daily-briefing-widget";
 
 export default function PanelPage() {
   const { org, role } = useOrg();
@@ -117,6 +118,9 @@ export default function PanelPage() {
         <DashboardSkeleton />
       ) : data ? (
         <>
+          {/* REN AI Günlük Sabah Brifingi Banner */}
+          {!hideMoney && <DailyBriefingWidget variant="banner" />}
+
           {/* 2. Üst 5 KPI Kartı (Pusulam renk ve gradyanları ile) */}
           <KpiCards data={data} hideCash={hideMoney} />
 

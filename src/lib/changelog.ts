@@ -14,9 +14,41 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.0.0";
+export const LATEST_VERSION = "2.1.0";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.1.0",
+    date: "29 Eylül 2026",
+    title: "REN AI Günlük Sabah Brifingi, Ölü Stok Kampanya Önerileri & Gelişmiş Finansal Asistan",
+    badge: "Büyük Ana Güncelleme",
+    items: [
+      {
+        type: "yeni",
+        title: "☀️ Her Sabah Günlük Yönetici Brifingi (Dashboard & Yapay Zeka)",
+        description:
+          "Ana sayfada ve Yapay Zeka merkezinde her sabah otomatik brifing: Bugün ve geciken tahsilatlar, yapılması gereken ödemeler, net nakit akışı projeksiyonu, yıldız ürünlerin stok tükenme günleri tek bakışta.",
+      },
+      {
+        type: "yeni",
+        title: "📦 Hareketsiz Stok Radarı & AI Kampanya Oluşturma Fikirleri",
+        description:
+          "30 günden uzun süredir satılmayan ürünler ve depoda kilitli kalan toplam sermaye tespit edilir. Yapay zeka bu ürünleri eritmek için 'Çapraz Promosyon (Bundle)', 'Toplu Tasfiye İskontosu' ve 'Flaş Marj' stratejileri önerir; tek tıkla kampanyalı teklif açılabilir.",
+      },
+      {
+        type: "yeni",
+        title: "⚡ Müşteri Tahsilat Radarı & 1-Tık WhatsApp Hatırlatma",
+        description:
+          "Vadesi geçen ve ödemesi beklenen müşteriler için tutar ve vadesi hesaplanmış nazik WhatsApp tahsilat hatırlatma mesajları tek tıkla panoya kopyalanabilir.",
+      },
+      {
+        type: "yeni",
+        title: "🤖 Gelişmiş REN AI Finansal Asistan (3 Ayrı Modül)",
+        description:
+          "Yapay Zeka sayfası 3 sekmeli profesyonel komuta merkezine dönüştürüldü: Günlük Sabah Brifingi, Zarar Önleme & Fiyat Farkları ve canlı ERP verileriyle interaktif konuşabilen REN AI Finansal Asistan.",
+      },
+    ],
+  },
   {
     version: "2.0.0",
     date: "29 Eylül 2026",
