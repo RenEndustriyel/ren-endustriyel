@@ -96,18 +96,19 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
   const purchasePriceWatch = form.watch("purchase_price") || 0;
   const salePriceWatch = form.watch("sale_price") || 0;
   const currency = form.watch("sale_currency") || "TRY";
-  const isVatInc = form.watch("sale_price_includes_vat");
+  const isSaleVatInc = form.watch("sale_price_includes_vat");
+  const isPurchaseVatInc = form.watch("purchase_price_includes_vat");
   const numVatRate = Number(form.watch("vat_rate") || 20);
 
   const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const r4 = (n: number) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 
-  // Canlı KDV ve net/brüt tutar hesaplamaları
+  // Canlı KDV ve net/brüt tutar hesaplamaları (Satış)
   let netSale = salePriceWatch;
   let vatSaleAmount = 0;
   let totalSaleWithVat = salePriceWatch;
 
-  if (isVatInc) {
+  if (isSaleVatInc) {
     totalSaleWithVat = salePriceWatch;
     netSale = numVatRate > 0 ? r2(salePriceWatch / (1 + numVatRate / 100)) : salePriceWatch;
     vatSaleAmount = r2(totalSaleWithVat - netSale);
@@ -117,24 +118,38 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
     totalSaleWithVat = r2(netSale + vatSaleAmount);
   }
 
-  // Alış fiyatı her zaman KDV hariç olarak hesaplanır ve saklanır
-  const netBuy = purchasePriceWatch;
-  const vatBuyAmount = r2((purchasePriceWatch * numVatRate) / 100);
-  const totalBuyWithVat = r2(netBuy + vatBuyAmount);
+  // Canlı KDV ve net/brüt tutar hesaplamaları (Alış)
+  let netBuy = purchasePriceWatch;
+  let vatBuyAmount = 0;
+  let totalBuyWithVat = purchasePriceWatch;
 
-  const initialPurchase = Number(product?.purchase_price ?? 0);
-  const initialSale = Number(product?.sale_price ?? 0);
+  if (isPurchaseVatInc) {
+    totalBuyWithVat = purchasePriceWatch;
+    netBuy = numVatRate > 0 ? r2(purchasePriceWatch / (1 + numVatRate / 100)) : purchasePriceWatch;
+    vatBuyAmount = r2(totalBuyWithVat - netBuy);
+  } else {
+    netBuy = purchasePriceWatch;
+    vatBuyAmount = r2((purchasePriceWatch * numVatRate) / 100);
+    totalBuyWithVat = r2(netBuy + vatBuyAmount);
+  }
+
+  const initBuyNet = (product?.purchase_price_includes_vat ?? false) && Number(product?.vat_rate ?? 20) > 0
+    ? r2(Number(product?.purchase_price ?? 0) / (1 + Number(product?.vat_rate ?? 20) / 100))
+    : Number(product?.purchase_price ?? 0);
+  const initSaleNet = (product?.sale_price_includes_vat ?? false) && Number(product?.vat_rate ?? 20) > 0
+    ? r2(Number(product?.sale_price ?? 0) / (1 + Number(product?.vat_rate ?? 20) / 100))
+    : Number(product?.sale_price ?? 0);
 
   const [profitMargin, setProfitMargin] = React.useState<number>(() => {
-    if (initialPurchase > 0 && initialSale >= initialPurchase) {
-      return r2(((initialSale - initialPurchase) / initialPurchase) * 100);
+    if (initBuyNet > 0 && initSaleNet >= initBuyNet) {
+      return r2(((initSaleNet - initBuyNet) / initBuyNet) * 100);
     }
     return 0;
   });
 
   const [profitAmount, setProfitAmount] = React.useState<number>(() => {
-    if (initialSale >= initialPurchase && initialPurchase > 0) {
-      return r2(initialSale - initialPurchase);
+    if (initSaleNet >= initBuyNet && initBuyNet > 0) {
+      return r2(initSaleNet - initBuyNet);
     }
     return 0;
   });
@@ -142,9 +157,13 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
   React.useEffect(() => {
     const pBuy = Number(product?.purchase_price ?? 0);
     const pSale = Number(product?.sale_price ?? 0);
-    if (pBuy > 0 && pSale >= pBuy) {
-      setProfitAmount(r2(pSale - pBuy));
-      setProfitMargin(r2(((pSale - pBuy) / pBuy) * 100));
+    const pVat = Number(product?.vat_rate ?? 20);
+    const pBuyNet = (product?.purchase_price_includes_vat ?? false) && pVat > 0 ? r2(pBuy / (1 + pVat / 100)) : pBuy;
+    const pSaleNet = (product?.sale_price_includes_vat ?? false) && pVat > 0 ? r2(pSale / (1 + pVat / 100)) : pSale;
+
+    if (pBuyNet > 0 && pSaleNet >= pBuyNet) {
+      setProfitAmount(r2(pSaleNet - pBuyNet));
+      setProfitMargin(r2(((pSaleNet - pBuyNet) / pBuyNet) * 100));
     } else {
       setProfitAmount(0);
       setProfitMargin(0);
@@ -153,16 +172,17 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
 
   const handlePurchasePriceChange = (val: number) => {
     form.setValue("purchase_price", val, { shouldDirty: true });
-    if (val > 0 && profitMargin > 0) {
-      const pAmt = r2(val * (profitMargin / 100));
-      const sPrice = r2(val + pAmt);
+    const curNetBuy = isPurchaseVatInc && numVatRate > 0 ? r2(val / (1 + numVatRate / 100)) : val;
+    if (curNetBuy > 0 && profitMargin > 0) {
+      const pAmt = r2(curNetBuy * (profitMargin / 100));
+      const targetNetSale = r2(curNetBuy + pAmt);
+      const sPrice = isSaleVatInc && numVatRate > 0 ? r2(targetNetSale * (1 + numVatRate / 100)) : targetNetSale;
       setProfitAmount(pAmt);
       form.setValue("sale_price", sPrice, { shouldDirty: true });
-    } else if (val > 0) {
-      const sPrice = form.getValues("sale_price") || 0;
-      if (sPrice >= val) {
-        const pAmt = r2(sPrice - val);
-        const pMar = r2((pAmt / val) * 100);
+    } else if (curNetBuy > 0) {
+      if (netSale >= curNetBuy) {
+        const pAmt = r2(netSale - curNetBuy);
+        const pMar = r2((pAmt / curNetBuy) * 100);
         setProfitAmount(pAmt);
         setProfitMargin(pMar);
       } else {
@@ -177,10 +197,10 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
 
   const handleProfitMarginChange = (margin: number) => {
     setProfitMargin(margin);
-    const pBuy = form.getValues("purchase_price") || 0;
-    if (pBuy > 0) {
-      const pAmt = r2(pBuy * (margin / 100));
-      const sPrice = r2(pBuy + pAmt);
+    if (netBuy > 0) {
+      const pAmt = r2(netBuy * (margin / 100));
+      const targetNetSale = r2(netBuy + pAmt);
+      const sPrice = isSaleVatInc && numVatRate > 0 ? r2(targetNetSale * (1 + numVatRate / 100)) : targetNetSale;
       setProfitAmount(pAmt);
       form.setValue("sale_price", sPrice, { shouldDirty: true });
     }
@@ -188,22 +208,22 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
 
   const handleProfitAmountChange = (amt: number) => {
     setProfitAmount(amt);
-    const pBuy = form.getValues("purchase_price") || 0;
-    const sPrice = r2(pBuy + amt);
-    form.setValue("sale_price", sPrice, { shouldDirty: true });
-    if (pBuy > 0) {
-      setProfitMargin(r2((amt / pBuy) * 100));
+    if (netBuy > 0) {
+      const targetNetSale = r2(netBuy + amt);
+      const sPrice = isSaleVatInc && numVatRate > 0 ? r2(targetNetSale * (1 + numVatRate / 100)) : targetNetSale;
+      form.setValue("sale_price", sPrice, { shouldDirty: true });
+      setProfitMargin(r2((amt / netBuy) * 100));
     }
   };
 
   const handleSalePriceChange = (val: number) => {
     form.setValue("sale_price", val, { shouldDirty: true });
-    const pBuy = form.getValues("purchase_price") || 0;
-    if (pBuy > 0) {
-      const diff = val - pBuy;
+    const curNetSale = isSaleVatInc && numVatRate > 0 ? r2(val / (1 + numVatRate / 100)) : val;
+    if (netBuy > 0) {
+      const diff = curNetSale - netBuy;
       if (diff >= 0) {
         setProfitAmount(r2(diff));
-        setProfitMargin(r2((diff / pBuy) * 100));
+        setProfitMargin(r2((diff / netBuy) * 100));
       } else {
         setProfitAmount(0);
         setProfitMargin(0);
@@ -215,44 +235,53 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
     const oldRate = Number(form.getValues("vat_rate") || 20);
     form.setValue("vat_rate", String(newRate), { shouldDirty: true });
 
-    const isVatInc = form.getValues("sale_price_includes_vat");
+    if (oldRate === newRate) return;
+
+    const pBuyInc = form.getValues("purchase_price_includes_vat");
+    const sPriceInc = form.getValues("sale_price_includes_vat");
+    const pBuy = form.getValues("purchase_price") || 0;
     const sPrice = form.getValues("sale_price") || 0;
+
+    if (pBuyInc && pBuy > 0) {
+      const curNet = oldRate > 0 ? pBuy / (1 + oldRate / 100) : pBuy;
+      form.setValue("purchase_price", r2(curNet * (1 + newRate / 100)), { shouldDirty: true });
+    }
+    if (sPriceInc && sPrice > 0) {
+      const curNet = oldRate > 0 ? sPrice / (1 + oldRate / 100) : sPrice;
+      form.setValue("sale_price", r2(curNet * (1 + newRate / 100)), { shouldDirty: true });
+    }
+  };
+
+  const handlePurchaseVatToggle = (checked: boolean) => {
+    const vatRate = Number(form.getValues("vat_rate") || 20);
     const pBuy = form.getValues("purchase_price") || 0;
 
-    // Fiyatlar KDV dahil ise yeni KDV oranına göre fiyatları senkronize et
-    if (isVatInc && sPrice > 0 && oldRate !== newRate) {
-      const netSale = oldRate > 0 ? sPrice / (1 + oldRate / 100) : sPrice;
-      const newSale = r2(netSale * (1 + newRate / 100));
-      form.setValue("sale_price", newSale, { shouldDirty: true });
+    form.setValue("purchase_price_includes_vat", checked, { shouldDirty: true });
 
-      if (pBuy > 0) {
-        const netBuy = oldRate > 0 ? pBuy / (1 + oldRate / 100) : pBuy;
-        const newBuy = r2(netBuy * (1 + newRate / 100));
-        form.setValue("purchase_price", newBuy, { shouldDirty: true });
-        const diff = newSale - newBuy;
-        if (diff >= 0) {
-          setProfitAmount(r2(diff));
-          setProfitMargin(r2((diff / newBuy) * 100));
-        }
+    if (vatRate > 0 && pBuy > 0) {
+      if (checked) {
+        // Alış: Hariçten Dahile geçiş
+        form.setValue("purchase_price", r2(pBuy * (1 + vatRate / 100)), { shouldDirty: true });
+      } else {
+        // Alış: Dahilden Hariçe geçiş
+        form.setValue("purchase_price", r2(pBuy / (1 + vatRate / 100)), { shouldDirty: true });
       }
     }
   };
 
-  const handleVatIncludedToggle = (checked: boolean) => {
+  const handleSaleVatToggle = (checked: boolean) => {
     const vatRate = Number(form.getValues("vat_rate") || 20);
     const sPrice = form.getValues("sale_price") || 0;
 
     form.setValue("sale_price_includes_vat", checked, { shouldDirty: true });
-    // Alış fiyatı her zaman KDV Hariçtir
-    form.setValue("purchase_price_includes_vat", false, { shouldDirty: true });
 
-    if (vatRate > 0) {
+    if (vatRate > 0 && sPrice > 0) {
       if (checked) {
         // Satış: Hariçten Dahile geçiş
-        if (sPrice > 0) form.setValue("sale_price", r2(sPrice * (1 + vatRate / 100)), { shouldDirty: true });
+        form.setValue("sale_price", r2(sPrice * (1 + vatRate / 100)), { shouldDirty: true });
       } else {
         // Satış: Dahilden Hariçe geçiş
-        if (sPrice > 0) form.setValue("sale_price", r2(sPrice / (1 + vatRate / 100)), { shouldDirty: true });
+        form.setValue("sale_price", r2(sPrice / (1 + vatRate / 100)), { shouldDirty: true });
       }
     }
   };
@@ -288,7 +317,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
       sale_price_includes_vat: v.sale_price_includes_vat,
       sale_currency: v.sale_currency,
       purchase_price: v.purchase_price,
-      purchase_price_includes_vat: product ? (product.purchase_price_includes_vat ?? false) : false,
+      purchase_price_includes_vat: v.purchase_price_includes_vat,
       purchase_currency: v.purchase_currency,
       track_stock: v.type === "product" && v.track_stock,
       critical_stock: v.critical_stock || null,
@@ -383,7 +412,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
 
       {/* Fiyatlandırma & Kâr Marjı (Sade, Tek KDV ve Senkronize) */}
       <div className="rounded-2xl border border-border bg-surface-2/40 p-4 sm:col-span-2">
-        {/* Üst Kontrol Barı: Başlık, Tek KDV Oranı, Tek KDV Dahil Switch ve Para Birimi */}
+        {/* Üst Kontrol Barı: Başlık, Tek KDV Oranı, Ayrı Alış/Satış KDV Dahil Switchleri ve Para Birimi */}
         <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-xs">
@@ -391,7 +420,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
             </div>
             <div>
               <div className="text-sm font-bold text-text">Fiyatlandırma & Kâr Marjı</div>
-              <div className="text-xs text-muted">Tek KDV oranı üzerinden tüm fiyatlar senkronize hesaplanır</div>
+              <div className="text-xs text-muted">Alış ve satış için bağımsız KDV dahil/hariç seçenekleri</div>
             </div>
           </div>
 
@@ -416,10 +445,16 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
               ))}
             </div>
 
-            {/* Satış KDV Dahil Switch'i */}
+            {/* Alış KDV Dahil Switch */}
             <label className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-surface px-2.5 py-1 text-xs font-semibold text-text cursor-pointer select-none shadow-2xs">
-              <Switch checked={isVatInc} onCheckedChange={handleVatIncludedToggle} />
-              <span>Satış: {isVatInc ? "KDV Dahil" : "KDV Hariç"}</span>
+              <Switch checked={isPurchaseVatInc} onCheckedChange={handlePurchaseVatToggle} />
+              <span>Alış: {isPurchaseVatInc ? "KDV Dahil" : "KDV Hariç"}</span>
+            </label>
+
+            {/* Satış KDV Dahil Switch */}
+            <label className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-surface px-2.5 py-1 text-xs font-semibold text-text cursor-pointer select-none shadow-2xs">
+              <Switch checked={isSaleVatInc} onCheckedChange={handleSaleVatToggle} />
+              <span>Satış: {isSaleVatInc ? "KDV Dahil" : "KDV Hariç"}</span>
             </label>
 
             {/* Tek Para Birimi Seçimi */}
@@ -444,7 +479,23 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           <div className="flex flex-col justify-between gap-2 rounded-xl border border-border bg-surface p-3.5 shadow-xs">
             <div>
               <div className="mb-2 flex items-center justify-between text-xs font-bold text-muted">
-                <span>1. ALIŞ FİYATI (KDV HARİÇ)</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-text">1. ALIŞ FİYATI</span>
+                  <button
+                    type="button"
+                    onClick={() => handlePurchaseVatToggle(!isPurchaseVatInc)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border transition-colors",
+                      isPurchaseVatInc
+                        ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
+                        : "bg-surface-2 text-muted border-border hover:bg-surface-3 hover:text-text",
+                    )}
+                    title="Alış Fiyatı KDV Dahil/Hariç Değiştir"
+                  >
+                    <span className={cn("size-1.5 rounded-full", isPurchaseVatInc ? "bg-primary" : "bg-muted")} />
+                    {isPurchaseVatInc ? "KDV Dahil" : "KDV Hariç"}
+                  </button>
+                </div>
                 <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold">{currency}</span>
               </div>
               <Controller
@@ -455,7 +506,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
                     value={field.value}
                     onChange={handlePurchasePriceChange}
                     decimals={4}
-                    aria-label="Alış fiyatı (KDV hariç)"
+                    aria-label="Alış fiyatı"
                     placeholder="0,00"
                     className="h-10 text-base font-semibold"
                   />
@@ -463,7 +514,11 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
               />
             </div>
             <div className="text-[11px] text-muted">
-              <span>KDV Hariç · +%{numVatRate} KDV ile: {formatMoney(totalBuyWithVat, currency)}</span>
+              {isPurchaseVatInc ? (
+                <span>KDV Dahil · Net: {formatMoney(netBuy, currency)} + %{numVatRate} KDV: {formatMoney(vatBuyAmount, currency)}</span>
+              ) : (
+                <span>KDV Hariç · +%{numVatRate} KDV ile: {formatMoney(totalBuyWithVat, currency)}</span>
+              )}
             </div>
           </div>
 
@@ -503,7 +558,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
               </div>
             </div>
             <div className="flex items-center justify-between text-[11px] text-muted">
-              <span>Alış maliyeti üzerinden</span>
+              <span>Net maliyet üzerinden</span>
               {profitAmount > 0 ? (
                 <span className="font-semibold text-success">+{formatMoney(profitAmount, currency)} (%{profitMargin})</span>
               ) : (
@@ -516,7 +571,23 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           <div className="flex flex-col justify-between gap-2 rounded-xl border-2 border-primary/50 bg-surface p-3.5 shadow-sm">
             <div>
               <div className="mb-2 flex items-center justify-between text-xs font-bold text-primary">
-                <span>3. SATIŞ FİYATI ({isVatInc ? "KDV DAHİL" : "KDV HARİÇ"})</span>
+                <div className="flex items-center gap-1.5">
+                  <span>3. SATIŞ FİYATI</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSaleVatToggle(!isSaleVatInc)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border transition-colors",
+                      isSaleVatInc
+                        ? "bg-primary text-white border-primary shadow-xs hover:bg-primary/90"
+                        : "bg-surface-2 text-muted border-border hover:bg-surface-3 hover:text-text",
+                    )}
+                    title="Satış Fiyatı KDV Dahil/Hariç Değiştir"
+                  >
+                    <span className={cn("size-1.5 rounded-full", isSaleVatInc ? "bg-white" : "bg-muted")} />
+                    {isSaleVatInc ? "KDV Dahil" : "KDV Hariç"}
+                  </button>
+                </div>
                 <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">{currency}</span>
               </div>
               <Controller
@@ -535,7 +606,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
               />
             </div>
             <div className="text-[11px] font-medium text-text">
-              {isVatInc ? (
+              {isSaleVatInc ? (
                 <span className="text-muted">KDV Dahil · Net: {formatMoney(netSale, currency)} + KDV: {formatMoney(vatSaleAmount, currency)}</span>
               ) : (
                 <span>+ KDV %{numVatRate} ({formatMoney(vatSaleAmount, currency)}) ➔ Toplam: <strong className="text-primary font-bold">{formatMoney(totalSaleWithVat, currency)}</strong></span>
@@ -549,6 +620,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           <div className="flex flex-wrap items-center gap-1.5 text-muted">
             <span>Alış:</span>
             <span className="font-semibold text-text">{formatMoney(purchasePriceWatch, currency)}</span>
+            <span className="text-[10px] font-medium text-muted">({isPurchaseVatInc ? "Dahil" : "Hariç"})</span>
             <span className="text-muted/60">+</span>
             <span>Kâr:</span>
             <span className="font-semibold text-success">+{formatMoney(profitAmount, currency)}</span>
@@ -556,13 +628,13 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
             <span className="text-muted/60">=</span>
             <span className="font-semibold text-primary">Satış:</span>
             <span className="font-bold text-primary">{formatMoney(salePriceWatch, currency)}</span>
+            <span className="text-[10px] font-medium text-primary/80">({isSaleVatInc ? "Dahil" : "Hariç"})</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <span className="text-muted">KDV %{numVatRate}:</span>
             <span className="font-semibold text-text">{formatMoney(vatSaleAmount, currency)}</span>
             <span className="text-muted/60">·</span>
             <span className="font-bold text-text">Toplam: {formatMoney(totalSaleWithVat, currency)}</span>
-            <span className="text-[11px] text-muted">({isVatInc ? "KDV Dahil" : "KDV Hariç"})</span>
           </div>
         </div>
       </div>

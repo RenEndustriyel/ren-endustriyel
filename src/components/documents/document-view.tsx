@@ -35,6 +35,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { PaymentDialog } from "@/components/cash/payment-dialog";
 import { DocumentPrintModal } from "./document-print-modal";
 import { useDocument } from "./document-editor";
+import { useRates, rateFor } from "@/lib/rates";
 import { Attachments } from "@/components/expenses/attachments";
 import { cn } from "@/lib/utils";
 
@@ -47,11 +48,11 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   const q = useDocument(id);
   const units = useUnits();
   const products = useProducts();
+  const rates = useRates();
   const setStatus = useRpc("set_document_status");
   const del = useRpc("delete_document");
   const [payOpen, setPayOpen] = React.useState(false);
   const [printOpen, setPrintOpen] = React.useState(false);
-
   const allocs = useQuery({
     queryKey: ["allocs", id],
     queryFn: async () => {
@@ -114,7 +115,39 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   const docForPdf = { ...d, lines, contact_balance_info: balanceInfo };
   const phone = (contact.data?.find((c) => c.id === d.contact_id)?.mobile ?? "").replace(/\D/g, "");
 
-  const pdf = async (mode: "share" | "download" | "open") => {
+  const isSalesDoc = cfg.side === "sales";
+  const profitStats = (() => {
+    if (!isSalesDoc || !d || !Array.isArray(d.lines)) return null;
+    let totalCost = 0;
+    let validCount = 0;
+    for (const l of d.lines) {
+      if (!l.product_id) continue;
+      const p = products.data?.find((x) => x.id === l.product_id);
+      if (!p) continue;
+      const rawBuy = Number(p.purchase_price ?? 0);
+      if (rawBuy <= 0) continue;
+      const buyExclVat = p.purchase_price_includes_vat
+        ? rawBuy / (1 + Number(p.vat_rate || 0) / 100)
+        : rawBuy;
+      const factor = Number(l.unit_factor || 1);
+      const baseBuy = buyExclVat * factor;
+      const prodCur = p.purchase_currency || "TRY";
+      let buyInDocCur = baseBuy;
+      if (prodCur !== d.currency) {
+        const inTry = baseBuy * (prodCur === "TRY" ? 1 : rateFor(rates.data, prodCur) || 1);
+        buyInDocCur = inTry / (d.currency === "TRY" ? 1 : Number(d.exchange_rate || 1));
+      }
+      totalCost += buyInDocCur * Number(l.quantity || 0);
+      validCount++;
+    }
+    if (validCount === 0) return null;
+    const netTotal = Number(d.net_total || d.subtotal || 0);
+    const totalProfit = netTotal - totalCost;
+    const profitMargin = netTotal > 0 ? (totalProfit / netTotal) * 100 : 0;
+    return { totalCost, totalProfit, profitMargin };
+  })();
+
+  const pdf = async (mode: "share" | "download" | "open" | "print") => {
     const { shareDocumentPdf } = await import("@/lib/pdf/share");
     await shareDocumentPdf(org!, docForPdf, mode);
   };
@@ -166,8 +199,8 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
             <Button size="sm" variant="outline" onClick={() => pdf("share")}>
               <Share2 /> <span className="hidden sm:inline">Paylaş</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setPrintOpen(true)} className="hidden sm:inline-flex">
-              <Printer /> Yazdır
+            <Button size="sm" variant="outline" onClick={() => pdf("open")} className="hidden sm:inline-flex" title="PDF Belgeyi Aç ve Yazdır">
+              <Printer /> Yazdır / PDF
             </Button>
             {canWrite && (
               <DropdownMenu>
@@ -182,6 +215,9 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => pdf("download")}>
                     <Download /> PDF indir
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setPrintOpen(true)}>
+                    <Printer /> Baskı önizleme
                   </DropdownMenuItem>
                   {phone && (
                     <DropdownMenuItem onSelect={() => window.open(`https://wa.me/${phone.startsWith("0") ? "9" + phone : phone.length === 10 ? "90" + phone : phone}?text=${encodeURIComponent(`${org!.name} · ${cfg.label} ${d.number ?? ""} · Tutar: ${formatMoney(d.total, d.currency)}`)}`, "_blank")}>
@@ -398,6 +434,34 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
                   </div>
                 </div>
               )}
+              {profitStats && (
+                <div
+                  className={cn(
+                    "mt-3 rounded-lg border p-3 flex flex-col gap-1 print:hidden",
+                    profitStats.totalProfit >= 0
+                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-100"
+                      : "bg-rose-500/10 border-rose-500/20 text-rose-950 dark:text-rose-100"
+                  )}
+                >
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="flex items-center gap-1">
+                      <span>{profitStats.totalProfit >= 0 ? "📈" : "📉"}</span>
+                      <span>Tahmini Kâr (Dahili)</span>
+                    </span>
+                    <span className="font-mono text-sm font-bold">
+                      {profitStats.totalProfit >= 0 ? "+" : ""}{formatMoney(profitStats.totalProfit, d.currency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] opacity-80">
+                    <span>Kâr Marjı (Net Tutar Üzerinden)</span>
+                    <span className="font-mono font-semibold">%{profitStats.profitMargin.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] opacity-75 border-t border-border/50 pt-1">
+                    <span>Toplam Alış Maliyeti</span>
+                    <span className="font-mono">{formatMoney(profitStats.totalCost, d.currency)}</span>
+                  </div>
+                </div>
+              )}
             </CardBody>
           </Card>
 
@@ -470,6 +534,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
         balanceInfo={balanceInfo}
         contactPhone={phone}
         onDownloadPdf={() => pdf("download")}
+        onPrintPdf={() => pdf("open")}
       />
     </div>
   );

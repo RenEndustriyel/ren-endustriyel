@@ -439,13 +439,31 @@ export function SalesNotePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg }) {
     }, {}),
   );
 
-  const orgName = org.name || "REN ENDÜSTRİYEL";
+  const orgName = org.legal_name || org.name || "REN ENDÜSTRİYEL";
   const orgAddress = org.address || "Han Mahallesi Yeni Cadde No:23/D";
-  const orgCity = [org.district, org.city].filter(Boolean).join("/") || "Susurluk/Balıkesir";
+  const orgCity = [org.district, org.city].filter(Boolean).join(" / ") || "Susurluk / Balıkesir";
 
-  const isOrder = doc.doc_type === "sales_order" || doc.doc_type === "purchase_order";
-  const isQuote = doc.doc_type === "quote";
-  const title = isOrder ? "SİPARİŞ NOTU" : isQuote ? "TEKLİF NOTU" : "SATIŞ NOTU";
+  let title = "SATIŞ NOTU";
+  if (doc.doc_type === "sales_order") title = "SİPARİŞ NOTU";
+  else if (doc.doc_type === "purchase_order") title = "ALIŞ SİPARİŞİ";
+  else if (doc.doc_type === "sales_invoice") title = "SATIŞ FATURASI";
+  else if (doc.doc_type === "purchase_invoice") title = "ALIŞ FATURASI";
+  else if (doc.doc_type === "sales_return") title = "SATIŞ İADE FATURASI";
+  else if (doc.doc_type === "purchase_return") title = "ALIŞ İADE FATURASI";
+  else if (doc.doc_type === "quote") title = "TEKLİF NOTU";
+  else if (doc.doc_type === "sales_delivery") title = "SATIŞ İRSALİYESİ";
+  else if (doc.doc_type === "purchase_delivery") title = "ALIŞ İRSALİYESİ";
+  else if (doc.doc_type === "pos_sale") title = "SATIŞ NOTU";
+  else if (doc.title) title = doc.title.toUpperCase();
+
+  let intro = "Satış işlemine ait bilgiler aşağıdaki gibidir.";
+  if (doc.doc_type?.startsWith("purchase")) {
+    intro = "Alış işlemine ait bilgiler aşağıdaki gibidir.";
+  } else if (doc.doc_type === "quote") {
+    intro = "Teklif işlemine ait bilgiler aşağıdaki gibidir.";
+  } else if (doc.doc_type?.includes("return")) {
+    intro = "İade işlemine ait bilgiler aşağıdaki gibidir.";
+  }
 
   return (
     <Document title={`${title} ${doc.number ?? ""}`} author={org.name}>
@@ -464,18 +482,18 @@ export function SalesNotePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg }) {
 
           <View style={sn.dateCol}>
             <Text style={sn.metaLine}>Tarih: {df(doc.issue_date)}</Text>
-            <Text style={sn.metaLine}>No: {doc.number || "20260000913"}</Text>
+            <Text style={sn.metaLine}>No: {doc.number || "—"}</Text>
           </View>
         </View>
 
         <View style={sn.customerBox}>
-          <Text style={sn.customerName}>{doc.party.name || "Perakende Müşteri"}</Text>
+          <Text style={sn.customerName}>{doc.party.name || (doc.doc_type?.startsWith("purchase") ? "Tedarikçi Firma" : "Perakende Müşteri")}</Text>
           {doc.party.phone ? <Text style={sn.customerText}>{doc.party.phone}</Text> : null}
           {(doc.party.tax_office || doc.party.tax_number) ? (
-            <Text style={sn.customerText}>VD:{doc.party.tax_office || "Susurluk"} VN:{doc.party.tax_number || "—"}</Text>
+            <Text style={sn.customerText}>VD:{doc.party.tax_office || "—"} VN:{doc.party.tax_number || "—"}</Text>
           ) : null}
           <Text style={sn.attention}>Sayın Yetkili dikkatine;</Text>
-          <Text style={sn.customerText}>Satış işlemine ait bilgiler aşağıdaki gibidir.</Text>
+          <Text style={sn.customerText}>{intro}</Text>
         </View>
 
         <View style={{ flexDirection: "row" }} fixed>
@@ -523,6 +541,12 @@ export function SalesNotePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg }) {
           </View>
         </View>
 
+        {doc.notes ? (
+          <View style={{ marginTop: 8, padding: 6, backgroundColor: "#f4f4f5", borderRadius: 3 }}>
+            <Text style={{ fontSize: 7.5, color: "#3f3f46" }}>Not: {doc.notes}</Text>
+          </View>
+        ) : null}
+
         <Text style={sn.thankYou}>Teşekkür ederiz.</Text>
       </Page>
     </Document>
@@ -533,14 +557,17 @@ export function DocumentPdf({ doc, org, logo }: { doc: PdfDocument; org: PdfOrg;
   if (
     doc.doc_type === "sales_invoice" ||
     doc.doc_type === "purchase_invoice" ||
+    doc.doc_type === "sales_order" ||
+    doc.doc_type === "purchase_order" ||
     doc.doc_type === "sales_return" ||
-    doc.doc_type === "purchase_return"
+    doc.doc_type === "purchase_return" ||
+    doc.doc_type === "quote" ||
+    doc.doc_type === "pos_sale" ||
+    doc.showPrices !== false
   ) {
-    return <GibInvoicePdf doc={doc} org={org} logo={logo} />;
-  }
-  if (doc.doc_type === "sales_order" || doc.doc_type === "purchase_order" || doc.doc_type === "quote" || doc.doc_type === "pos_sale") {
     return <SalesNotePdf doc={doc} org={org} />;
   }
+
   const cur = sym(doc.currency);
   const priced = doc.showPrices !== false;
   const vatGroups = Object.entries(

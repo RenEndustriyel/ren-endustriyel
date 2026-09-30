@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Minus, Plus, Trash2, ShoppingCart, Banknote, CreditCard, Landmark, BookUser, CheckCircle2, Printer, History } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Banknote, CreditCard, Landmark, BookUser, CheckCircle2, Printer, History, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { newId, useAccounts, useCategories, useContacts, useProducts, useRpc, useUnits, type Row } from "@/lib/data";
 import { addDays, calcDocument, convertVat } from "@/lib/doc-calc";
 import { formatDate, formatMoney, formatQty, isoDate } from "@/lib/format";
 import { rateFor, useRates } from "@/lib/rates";
 import { useOrg } from "@/providers/org-provider";
+import { useConfirm } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/input";
@@ -34,6 +35,10 @@ const METHODS: { value: Method; label: string; icon: React.ElementType }[] = [
 
 export function PosPage() {
   const { org, canWrite } = useOrg();
+  const confirm = useConfirm();
+  const orgSettings = (org?.settings && typeof org.settings === "object" ? org.settings : {}) as Record<string, any>;
+  const warnNegativeStock = orgSettings.warn_negative_stock !== false;
+  const blockNegativeStock = orgSettings.block_negative_stock === true;
   const products = useProducts();
   const units = useUnits();
   const cats = useCategories("product");
@@ -125,6 +130,46 @@ export function PosPage() {
     if (!cart.length) return;
     if (method === "credit" && !contactId) return toast.error("Veresiye satış için müşteri seçin");
     if (method !== "credit" && !accountId) return toast.error("Önce Kasa ve Bankalar sayfasından hesap ekleyin");
+
+    // Eksi stok kontrolü
+    if (warnNegativeStock || blockNegativeStock) {
+      const negativeLines: { name: string; current: number; requested: number; remaining: number }[] = [];
+
+      for (const l of cart) {
+        if (!l.product || !l.product.track_stock || l.product.type !== "product") continue;
+        const req = l.quantity || 0;
+        const cur = Number(l.product.stock_qty || 0);
+        if (cur - req < 0) {
+          negativeLines.push({
+            name: l.product.name,
+            current: cur,
+            requested: req,
+            remaining: cur - req,
+          });
+        }
+      }
+
+      if (negativeLines.length > 0) {
+        const listText = negativeLines
+          .map((item) => `• ${item.name} (Mevcut: ${formatQty(item.current)}, Satış: ${formatQty(item.requested)}, Kalan: ${formatQty(item.remaining)})`)
+          .join("\n");
+
+        if (blockNegativeStock) {
+          toast.error(`Eksi stok satışı engellenmiştir!\n${listText}`);
+          return;
+        }
+
+        if (warnNegativeStock) {
+          const ok = await confirm({
+            title: "⚠️ Eksi Stok Uyarısı",
+            description: `Sepetteki bazı ürünlerin miktarı depodaki mevcut stok miktarından fazladır ve stok eksiye düşecektir:\n\n${listText}\n\nYine de satışı tamamlamak istiyor musunuz?`,
+            confirmText: "Evet, Eksi Stokla Sat",
+          });
+          if (!ok) return;
+        }
+      }
+    }
+
     const id = newId();
     const contactObj = (contacts.data ?? []).find((c) => c.id === contactId);
     const finalDueDate = method === "credit" ? (dueDate || isoDate()) : isoDate();
@@ -189,7 +234,14 @@ export function PosPage() {
           {cart.map((l, i) => (
             <li key={l.key} className="flex flex-col gap-2 px-3 py-2.5">
               <div className="flex items-start justify-between gap-2">
-                <span className="text-sm font-medium">{l.product.name}</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-medium">{l.product.name}</span>
+                  {warnNegativeStock && l.product.track_stock && l.product.type === "product" && (Number(l.product.stock_qty || 0) - l.quantity) < 0 && (
+                    <span className="inline-flex items-center gap-0.5 rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-bold text-danger animate-pulse">
+                      <AlertTriangle className="size-3" /> Yetersiz ({formatQty(l.product.stock_qty)})
+                    </span>
+                  )}
+                </div>
                 <button onClick={() => setCart(cart.filter((_, j) => j !== i))} className="p-1 text-muted hover:text-danger" aria-label="Kaldır">
                   <Trash2 className="size-4" />
                 </button>

@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyForm } from "@/components/settings/company-form";
 import { NumberSeriesSettings } from "@/components/settings/number-series";
 import { UnitsSettings, WarehousesSettings } from "@/components/settings/simple-lists";
+import { StockWarningSettings } from "@/components/settings/stock-settings";
 import { UsersSettings } from "@/components/settings/users";
 import { CategorySettings } from "@/components/settings/categories";
 import { NotificationSettings, RatesSettings } from "@/components/settings/notifications";
@@ -24,7 +25,7 @@ export default function SettingsPage() {
         <TabsList className="mb-4 flex-wrap">
           <TabsTrigger value="firma">Firma Bilgileri</TabsTrigger>
           <TabsTrigger value="numara">Belge Numaraları</TabsTrigger>
-          <TabsTrigger value="stok">Birim ve Depolar</TabsTrigger>
+          <TabsTrigger value="stok">Stok ve Depolar</TabsTrigger>
           <TabsTrigger value="kategori">Kategoriler</TabsTrigger>
           <TabsTrigger value="kullanici">Kullanıcılar</TabsTrigger>
           <TabsTrigger value="bildirim">Bildirim ve Kur</TabsTrigger>
@@ -44,9 +45,12 @@ export default function SettingsPage() {
         <TabsContent value="numara">
           <NumberSeriesSettings />
         </TabsContent>
-        <TabsContent value="stok" className="grid items-start gap-4 lg:grid-cols-2">
-          <UnitsSettings />
-          <WarehousesSettings />
+        <TabsContent value="stok" className="flex flex-col gap-4">
+          <StockWarningSettings />
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <UnitsSettings />
+            <WarehousesSettings />
+          </div>
         </TabsContent>
         <TabsContent value="kategori">
           <CategorySettings />

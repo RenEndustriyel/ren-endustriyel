@@ -31,6 +31,7 @@ interface Props {
   balanceInfo?: { previous_balance: number; this_amount: number; current_balance: number } | null;
   contactPhone?: string;
   onDownloadPdf?: () => void;
+  onPrintPdf?: () => void;
 }
 
 function formatInvoiceDate(d: string | Date | null | undefined): string {
@@ -45,11 +46,38 @@ function formatInvoiceDate(d: string | Date | null | undefined): string {
   }
 }
 
-function getInvoiceTitle(docType: string): string {
-  if (docType === "purchase_invoice") return "ALIŞ FATURASI";
-  if (docType === "purchase_return") return "ALIŞ İADE FATURASI";
-  if (docType === "sales_return") return "SATIŞ İADE FATURASI";
-  return "SATIŞ FATURASI";
+function getDocumentTitle(docType: string): string {
+  switch (docType) {
+    case "sales_order":
+      return "SİPARİŞ NOTU";
+    case "purchase_order":
+      return "ALIŞ SİPARİŞİ";
+    case "sales_invoice":
+      return "SATIŞ FATURASI";
+    case "purchase_invoice":
+      return "ALIŞ FATURASI";
+    case "sales_return":
+      return "SATIŞ İADE FATURASI";
+    case "purchase_return":
+      return "ALIŞ İADE FATURASI";
+    case "quote":
+      return "TEKLİF NOTU";
+    case "sales_delivery":
+      return "SATIŞ İRSALİYESİ";
+    case "purchase_delivery":
+      return "ALIŞ İRSALİYESİ";
+    case "pos_sale":
+      return "SATIŞ NOTU";
+    default:
+      return "BELGE NOTU";
+  }
+}
+
+function getDocumentIntro(docType: string): string {
+  if (docType.startsWith("purchase")) return "Alış işlemine ait bilgiler aşağıdaki gibidir.";
+  if (docType === "quote") return "Teklif işlemine ait bilgiler aşağıdaki gibidir.";
+  if (docType.includes("return")) return "İade işlemine ait bilgiler aşağıdaki gibidir.";
+  return "Satış işlemine ait bilgiler aşağıdaki gibidir.";
 }
 
 export function DocumentPrintModal({
@@ -60,35 +88,22 @@ export function DocumentPrintModal({
   balanceInfo,
   contactPhone,
   onDownloadPdf,
+  onPrintPdf,
 }: Props) {
   if (!doc) return null;
 
   const snap = ((doc.contact_snapshot as Record<string, string | null>) ?? {}) || {};
-  const isInvoice =
-    doc.doc_type === "sales_invoice" ||
-    doc.doc_type === "purchase_invoice" ||
-    doc.doc_type === "sales_return" ||
-    doc.doc_type === "purchase_return";
-  const isOrder = doc.doc_type === "sales_order" || doc.doc_type === "purchase_order";
-  const isQuote = doc.doc_type === "quote";
-  const isPurchase = doc.doc_type.startsWith("purchase");
-
   const cfg = DOC_TYPES[doc.doc_type as DocType] ?? DOC_TYPES.sales_invoice;
 
-  const orgName = org?.legal_name || org?.name || "Ren Endüstriyel";
-  const orgAddress = org?.address || "Han Mh. Yeni Cadde No:23/D";
+  const orgName = org?.legal_name || org?.name || "REN ENDÜSTRİYEL";
+  const orgAddress = org?.address || "Han Mahallesi Yeni Cadde No:23/D";
   const orgCity = [org?.district, org?.city].filter(Boolean).join(" / ") || "Susurluk / Balıkesir";
 
-  const customerName = snap.name || "Perakende Müşteri";
-  const customerAddress =
-    [snap.address, [snap.district, snap.city].filter(Boolean).join(" / ")].filter(Boolean).join(" - ") ||
-    "TÜRKİYE";
-  const taxOffice = snap.tax_office || "";
-  const taxNumber = snap.tax_number || "";
-
-  const invoiceTitle = getInvoiceTitle(doc.doc_type);
-  const invoiceDate = formatInvoiceDate(doc.issue_date);
-  const docNumber = doc.number || "";
+  const customerName = snap.name || (doc.doc_type?.startsWith("purchase") ? "Tedarikçi Firma" : "Perakende Müşteri");
+  const docTitle = getDocumentTitle(doc.doc_type);
+  const docIntro = getDocumentIntro(doc.doc_type);
+  const invoiceDate = formatDate(doc.issue_date);
+  const docNumber = doc.number || "—";
 
   // Totaller
   const subtotal =
@@ -119,7 +134,13 @@ export function DocumentPrintModal({
   );
 
   const handlePrint = () => {
-    window.print();
+    if (onPrintPdf) {
+      onPrintPdf();
+    } else if (onDownloadPdf) {
+      onDownloadPdf();
+    } else {
+      window.print();
+    }
   };
 
   return (
@@ -143,15 +164,11 @@ export function DocumentPrintModal({
                   -webkit-print-color-adjust: exact !important;
                   print-color-adjust: exact !important;
                 }
-                .print-invoice-sheet {
-                  min-height: 275mm !important;
-                  height: 275mm !important;
-                  border: 1px solid #000000 !important;
-                  display: flex !important;
-                  flex-direction: column !important;
-                  justify-content: space-between !important;
-                  page-break-inside: avoid !important;
-                  box-shadow: none !important;
+                body > *:not([data-radix-portal]) {
+                  display: none !important;
+                }
+                .print-hide {
+                  display: none !important;
                 }
               }
             `,
@@ -159,10 +176,10 @@ export function DocumentPrintModal({
         />
 
         {/* İşlem Butonları (Yazdırma esnasında gizlenir) */}
-        <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
+        <div className="flex items-center justify-between border-b border-border pb-3 print:hidden print-hide">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-              {isInvoice ? "Fatura Formatı" : "Satış & Sipariş Notu Formatı"}
+              {docTitle} Formatı
             </span>
             <span className="text-xs text-muted">{cfg.label}</span>
           </div>
@@ -173,289 +190,138 @@ export function DocumentPrintModal({
               </Button>
             )}
             <Button size="sm" variant="primary" onClick={handlePrint}>
-              <Printer className="size-4" /> Yazdır
+              <Printer className="size-4" /> Yazdır / PDF
             </Button>
           </div>
         </div>
 
-        {/* ------------------------------------------------------------- */}
-        {/* GÖRÜNÜM 1: FATURA ŞABLONU (EKTEKİ FOTOĞRAF İLE BİREBİR AYNISI) */}
-        {/* ------------------------------------------------------------- */}
-        {isInvoice ? (
-          <div className="mx-auto w-full max-w-[820px] bg-white p-2 sm:p-6 text-black font-sans print:m-0 print:p-0">
-            <div className="print-invoice-sheet border border-black bg-white flex flex-col justify-between min-h-[920px]">
-              {/* 1. Kısım: Üst Başlık (SATIŞ FATURASI / ALIŞ FATURASI) */}
-              <div className="border-b border-black py-1.5 text-center font-bold text-sm tracking-wide uppercase text-black">
-                {invoiceTitle}
-              </div>
-
-              {/* 2. Kısım: Firma Adı ve Sayfa Bölü */}
-              <div className="border-b border-black px-4 py-3 flex justify-end">
-                <div className="text-right">
-                  <div className="font-bold text-sm text-black">{orgName}</div>
-                  <div className="text-xs text-black mt-2 pr-2">/</div>
-                </div>
-              </div>
-
-              {/* 3. Kısım: Müşteri ve Belge Meta Bilgileri */}
-              <div className="border-b border-black p-4 grid grid-cols-2 gap-4 text-xs text-black">
-                {/* Sol: Müşteri / Cari Bilgileri */}
-                <div className="flex flex-col justify-between">
-                  <div>
-                    <div className="font-bold text-sm uppercase text-black">{customerName}</div>
-                    <div className="uppercase text-black mt-0.5 text-[11px] leading-tight">
-                      {customerAddress}
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-0.5 text-[11px] text-black">
-                    <div className="flex">
-                      <span className="w-24">Vergi Dairesi</span>
-                      <span className="mr-2">:</span>
-                      <span>{taxOffice}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="w-24">Vergi No</span>
-                      <span className="mr-2">:</span>
-                      <span>{taxNumber}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sağ: Fatura ve Belge Bilgileri */}
-                <div className="flex justify-end">
-                  <div className="space-y-0.5 text-[11px] text-black min-w-[210px]">
-                    <div className="flex">
-                      <span className="w-28">Tarih</span>
-                      <span className="mr-2">:</span>
-                      <span>{invoiceDate}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="w-28">Belge No</span>
-                      <span className="mr-2">:</span>
-                      <span className="font-medium">{docNumber}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="w-28">e-Fatura</span>
-                      <span className="mr-2">:</span>
-                      <span>{doc.e_invoice_no || doc.gib_invoice_number || ""}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="w-28">İrsaliye</span>
-                      <span className="mr-2">:</span>
-                      <span>{doc.waybill_number || ""}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="w-28">e-İrsaliye</span>
-                      <span className="mr-2">:</span>
-                      <span>{doc.e_waybill_number || ""}</span>
-                    </div>
-                    <div className="flex">
-                      <span className="w-28">{isPurchase ? "Satın Alma Temsilcisi" : "Satış Temsilcisi"}</span>
-                      <span className="mr-2">:</span>
-                      <span>{doc.sales_rep || doc.representative || ""}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. Kısım: Tablo Başlıkları */}
-              <div className="border-b border-black flex py-1 px-3 text-xs font-bold text-black">
-                <div className="w-[42%] text-left">Stok</div>
-                <div className="w-[18%] text-right">Miktar</div>
-                <div className="w-[12%] text-right">Fiyat</div>
-                <div className="w-[8%] text-right">Kdv</div>
-                <div className="w-[8%] text-right">%İsk</div>
-                <div className="w-[12%] text-right">Tutar</div>
-              </div>
-
-              {/* 5. Kısım: Tablo Satırları */}
-              <div className="flex-1 flex flex-col justify-start">
-                {doc.lines.map((l, idx) => (
-                  <div key={l.id || idx} className="flex px-3 py-1 text-xs text-black leading-snug">
-                    <div className="w-[42%] text-left font-medium uppercase truncate pr-2">
-                      {l.description || l.product_name || "—"}
-                    </div>
-                    <div className="w-[18%] text-right font-mono tabular-nums">
-                      {formatNumber(l.quantity)} {(l.unit_name || "ADET").toUpperCase()}
-                    </div>
-                    <div className="w-[12%] text-right font-mono tabular-nums">
-                      {formatNumber(l.unit_price)}
-                    </div>
-                    <div className="w-[8%] text-right font-mono tabular-nums">
-                      {Math.round(Number(l.vat_rate || 0))}
-                    </div>
-                    <div className="w-[8%] text-right font-mono tabular-nums">
-                      {formatNumber(l.discount_rate || 0)}
-                    </div>
-                    <div className="w-[12%] text-right font-mono tabular-nums">
-                      {formatNumber(l.net_amount || (Number(l.quantity || 0) * Number(l.unit_price || 0) * (1 - Number(l.discount_rate || 0) / 100)))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 6. Kısım: Alt Bilgi (Son Bakiye & Toplamlar) */}
-              <div className="p-3 flex items-end justify-between text-xs text-black">
-                {/* Sol: Son Bakiye */}
-                <div className="font-bold text-black text-xs sm:text-sm">
-                  Son Bakiye : {formatNumber(currentBalance)} TL
-                </div>
-
-                {/* Sağ: Toplamlar Tablosu */}
-                <div className="space-y-0.5 text-xs text-black min-w-[210px]">
-                  <div className="flex justify-between">
-                    <span className="w-24">Toplam</span>
-                    <span className="mr-2">:</span>
-                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(subtotal)} TL</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="w-24">İskonto</span>
-                    <span className="mr-2">:</span>
-                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(discountTotal)} TL</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="w-24">Ara Toplam</span>
-                    <span className="mr-2">:</span>
-                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(netTotal)} TL</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="w-24">Kdv</span>
-                    <span className="mr-2">:</span>
-                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(vatTotal)} TL</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-black">
-                    <span className="w-24">Genel Toplam</span>
-                    <span className="mr-2">:</span>
-                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(grandTotal)} TL</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* ------------------------------------------------------------- */
-          /* GÖRÜNÜM 2: SATIŞ NOTU FORMATI (EKTEKİ 2. FOTOĞRAF İLE BİREBİR)  */
-          /* ------------------------------------------------------------- */
-          <div className="mx-auto w-full max-w-[800px] bg-white p-6 sm:p-8 text-zinc-900 font-sans shadow-xs border border-zinc-200 print:border-none print:shadow-none print:p-0">
-            {/* Üst Alan (Sol: Firma Başlığı, Orta: SATIŞ NOTU, Sağ: Tarih & No) */}
-            <div className="grid grid-cols-12 items-start gap-2 pb-4">
-              {/* Sol: Firma Bilgileri */}
-              <div className="col-span-5 text-xs leading-relaxed">
-                <div className="font-bold text-zinc-950 uppercase tracking-tight">{orgName}</div>
-                <div className="text-zinc-700 font-medium">Endüstriyel Temizlik Ürünleri</div>
-                <div className="text-zinc-600">{orgAddress}</div>
-                <div className="text-zinc-600">{orgCity}</div>
-              </div>
-
-              {/* Orta: Başlık (SATIŞ NOTU / SİPARİŞ NOTU) */}
-              <div className="col-span-4 flex justify-center text-center pt-2">
-                <h2 className="text-lg font-bold tracking-wider text-zinc-950 uppercase">
-                  {isOrder ? "SİPARİŞ NOTU" : isQuote ? "TEKLİF NOTU" : "SATIŞ NOTU"}
-                </h2>
-              </div>
-
-              {/* Sağ: Tarih & Belge No */}
-              <div className="col-span-3 flex flex-col items-end text-right text-xs space-y-1">
-                <div>
-                  <span className="font-semibold text-zinc-700">Tarih: </span>
-                  <span className="text-zinc-900">{formatDate(doc.issue_date)}</span>
-                </div>
-                <div>
-                  <span className="font-semibold text-zinc-700">No: </span>
-                  <span className="font-mono text-zinc-900 font-medium">{doc.number || "20260000913"}</span>
-                </div>
-              </div>
+        {/* TEK VE BİRLEŞİK ŞABLON: TÜM ALIŞ/SATIŞ SİPARİŞ VE FATURALAR İÇİN */}
+        <div className="mx-auto w-full max-w-[800px] bg-white p-6 sm:p-8 text-zinc-900 font-sans shadow-xs border border-zinc-200 print:border-none print:shadow-none print:p-0">
+          {/* Üst Alan (Sol: Firma Başlığı, Orta: Belge Başlığı, Sağ: Tarih & No) */}
+          <div className="grid grid-cols-12 items-start gap-2 pb-4">
+            {/* Sol: Firma Bilgileri */}
+            <div className="col-span-5 text-xs leading-relaxed">
+              <div className="font-bold text-zinc-950 uppercase tracking-tight">{orgName}</div>
+              <div className="text-zinc-700 font-medium">Endüstriyel Temizlik Ürünleri</div>
+              <div className="text-zinc-600">{orgAddress}</div>
+              <div className="text-zinc-600">{orgCity}</div>
             </div>
 
-            {/* Müşteri ve Tebligat / Sayın Yetkili Bölümü */}
-            <div className="py-3 text-xs leading-relaxed border-t border-zinc-200">
-              <div className="font-bold text-sm text-zinc-950">{snap.name || "Perakende Müşteri"}</div>
-              {contactPhone && <div className="font-mono text-zinc-700">{contactPhone}</div>}
-              {(snap.tax_office || snap.tax_number) && (
-                <div className="text-zinc-600 font-mono text-[11px]">
-                  VD:{snap.tax_office || "Susurluk"} VN:{snap.tax_number || "—"}
-                </div>
-              )}
-              <div className="mt-2 font-medium text-zinc-800">Sayın Yetkili dikkatine;</div>
-              <div className="text-zinc-600">Satış işlemine ait bilgiler aşağıdaki gibidir.</div>
+            {/* Orta: Başlık */}
+            <div className="col-span-4 flex justify-center text-center pt-2">
+              <h2 className="text-lg font-bold tracking-wider text-zinc-950 uppercase">
+                {docTitle}
+              </h2>
             </div>
 
-            {/* Kalemler Tablosu (Açıklama, Miktar, Fiyat, İndirim (%), Tutar (KDV Hariç)) */}
-            <div className="py-3">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-t border-b border-zinc-300 text-[11px] font-semibold text-zinc-700">
-                    <th className="py-2 text-left pl-1">Açıklama</th>
-                    <th className="py-2 text-right pr-2">Miktar</th>
-                    <th className="py-2 text-right pr-2">Fiyat</th>
-                    <th className="py-2 text-right pr-2">İndirim (%)</th>
-                    <th className="py-2 text-right pr-1">Tutar (KDV Hariç)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {doc.lines.map((l, idx) => (
-                    <tr key={l.id || idx}>
-                      <td className="py-2 text-left pl-1 text-zinc-900">
-                        <span className="font-mono text-zinc-400 mr-2">{idx + 1}</span>
-                        <span className="font-medium">{l.description || l.product_name || "—"}</span>
-                      </td>
-                      <td className="py-2 text-right pr-2 font-mono whitespace-nowrap">
-                        {formatQty(l.quantity)} {l.unit_name || "ad"}
-                      </td>
-                      <td className="py-2 text-right pr-2 font-mono whitespace-nowrap">
-                        {formatNumber(l.unit_price)} ₺
-                      </td>
-                      <td className="py-2 text-right pr-2 font-mono">
-                        %{Number(l.discount_rate || 0).toFixed(2)}
-                      </td>
-                      <td className="py-2 text-right pr-1 font-mono font-medium whitespace-nowrap">
-                        {formatNumber(l.net_amount)} ₺
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Alt Bakiye ve Toplamlar Çizgisi */}
-            <div className="flex items-start justify-between pt-4 border-t border-zinc-300 text-xs">
-              {/* Sol: Güncel Bakiyeniz */}
+            {/* Sağ: Tarih & Belge No */}
+            <div className="col-span-3 flex flex-col items-end text-right text-xs space-y-1">
               <div>
-                <div className="font-medium text-zinc-800">
-                  Güncel bakiyeniz:{" "}
-                  <span className="font-bold font-mono text-zinc-950">
-                    {balanceInfo
-                      ? `${formatNumber(Math.abs(balanceInfo.current_balance))} TL`
-                      : "0,00 TL"}
-                  </span>
-                </div>
+                <span className="font-semibold text-zinc-700">Tarih: </span>
+                <span className="text-zinc-900">{invoiceDate}</span>
               </div>
-
-              {/* Sağ: Net, KDV Dağılımı ve Toplam */}
-              <div className="space-y-1 text-right min-w-[200px]">
-                <div className="flex justify-between text-zinc-700">
-                  <span>Net</span>
-                  <span className="font-mono font-medium">{formatNumber(doc.net_total || doc.subtotal)} ₺</span>
-                </div>
-                {vatGroups.map(([rate, g]) => (
-                  <div key={rate} className="flex justify-between text-zinc-700">
-                    <span>KDV (%{Math.round(Number(rate))})</span>
-                    <span className="font-mono">{formatNumber(g.vat)} ₺</span>
-                  </div>
-                ))}
-                <div className="flex justify-between pt-1 border-t border-zinc-200 font-bold text-sm text-zinc-950">
-                  <span>Toplam</span>
-                  <span className="font-mono">{formatNumber(doc.total)} ₺</span>
-                </div>
+              <div>
+                <span className="font-semibold text-zinc-700">No: </span>
+                <span className="font-mono text-zinc-900 font-medium">{docNumber}</span>
               </div>
-            </div>
-
-            {/* Dipnot Teşekkür */}
-            <div className="mt-8 pt-4 border-t border-zinc-200 text-xs text-zinc-700">
-              Teşekkür ederiz.
             </div>
           </div>
-        )}
+
+          {/* Müşteri ve Tebligat / Sayın Yetkili Bölümü */}
+          <div className="py-3 text-xs leading-relaxed border-t border-zinc-200">
+            <div className="font-bold text-sm text-zinc-950">{customerName}</div>
+            {contactPhone && <div className="font-mono text-zinc-700">{contactPhone}</div>}
+            {(snap.tax_office || snap.tax_number) && (
+              <div className="text-zinc-600 font-mono text-[11px]">
+                VD:{snap.tax_office || "—"} VN:{snap.tax_number || "—"}
+              </div>
+            )}
+            <div className="mt-2 font-medium text-zinc-800">Sayın Yetkili dikkatine;</div>
+            <div className="text-zinc-600">{docIntro}</div>
+          </div>
+
+          {/* Kalemler Tablosu (Açıklama, Miktar, Fiyat, İndirim (%), Tutar (KDV Hariç)) */}
+          <div className="py-3">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-t border-b border-zinc-300 text-[11px] font-semibold text-zinc-700">
+                  <th className="py-2 text-left pl-1">Açıklama</th>
+                  <th className="py-2 text-right pr-2">Miktar</th>
+                  <th className="py-2 text-right pr-2">Fiyat</th>
+                  <th className="py-2 text-right pr-2">İndirim (%)</th>
+                  <th className="py-2 text-right pr-1">Tutar (KDV Hariç)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {doc.lines.map((l, idx) => (
+                  <tr key={l.id || idx}>
+                    <td className="py-2 text-left pl-1 text-zinc-900">
+                      <span className="font-mono text-zinc-400 mr-2">{idx + 1}</span>
+                      <span className="font-medium">{l.description || l.product_name || "—"}</span>
+                    </td>
+                    <td className="py-2 text-right pr-2 font-mono whitespace-nowrap">
+                      {formatQty(l.quantity)} {l.unit_name || "ad"}
+                    </td>
+                    <td className="py-2 text-right pr-2 font-mono whitespace-nowrap">
+                      {formatNumber(l.unit_price)} ₺
+                    </td>
+                    <td className="py-2 text-right pr-2 font-mono">
+                      %{Number(l.discount_rate || 0).toFixed(2)}
+                    </td>
+                    <td className="py-2 text-right pr-1 font-mono font-medium whitespace-nowrap">
+                      {formatNumber(l.net_amount || (Number(l.quantity || 0) * Number(l.unit_price || 0) * (1 - Number(l.discount_rate || 0) / 100)))} ₺
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Alt Bakiye ve Toplamlar Çizgisi */}
+          <div className="flex items-start justify-between pt-4 border-t border-zinc-300 text-xs">
+            {/* Sol: Güncel Bakiyeniz */}
+            <div>
+              <div className="font-medium text-zinc-800">
+                Güncel bakiyeniz:{" "}
+                <span className="font-bold font-mono text-zinc-950">
+                  {balanceInfo
+                    ? `${formatNumber(Math.abs(balanceInfo.current_balance))} TL`
+                    : "0,00 TL"}
+                </span>
+              </div>
+            </div>
+
+            {/* Sağ: Net, KDV Dağılımı ve Toplam */}
+            <div className="space-y-1 text-right min-w-[200px]">
+              <div className="flex justify-between text-zinc-700">
+                <span>Net</span>
+                <span className="font-mono font-medium">{formatNumber(doc.net_total || doc.subtotal)} ₺</span>
+              </div>
+              {vatGroups.map(([rate, g]) => (
+                <div key={rate} className="flex justify-between text-zinc-700">
+                  <span>KDV (%{Math.round(Number(rate))})</span>
+                  <span className="font-mono">{formatNumber(g.vat)} ₺</span>
+                </div>
+              ))}
+              <div className="flex justify-between pt-1 border-t border-zinc-200 font-bold text-sm text-zinc-950">
+                <span>Toplam</span>
+                <span className="font-mono">{formatNumber(doc.total)} ₺</span>
+              </div>
+            </div>
+          </div>
+
+          {doc.notes && (
+            <div className="mt-4 p-2.5 rounded bg-zinc-50 border border-zinc-200 text-xs text-zinc-700">
+              <span className="font-semibold text-zinc-900">Not: </span>
+              {doc.notes}
+            </div>
+          )}
+
+          {/* Dipnot Teşekkür */}
+          <div className="mt-8 pt-4 border-t border-zinc-200 text-xs text-zinc-700">
+            Teşekkür ederiz.
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ScanBarcode, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, ScanBarcode, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -179,6 +179,9 @@ function EditorInner({
   const confirm = useConfirm();
   const cfg = DOC_TYPES[type];
   const { org } = useOrg();
+  const orgSettings = (org?.settings && typeof org.settings === "object" ? org.settings : {}) as Record<string, any>;
+  const warnNegativeStock = orgSettings.warn_negative_stock !== false;
+  const blockNegativeStock = orgSettings.block_negative_stock === true;
   const products = useProducts();
   const units = useUnits();
   const warehouses = useWarehouses();
@@ -352,6 +355,48 @@ function EditorInner({
     },
     [doc.prices_include_vat, doc.currency, doc.exchange_rate, rates.data],
   );
+
+  // Satış esnasında ürünün net birim alış maliyeti (KDV hariç, doc.currency cinsinden, unit_factor uygulanmış)
+  const getProductCost = React.useCallback(
+    (l: EditorLine) => {
+      if (!l.product_id) return 0;
+      const p = products.data?.find((x) => x.id === l.product_id);
+      if (!p) return 0;
+      const rawBuy = Number(p.purchase_price ?? 0);
+      if (rawBuy <= 0) return 0;
+      const buyExclVat = p.purchase_price_includes_vat
+        ? rawBuy / (1 + Number(p.vat_rate || 0) / 100)
+        : rawBuy;
+      const factor = Number(l.unit_factor || 1);
+      const baseBuy = buyExclVat * factor;
+      const prodCurrency = p.purchase_currency || "TRY";
+      if (prodCurrency === doc.currency) return baseBuy;
+      const inTry = baseBuy * (prodCurrency === "TRY" ? 1 : rateFor(rates.data, prodCurrency) || 1);
+      return inTry / (doc.currency === "TRY" ? 1 : doc.exchange_rate || 1);
+    },
+    [products.data, doc.currency, doc.exchange_rate, rates.data]
+  );
+
+  const profitStats = React.useMemo(() => {
+    if (!isSales) return null;
+    let totalCost = 0;
+    let validCount = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l.product_id) continue;
+      const unitCost = getProductCost(l);
+      if (unitCost > 0) {
+        totalCost += unitCost * Number(l.quantity || 0);
+        validCount++;
+      }
+    }
+    if (validCount === 0) return null;
+    const netTotal = Number(totals.net_total || 0);
+    const totalProfit = netTotal - totalCost;
+    const profitMargin = netTotal > 0 ? (totalProfit / netTotal) * 100 : 0;
+    const profitMarkup = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+    return { totalCost, totalProfit, profitMargin, profitMarkup, validCount };
+  }, [isSales, lines, getProductCost, totals.net_total]);
 
   const [focusLineId, setFocusLineId] = React.useState<string | null>(null);
 
@@ -588,6 +633,49 @@ function EditorInner({
         confirmText: "Evet, Güncelle",
       });
       if (!ok) return;
+    }
+
+    // EKSİ STOK KONTROLÜ (Ayarlardaki warn_negative_stock ve block_negative_stock ayarlarına göre)
+    if (isSales && (warnNegativeStock || blockNegativeStock)) {
+      const negativeLines: { name: string; current: number; requested: number; remaining: number }[] = [];
+
+      for (const l of valid) {
+        if (!l.product_id) continue;
+        const p = products.data?.find((x) => x.id === l.product_id);
+        if (!p || !p.track_stock || p.type !== "product") continue;
+
+        const req = (l.quantity || 0) * (l.unit_factor || 1);
+        const cur = Number(p.stock_qty || 0);
+        if (cur - req < 0) {
+          negativeLines.push({
+            name: p.name,
+            current: cur,
+            requested: req,
+            remaining: cur - req,
+          });
+        }
+      }
+
+      if (negativeLines.length > 0) {
+        const listText = negativeLines
+          .map((item) => `• ${item.name} (Mevcut: ${formatNumber(item.current)}, Talep: ${formatNumber(item.requested)}, Kalan: ${formatNumber(item.remaining)})`)
+          .join("\n");
+
+        if (blockNegativeStock) {
+          toast.error(`Eksi stok engellemesi aktif!\nAşağıdaki ürünlerde yeterli stok bulunmuyor:\n${listText}`);
+          setError("Yetersiz stok! Stok ayarlarınız gereği eksi bakiye ile satış yapılmasına izin verilmiyor.");
+          return;
+        }
+
+        if (warnNegativeStock) {
+          const ok = await confirm({
+            title: "⚠️ Eksi Stok Uyarısı",
+            description: `Belgedeki bazı ürünlerin miktarı depodaki mevcut stok miktarından fazladır ve stok eksiye düşecektir:\n\n${listText}\n\nYine de işleme devam edip belgeyi kaydetmek istiyor musunuz?`,
+            confirmText: "Evet, Eksi Stokla Kaydet",
+          });
+          if (!ok) return;
+        }
+      }
     }
 
     // 1. REN YAPAY ZEKA KÂR KORUMA KONTROLÜ (Alış belgelerinde aynı tedarikçiden iskonto kaybı ve fiyat farkı denetimi)
@@ -855,20 +943,40 @@ function EditorInner({
                     </Button>
                   </div>
                   <div className="grid grid-cols-3 gap-2 pl-7 pr-12 sm:grid-cols-6">
-                    <label className="text-[11px] text-muted">
-                      Miktar
-                      <NumberInput
-                        value={l.quantity}
-                        decimals={3}
-                        onChange={(n) => setLine(i, { quantity: n })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAdvanceToNextLine(i);
-                          }
-                        }}
-                      />
-                    </label>
+                    <div className="flex flex-col">
+                      <label className="text-[11px] text-muted">
+                        Miktar
+                        <NumberInput
+                          value={l.quantity}
+                          decimals={3}
+                          onChange={(n) => setLine(i, { quantity: n })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAdvanceToNextLine(i);
+                            }
+                          }}
+                        />
+                      </label>
+                      {warnNegativeStock && isSales && l.product_id && (() => {
+                        const p = products.data?.find((x) => x.id === l.product_id);
+                        if (!p || !p.track_stock || p.type !== "product") return null;
+                        const req = (l.quantity || 0) * (l.unit_factor || 1);
+                        const cur = Number(p.stock_qty || 0);
+                        if (cur - req < 0) {
+                          return (
+                            <span
+                              className="mt-1 flex items-center gap-1 rounded bg-danger-soft/80 px-1.5 py-0.5 text-[10px] font-bold text-danger animate-pulse truncate"
+                              title={`Mevcut Stok: ${formatNumber(cur)} · Talep: ${formatNumber(req)} · Kalan: ${formatNumber(cur - req)}`}
+                            >
+                              <AlertTriangle className="size-3 shrink-0" />
+                              Yetersiz ({formatNumber(cur)})
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
                     <label className="text-[11px] text-muted">
                       Birim
                       <NativeSelect value={l.unit_id ?? ""} onChange={(e) => pickUnit(i, e.target.value)}>
@@ -880,20 +988,71 @@ function EditorInner({
                         ))}
                       </NativeSelect>
                     </label>
-                    <label className="text-[11px] text-muted">
-                      Birim fiyat
-                      <NumberInput
-                        value={l.unit_price}
-                        decimals={4}
-                        onChange={(n) => setLine(i, { unit_price: n })}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAdvanceToNextLine(i);
-                          }
-                        }}
-                      />
-                    </label>
+                    <div className="flex flex-col">
+                      <label className="text-[11px] text-muted">
+                        Birim fiyat
+                        <NumberInput
+                          value={l.unit_price}
+                          decimals={4}
+                          onChange={(n) => setLine(i, { unit_price: n })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAdvanceToNextLine(i);
+                            }
+                          }}
+                        />
+                      </label>
+                      {isSales && l.product_id && (() => {
+                        const unitCost = getProductCost(l);
+                        if (unitCost <= 0) {
+                          return (
+                            <span className="mt-1 text-[10px] text-muted/60 italic truncate">
+                              Alış: Tanımsız
+                            </span>
+                          );
+                        }
+                        const lineNet = totals.lines[i]?.net_amount ?? (l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100));
+                        const unitNetSale = l.quantity > 0 ? lineNet / l.quantity : 0;
+                        const unitProfit = unitNetSale - unitCost;
+                        const pct = (unitProfit / unitCost) * 100;
+                        const isProfit = unitProfit >= 0;
+
+                        return (
+                          <div className="mt-1 flex flex-col gap-0.5 text-[10px] leading-tight select-none">
+                            <span className="text-muted truncate" title={`Birim Alış: ${formatMoney(unitCost, doc.currency)} (KDV Hariç)`}>
+                              Alış: <strong className="font-mono font-medium text-foreground">{formatMoney(unitCost, doc.currency)}</strong>
+                            </span>
+                            <span
+                              className={cn("font-semibold truncate", isProfit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}
+                              title={`Adet Kârı: ${isProfit ? "+" : ""}${formatMoney(unitProfit, doc.currency)} (${isProfit ? "+" : ""}${pct.toFixed(1)}%)`}
+                            >
+                              Kâr: {isProfit ? "+" : ""}{formatMoney(unitProfit, doc.currency)} ({isProfit ? "+" : ""}{pct.toFixed(0)}%)
+                            </span>
+                          </div>
+                        );
+                      })()}
+                      {!isSales && l.product_id && (() => {
+                        const p = products.data?.find((x) => x.id === l.product_id);
+                        if (!p) return null;
+                        const curBuy = Number(p.purchase_price ?? 0);
+                        const salePrice = Number(p.sale_price ?? 0) * (l.unit_factor || 1);
+                        return (
+                          <div className="mt-1 flex flex-col gap-0.5 text-[10px] leading-tight select-none text-muted">
+                            {curBuy > 0 && (
+                              <span className="truncate" title={`Karttaki Mevcut Alış: ${formatMoney(curBuy, p.purchase_currency || "TRY")}`}>
+                                Mevcut Alış: <span className="font-mono text-foreground">{formatMoney(curBuy, p.purchase_currency || "TRY")}</span>
+                              </span>
+                            )}
+                            {salePrice > 0 && (
+                              <span className="truncate text-emerald-600 dark:text-emerald-400 font-medium" title={`Satış Fiyatı: ${formatMoney(salePrice, p.sale_currency || "TRY")}`}>
+                                Satış: {formatMoney(salePrice, p.sale_currency || "TRY")}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     <div className="flex flex-col">
                       <span className="mb-1 flex items-center justify-between text-[11px] text-muted">
                         <span>İskonto %</span>
@@ -936,6 +1095,44 @@ function EditorInner({
                       </span>
                     </div>
                   </div>
+
+                  {isSales && l.product_id && (() => {
+                    const unitCost = getProductCost(l);
+                    if (unitCost <= 0) return null;
+                    const lineNet = totals.lines[i]?.net_amount ?? (l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100));
+                    const lineCost = unitCost * l.quantity;
+                    const lineProfit = lineNet - lineCost;
+                    const unitNetSale = l.quantity > 0 ? lineNet / l.quantity : 0;
+                    const unitProfit = unitNetSale - unitCost;
+                    const pct = (unitProfit / unitCost) * 100;
+                    const isProfit = lineProfit >= 0;
+
+                    return (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 pl-7 text-[11px]">
+                        <span className="font-medium text-muted">
+                          Birim Alış (KDV Hariç): <strong className="text-foreground font-mono">{formatMoney(unitCost, doc.currency)}</strong>
+                        </span>
+                        <span className="text-muted/40">•</span>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-semibold text-xs",
+                            isProfit
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                              : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20"
+                          )}
+                        >
+                          <span>{isProfit ? "📈 Kâr:" : "📉 Zarar:"}</span>
+                          <span className="font-mono">{isProfit ? "+" : ""}{formatMoney(lineProfit, doc.currency)}</span>
+                          <span className="opacity-80 font-normal">({isProfit ? "+" : ""}{pct.toFixed(1)}%)</span>
+                          {l.quantity > 1 && (
+                            <span className="text-[10px] opacity-75 font-normal">
+                              (Birim Başı: {isProfit ? "+" : ""}{formatMoney(unitProfit, doc.currency)})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {cfg.side === "purchase" && l.product_id && (() => {
                     const p = products.data?.find((x) => x.id === l.product_id);
@@ -1025,6 +1222,45 @@ function EditorInner({
                 <span className="num">{formatMoney(totals.total, doc.currency)}</span>
               </div>
               {doc.currency !== "TRY" && <div className="num text-right text-xs text-muted">≈ {formatMoney(totals.total_try)}</div>}
+
+              {isSales && profitStats && (
+                <div
+                  className={cn(
+                    "mt-3 rounded-lg border p-3 flex flex-col gap-1.5 transition-colors",
+                    profitStats.totalProfit >= 0
+                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-100"
+                      : "bg-rose-500/10 border-rose-500/20 text-rose-950 dark:text-rose-100"
+                  )}
+                >
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <span>{profitStats.totalProfit >= 0 ? "📈" : "📉"}</span>
+                      <span>Genel Toplam Kâr</span>
+                    </span>
+                    <span className="font-mono text-sm font-bold">
+                      {profitStats.totalProfit >= 0 ? "+" : ""}{formatMoney(profitStats.totalProfit, doc.currency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] opacity-80">
+                    <span>Kâr Oranı (Alışa Göre)</span>
+                    <span className="font-mono font-semibold">
+                      %{profitStats.profitMarkup.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] opacity-80">
+                    <span>Kâr Marjı (Net Tutar)</span>
+                    <span className="font-mono font-medium">
+                      %{profitStats.profitMargin.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] opacity-75 border-t border-border/50 pt-1">
+                    <span>Toplam Alış Maliyeti</span>
+                    <span className="font-mono">
+                      {formatMoney(profitStats.totalCost, doc.currency)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </CardBody>
           </Card>
 
