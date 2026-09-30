@@ -34,7 +34,7 @@ export function TopProducts({ data }: { data: DashboardSummary }) {
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
           <Trophy className="size-4 text-amber-500" /> En Çok Satan Ürünler
         </h2>
-        <Link href="/stok/urunler" className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 hover:underline">
+        <Link href="/stok/urunler" className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:underline">
           Tüm rapor →
         </Link>
       </div>
@@ -51,15 +51,15 @@ export function TopProducts({ data }: { data: DashboardSummary }) {
             <Link
               key={p.id}
               href={`/stok/urunler/detay?id=${p.id}`}
-              className="group rounded-xl border border-border bg-surface-2/50 dark:bg-surface-2/30 p-2.5 sm:p-3 transition-all hover:bg-surface hover:border-teal-500/60 hover:shadow-2xs block"
+              className="group rounded-xl border border-border bg-surface-2/50 dark:bg-surface-2/30 p-2.5 sm:p-3 transition-all hover:bg-surface hover:border-slate-400 hover:shadow-2xs block"
               title="Ürün detayına git"
             >
-              <div className="text-[10px] font-bold text-muted group-hover:text-teal-600 dark:group-hover:text-teal-400">#{i + 1}</div>
-              <div className="mt-0.5 truncate text-xs font-semibold text-text group-hover:text-teal-700 dark:group-hover:text-teal-300" title={p.name}>
+              <div className="text-[10px] font-bold text-muted group-hover:text-slate-900 dark:group-hover:text-slate-100">#{i + 1}</div>
+              <div className="mt-0.5 truncate text-xs font-semibold text-text group-hover:text-slate-900 dark:group-hover:text-slate-100" title={p.name}>
                 {p.name}
               </div>
               <div className="mt-0.5 text-[11px] text-muted">{formatQty(p.quantity)} adet</div>
-              <div className="mt-0.5 text-xs sm:text-sm font-bold text-teal-700 dark:text-teal-300">
+              <div className="mt-0.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
                 {formatMoney(p.amount)}
               </div>
             </Link>
@@ -77,12 +77,12 @@ export function BalanceCards({ data }: { data: DashboardSummary }) {
   return (
     <div className="grid grid-cols-1 gap-2.5 sm:gap-3 lg:grid-cols-3">
       <Link href="/cariler/musteriler" className="block group">
-        <Card className="p-3 sm:p-3.5 transition-all border-l-4 border-l-emerald-500 group-hover:shadow-xs h-full rounded-xl">
+        <Card className="p-3 sm:p-3.5 transition-all border-l-4 border-l-slate-600 dark:border-l-slate-400 group-hover:shadow-xs h-full rounded-xl">
           <div className="flex items-center justify-between">
             <div className="text-xs font-medium text-muted">Toplam Alacak (Müşteriler)</div>
             <ExternalLink className="size-3 text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-          <div className="mt-0.5 text-base sm:text-lg lg:text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+          <div className="mt-0.5 text-base sm:text-lg lg:text-xl font-bold text-slate-800 dark:text-slate-200 tabular-nums">
             {formatMoney(data.kpi.receivable)}
           </div>
         </Card>
@@ -101,7 +101,7 @@ export function BalanceCards({ data }: { data: DashboardSummary }) {
       </Link>
 
       <Link href="/raporlar/cari-bakiye" className="block group">
-        <Card className="p-3 sm:p-3.5 transition-all border-l-4 border-l-teal-600 group-hover:shadow-xs h-full rounded-xl">
+        <Card className="p-3 sm:p-3.5 transition-all border-l-4 border-l-slate-700 dark:border-l-slate-300 group-hover:shadow-xs h-full rounded-xl">
           <div className="flex items-center justify-between">
             <div className="text-xs font-medium text-muted">Net Durum</div>
             <ExternalLink className="size-3 text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -109,7 +109,7 @@ export function BalanceCards({ data }: { data: DashboardSummary }) {
           <div
             className={cn(
               "mt-0.5 text-base sm:text-lg lg:text-xl font-bold tabular-nums",
-              net >= 0 ? "text-teal-700 dark:text-teal-300" : "text-rose-600 dark:text-rose-400"
+              net >= 0 ? "text-slate-800 dark:text-slate-200" : "text-rose-600 dark:text-rose-400"
             )}
           >
             {formatMoney(net)}
@@ -127,9 +127,9 @@ export function RecentActivity({ data }: { data: DashboardSummary }) {
       <div>
         <div className="mb-2.5 flex items-center justify-between border-b border-border pb-2.5">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
-            <Clock className="size-4 text-teal-600 dark:text-teal-400" /> Son Hareketler
+            <Clock className="size-4 text-slate-700 dark:text-slate-300" /> Son Hareketler
           </h2>
-          <Link href="/nakit/hareketler" className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 hover:underline">
+          <Link href="/nakit/hareketler" className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:underline">
             Tümü →
           </Link>
         </div>
@@ -174,13 +174,13 @@ export function RecentActivity({ data }: { data: DashboardSummary }) {
               } else {
                 badgeText = "(P)";
                 badgeTitle = "Peşin (Nakit)";
-                badgeStyle = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/25";
+                badgeStyle = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700";
               }
 
               // Renk ve ikon
               let iconBg = "bg-primary/10 text-primary";
               if (r.type.includes("sale") || r.type === "collection") {
-                iconBg = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+                iconBg = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
               } else if (r.type.includes("purchase") || r.type === "payment" || r.type === "expense") {
                 iconBg = "bg-rose-500/10 text-rose-600 dark:text-rose-400";
               }
@@ -223,7 +223,7 @@ export function RecentActivity({ data }: { data: DashboardSummary }) {
                     <span
                       className={cn(
                         "num text-xs font-semibold tabular-nums",
-                        positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                        positive ? "text-slate-900 dark:text-slate-100 font-bold" : "text-rose-600 dark:text-rose-400"
                       )}
                     >
                       {positive ? "+" : "−"}
@@ -260,14 +260,14 @@ export function UpcomingPaymentsCard({ data }: { data: DashboardSummary }) {
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text">
             <CalendarClock className="size-4 text-rose-500" /> Yaklaşan / Geciken Ödemeler
           </h2>
-          <Link href="/raporlar/nakit-akisi" className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 hover:underline">
+          <Link href="/raporlar/nakit-akisi" className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:underline">
             Tüm akış →
           </Link>
         </div>
 
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center text-xs text-muted">
-            <CheckCircle2 className="size-7 text-emerald-500 mb-1.5 opacity-80" />
+            <CheckCircle2 className="size-7 text-slate-400 mb-1.5 opacity-80" />
             <p>Ödenecek masraf veya bekleyen vadesi geçmiş işlem yok.</p>
           </div>
         ) : (
@@ -311,7 +311,7 @@ export function UpcomingPaymentsCard({ data }: { data: DashboardSummary }) {
                   <div
                     className={cn(
                       "num shrink-0 text-xs font-semibold tabular-nums",
-                      isOut ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                      isOut ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-slate-100 font-bold"
                     )}
                   >
                     {isOut ? "−" : "+"}

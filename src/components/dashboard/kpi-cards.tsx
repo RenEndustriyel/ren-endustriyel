@@ -38,7 +38,7 @@ export function KpiCards({ data, hideCash }: { data: DashboardSummary; hideCash?
             label: "Kasa / Banka (TL)",
             value: data.kpi.cash_bank,
             icon: Landmark,
-            cls: "from-emerald-400 to-emerald-500",
+            cls: "from-slate-600 to-slate-800",
             href: "/nakit/hesaplar",
           },
         ]),
@@ -46,7 +46,7 @@ export function KpiCards({ data, hideCash }: { data: DashboardSummary; hideCash?
       label: "Açık Hesap (Alacak)",
       value: data.kpi.receivable,
       icon: BookUser,
-      cls: "from-teal-500 to-teal-700",
+      cls: "from-slate-500 to-slate-700",
       href: "/cariler/musteriler",
     },
   ];

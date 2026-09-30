@@ -53,7 +53,7 @@ import {
   type RenAiDailyBriefing,
 } from "@/lib/ren-ai-briefing";
 import { DailyBriefingWidget } from "@/components/ai/daily-briefing-widget";
-import { useContacts, useProducts } from "@/lib/data";
+import { useContacts, useProducts, useAccounts } from "@/lib/data";
 
 export default function RenAiPage() {
   const router = useRouter();
@@ -61,6 +61,7 @@ export default function RenAiPage() {
   const { org } = useOrg();
   const contacts = useContacts();
   const products = useProducts();
+  const accounts = useAccounts();
 
   const initialTab = (searchParams.get("tab") as "briefing" | "alerts" | "assistant") || "briefing";
   const [activeTab, setActiveTab] = React.useState<"briefing" | "alerts" | "assistant">(initialTab);
@@ -307,7 +308,58 @@ export default function RenAiPage() {
         }
       }
 
-      // 5. TEDARİKÇİ FİYAT FARKI & İSKONTO KAYIPLARI
+      // 5. KRİTİK STOKLAR
+      else if (qLower.includes("kritik") || qLower.includes("azalan") || qLower.includes("tüken") || qLower.includes("stoktaki")) {
+        const crit = (products.data ?? []).filter(
+          (p) => p.track_stock && p.type === "product" && p.critical_stock !== null && Number(p.stock_qty) <= Number(p.critical_stock)
+        );
+        if (crit.length > 0) {
+          const listStr = crit
+            .slice(0, 8)
+            .map((p) => `• **${p.name}**: Kalan **${p.stock_qty}** (Kritik sınır: ${p.critical_stock})`)
+            .join("\n");
+          reply = `⚠️ **KRİTİK STOK SEVİYESİNDEKİ ÜRÜNLER:**\n\n` +
+            `İşletmenizde kritik eşiğin altına düşen **${crit.length} adet** ürün bulunmaktadır:\n\n` +
+            `${listStr}\n\n` +
+            `Müşteri siparişlerini aksatmamak için tedarikçinizden yeni sipariş oluşturmanızı öneririm.`;
+          actionUrl = "/stok/urunler";
+          actionText = "Kritik Stokları Gör";
+        } else {
+          reply = `✅ Tebrikler! Sistemde kritik stok eşiğinin altına inen ürün bulunmuyor. Tüm ürünlerinizin stok seviyesi güvenli bölgede.`;
+        }
+      }
+
+      // 6. KASA VE BANKA BAKİYELERİ
+      else if (qLower.includes("kasa") || qLower.includes("banka") || qLower.includes("bakiye")) {
+        const accs = (accounts.data ?? []).filter((a) => a.is_active);
+        if (accs.length > 0) {
+          const listStr = accs
+            .map((a) => `• **${a.name}** (${a.type === "cash" ? "Kasa" : a.type === "bank" ? "Banka" : "POS"}): **${formatMoney(a.balance, a.currency)}**`)
+            .join("\n");
+          reply = `🏦 **KASA VE BANKA BAKİYELERİ:**\n\n${listStr}\n\nToplam likidite durumunuz güncel hareketlerle eşzamanlıdır.`;
+          actionUrl = "/nakit/hesaplar";
+          actionText = "Kasa ve Bankaları Aç";
+        } else {
+          reply = "Aktif kasa veya banka hesabı bulunamadı. Kasa ve Bankalar sayfasından hesap ekleyebilirsiniz.";
+        }
+      }
+
+      // 7. SATIŞ VE CİRO DURUMU
+      else if (qLower.includes("satış") || qLower.includes("ciro") || qLower.includes("fatura durumu")) {
+        if (currentBrief && currentBrief.topSellers.length > 0) {
+          reply = `📈 **GÜNCEL SATIŞ VE CİRO DURUMU:**\n\n` +
+            `• Son 30 günlük ciro hacmi: **${formatMoney(currentBrief.topSellers.reduce((s, p) => s + p.totalRevenue, 0))}**\n` +
+            `• En çok ciro getiren ürün: **${currentBrief.topSellers[0]?.name || "—"}**\n` +
+            `• Bugün beklenen tahsilatlar: **${formatMoney(currentBrief.totalExpectedInflow)}**\n\n` +
+            `Satış faturalarınızı ve raporlarınızı Gelir/Gider sayfasından grafiksel olarak da inceleyebilirsiniz.`;
+          actionUrl = "/raporlar/gelir-gider";
+          actionText = "Satış Raporunu Aç";
+        } else {
+          reply = "Satış verileriniz hesaplanıyor. Raporlar sekmesinden anlık gelir/gider grafiklerinizi inceleyebilirsiniz.";
+        }
+      }
+
+      // 8. TEDARİKÇİ FİYAT FARKI & İSKONTO KAYIPLARI
       else if (
         qLower.includes("fark") ||
         qLower.includes("fatura") ||
@@ -329,7 +381,7 @@ export default function RenAiPage() {
         }
       }
 
-      // 6. GENEL TAVSİYE
+      // 9. GENEL TAVSİYE
       else {
         reply = `Sorunuz analiz edildi. REN Yapay Zeka işletmenizi 3 temel eksende korur ve büyütür:\n\n` +
           `1. ☀️ **Sabah Brifingi:** Her sabah vadesi gelen ödemeler, tahsilatlar ve likidite dengesi.\n` +
@@ -371,8 +423,8 @@ export default function RenAiPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shadow-2xs">
-            <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs">
+            <span className="size-2 rounded-full bg-slate-500 animate-ping" />
             7/24 Aktif Kâr Kalkanı
           </span>
         </div>
@@ -847,9 +899,11 @@ export default function RenAiPage() {
           <div className="border-t border-border bg-surface px-4 py-2 flex items-center gap-1.5 overflow-x-auto thin-scroll">
             <span className="text-[10px] font-semibold text-muted shrink-0">Hızlı Sor:</span>
             {[
+              "Kritik stoktaki ürünler hangileri?",
+              "Bu ayki satış durumum nasıl?",
+              "Kasa ve banka bakiyelerim ne kadar?",
               "Bugünkü sabah brifingimi özetle",
               "Hangi ürünler satılmıyor ve kampanya fikrin nedir?",
-              "En çok satan yıldız ürünlerim hangileri?",
               "Hangi müşterilere ödeme hatırlatması yapmalıyım?",
               "Hangi tedarikçiler fiyat artırdı?",
             ].map((chip) => (

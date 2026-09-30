@@ -81,7 +81,7 @@ export function AgendaWidget() {
         <Link href="/ajanda" className="flex items-center gap-1.5 text-sm font-semibold text-text hover:text-primary transition-colors group">
           <Calendar className="size-4 text-blue-500 group-hover:scale-105 transition-transform" /> Ajanda (Takvim &amp; Notlar / Hatırlatmalar)
         </Link>
-        <Link href="/ajanda" className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 hover:underline">
+        <Link href="/ajanda" className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:underline">
           Tüm Ajanda →
         </Link>
       </div>

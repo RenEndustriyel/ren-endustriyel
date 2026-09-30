@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Upload, Download, Package, AlertTriangle, Printer, FileText } from "lucide-react";
+import { Plus, Upload, Download, Package, AlertTriangle, Printer, FileText, ScanBarcode } from "lucide-react";
 import { useCategories, useProducts, useUnits, type Row } from "@/lib/data";
 import { formatMoney, formatQty } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScanButton } from "@/components/shared/barcode-scanner";
 import { cn } from "@/lib/utils";
 import { ProductImport } from "./product-import";
+import { BarcodeLabelModal } from "./barcode-label-modal";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -39,6 +40,8 @@ export function ProductsList() {
   const [cat, setCat] = React.useState("");
   const [filter, setFilter] = React.useState<"active" | "critical" | "service" | "passive">("active");
   const [importOpen, setImportOpen] = React.useState(false);
+  const [barcodeModalOpen, setBarcodeModalOpen] = React.useState(false);
+  const [selectedProductForBarcode, setSelectedProductForBarcode] = React.useState<Product | undefined>(undefined);
 
 
   const unitName = (id: string | null) => units.data?.find((u) => u.id === id)?.name ?? "";
@@ -161,6 +164,24 @@ export function ProductsList() {
         </span>
       ),
     },
+    {
+      key: "barcode_action",
+      header: "",
+      cell: (p) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedProductForBarcode(p);
+            setBarcodeModalOpen(true);
+          }}
+          className="rounded p-1 text-muted hover:bg-surface-2 hover:text-text transition"
+          title="Barkod Etiketi Yazdır"
+        >
+          <ScanBarcode className="size-4" />
+        </button>
+      ),
+    },
   ];
 
   const exportRows = () =>
@@ -242,6 +263,17 @@ export function ProductsList() {
               title="Ürün listesini PDF olarak indir"
             >
               <FileText className="size-4" /> <span className="hidden sm:inline">PDF İndir</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedProductForBarcode(undefined);
+                setBarcodeModalOpen(true);
+              }}
+              title="Barkod Etiketi Yazdır"
+            >
+              <ScanBarcode className="size-4" /> <span className="hidden sm:inline">Barkod Bas</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportRows}>
               <Download /> <span className="hidden sm:inline">Excel</span>
@@ -335,13 +367,32 @@ export function ProductsList() {
                 {p.barcode ? ` · ${p.barcode}` : ""}
               </div>
             </div>
-            <span className="num text-sm font-semibold">{formatMoney(p.sale_price, p.sale_currency)}</span>
+            <div className="flex items-center gap-2">
+              <span className="num text-sm font-semibold">{formatMoney(p.sale_price, p.sale_currency)}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedProductForBarcode(p);
+                  setBarcodeModalOpen(true);
+                }}
+                className="rounded p-1 text-muted hover:bg-surface-2 hover:text-text transition"
+                title="Barkod Etiketi Yazdır"
+              >
+                <ScanBarcode className="size-4" />
+              </button>
+            </div>
           </div>
         )}
         empty={<EmptyState icon={<Package />} title={q ? "Sonuç bulunamadı" : "Henüz ürün yok"} description={q ? undefined : "Yeni ürün ekleyin veya Excel'den içe aktarın."} />}
       />
       {!canWrite && <Badge className="mt-2">Salt okunur</Badge>}
       <ProductImport open={importOpen} onOpenChange={setImportOpen} />
+      <BarcodeLabelModal
+        open={barcodeModalOpen}
+        onOpenChange={setBarcodeModalOpen}
+        initialProduct={selectedProductForBarcode}
+      />
     </div>
   );
 }

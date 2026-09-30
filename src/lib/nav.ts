@@ -35,6 +35,8 @@ import {
   Inbox,
   Send,
   Sparkles,
+  Monitor,
+  Globe,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/providers/org-provider";
@@ -59,6 +61,7 @@ export const NAV: NavGroup[] = [
       { title: "Güncel Durum", href: "/panel", icon: LayoutDashboard, keywords: "panel özet dashboard" },
       { title: "REN Yapay Zeka", href: "/yapay-zeka", icon: Sparkles, keywords: "yapay zeka ai zarar önleme kâr koruma fiyat farkı asistan" },
       { title: "Hızlı Satış", href: "/hizli-satis", icon: Zap, keywords: "pos kasa barkod" },
+      { title: "Fiyat Gör Kiosk", href: "/fiyat-gor", icon: Monitor, keywords: "fiyat gör kiosk barkod okuyucu müşteri ekranı" },
     ],
   },
   {
@@ -101,6 +104,7 @@ export const NAV: NavGroup[] = [
     icon: Package,
     items: [
       { title: "Ürün ve Hizmetler", href: "/stok/urunler", icon: Package, keywords: "ürün barkod" },
+      { title: "Online Katalog", href: "/stok/katalog", icon: Globe, keywords: "katalog online ürünler web" },
       { title: "Depolar", href: "/stok/depolar", icon: Warehouse },
       { title: "Depo Transferleri", href: "/stok/transfer", icon: ArrowLeftRight },
       { title: "Stok Sayımı", href: "/stok/sayim", icon: ClipboardCheck },
@@ -150,7 +154,8 @@ export function findNavItem(pathname: string): NavItem | undefined {
 export const QUICK_ACTIONS: { title: string; href: string; icon: LucideIcon; tone: string }[] = [
   { title: "Satış Faturası", href: "/satislar/faturalar/yeni", icon: FileText, tone: "text-primary bg-primary-soft" },
   { title: "Hızlı Satış", href: "/hizli-satis", icon: Zap, tone: "text-warning bg-warning-soft" },
-  { title: "Tahsilat", href: "/nakit/hareketler/yeni?tip=tahsilat", icon: Wallet, tone: "text-success bg-success-soft" },
+  { title: "Fiyat Gör", href: "/fiyat-gor", icon: Monitor, tone: "text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-200" },
+  { title: "Tahsilat", href: "/nakit/hareketler/yeni?tip=tahsilat", icon: Wallet, tone: "text-slate-800 bg-slate-200 dark:bg-slate-700 dark:text-slate-100" },
   { title: "Masraf / Fiş", href: "/giderler/masraflar/yeni", icon: Receipt, tone: "text-danger bg-danger-soft" },
   { title: "Alış Faturası", href: "/giderler/alis-faturalari/yeni", icon: ShoppingCart, tone: "text-brown bg-surface-2" },
   { title: "Müşteri", href: "/cariler/musteriler/yeni", icon: Users, tone: "text-primary bg-primary-soft" },

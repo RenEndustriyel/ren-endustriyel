@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Minus, Plus, Trash2, ShoppingCart, Banknote, CreditCard, Landmark, BookUser, CheckCircle2, Printer, History, AlertTriangle } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Banknote, CreditCard, Landmark, BookUser, CheckCircle2, Printer, History, AlertTriangle, Monitor, ScanBarcode, PauseCircle, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { newId, useAccounts, useCategories, useContacts, useProducts, useRpc, useUnits, type Row } from "@/lib/data";
 import { addDays, calcDocument, convertVat } from "@/lib/doc-calc";
@@ -19,7 +19,17 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ScanButton } from "@/components/shared/barcode-scanner";
 import { ContactPicker } from "@/components/contacts/contact-picker";
 import { useLocalStorage } from "@/lib/use-local-storage";
+import { BarcodeLabelModal } from "@/components/products/barcode-label-modal";
 import { cn } from "@/lib/utils";
+
+type HeldSale = {
+  id: string;
+  time: string;
+  cart: CartLine[];
+  contactId: string | null;
+  manualVatRate: number | null;
+  method: Method;
+};
 
 type CartLine = { key: string; product: Row<"products">; quantity: number; unit_price: number; discount_rate: number; vat_rate: number };
 type Method = "cash" | "credit_card" | "bank_transfer" | "credit";
@@ -54,6 +64,61 @@ export function PosPage() {
   const [dueDate, setDueDate] = React.useState<string>(isoDate());
   const [method, setMethod] = React.useState<Method>("cash");
   const [storedAcc, setStoredAcc] = useLocalStorage("ren-pos-accounts");
+  const [heldSalesRaw, setHeldSalesRaw] = useLocalStorage("ren-pos-held-sales");
+  const [heldSalesOpen, setHeldSalesOpen] = React.useState(false);
+  const [barcodeModalOpen, setBarcodeModalOpen] = React.useState(false);
+
+  const heldSales: HeldSale[] = React.useMemo(() => {
+    try {
+      return heldSalesRaw ? JSON.parse(heldSalesRaw) : [];
+    } catch {
+      return [];
+    }
+  }, [heldSalesRaw]);
+
+  const saveHeldSales = (list: HeldSale[]) => {
+    setHeldSalesRaw(JSON.stringify(list));
+  };
+
+  const holdCurrentSale = () => {
+    if (!cart.length) return toast.error("Bekletilecek ürün yok");
+    if (heldSales.length >= 5) return toast.error("En fazla 5 satış bekletilebilir");
+    const newHeld: HeldSale = {
+      id: newId(),
+      time: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+      cart: [...cart],
+      contactId,
+      manualVatRate,
+      method,
+    };
+    saveHeldSales([newHeld, ...heldSales]);
+    setCart([]);
+    setContactId(null);
+    setManualVatRate(null);
+    setReceived(0);
+    toast.success("Satış beklemeye alındı");
+  };
+
+  const restoreHeldSale = (held: HeldSale) => {
+    if (cart.length > 0) {
+      if (!confirm({ title: "Mevcut Sepet Silinsin mi?", description: "Şu anki sepetteki ürünler silinip bekleyen satış yüklenecektir." })) {
+        return;
+      }
+    }
+    setCart(held.cart);
+    setContactId(held.contactId);
+    setManualVatRate(held.manualVatRate);
+    setMethod(held.method);
+    saveHeldSales(heldSales.filter((x) => x.id !== held.id));
+    setHeldSalesOpen(false);
+    toast.success("Bekleyen satış yüklendi");
+  };
+
+  const removeHeldSale = (id: string) => {
+    saveHeldSales(heldSales.filter((x) => x.id !== id));
+    toast.info("Bekleyen satış silindi");
+  };
+
   const accMap: Record<string, string> = React.useMemo(() => {
     try {
       return JSON.parse(storedAcc ?? "{}");
@@ -123,6 +188,32 @@ export function PosPage() {
     cart.map((l) => ({ quantity: l.quantity, unit_price: l.unit_price, discount_rate: l.discount_rate, vat_rate: Number(l.vat_rate) })),
   );
   const change = method === "cash" && received > calc.total ? received - calc.total : 0;
+
+  // Real-time POS Kiosk sync via localStorage
+  React.useEffect(() => {
+    if (cart.length === 0) {
+      try {
+        localStorage.setItem("ren:pos-display", JSON.stringify({ mode: "idle", updatedAt: Date.now() }));
+      } catch {}
+      return;
+    }
+    const lastItem = cart[cart.length - 1];
+    try {
+      localStorage.setItem(
+        "ren:pos-display",
+        JSON.stringify({
+          mode: "item",
+          sku: lastItem.product.code || lastItem.product.barcode || "",
+          productName: lastItem.product.name,
+          qty: lastItem.quantity,
+          unitPriceGross: lastItem.unit_price,
+          cartTotal: calc.total,
+          cartCount: cart.reduce((s, l) => s + l.quantity, 0),
+          updatedAt: Date.now(),
+        })
+      );
+    } catch {}
+  }, [cart, calc.total]);
 
   const list = (products.data ?? []).filter((p) => p.is_active && (!cat || p.category_id === cat) && matches(`${p.name} ${p.code ?? ""} ${p.barcode ?? ""}`, q));
 
@@ -210,6 +301,17 @@ export function PosPage() {
       dueDate: finalDueDate,
       customerName: contactObj?.name || "",
     });
+    try {
+      localStorage.setItem(
+        "ren:pos-display",
+        JSON.stringify({
+          mode: "total",
+          cartTotal: calc.total,
+          cartCount: 0,
+          updatedAt: Date.now(),
+        })
+      );
+    } catch {}
     setCart([]);
     setManualVatRate(null);
     setReceived(0);
@@ -414,6 +516,29 @@ export function PosPage() {
             <span className="num shrink-0 text-muted">Üstü: <b className="text-text">{formatMoney(change)}</b></span>
           </div>
         )}
+        <div className="mb-2 flex gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs"
+            disabled={!cart.length}
+            onClick={holdCurrentSale}
+          >
+            <PauseCircle className="size-3.5" /> Satışı Beklet
+          </Button>
+          {heldSales.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs border-amber-300 dark:border-amber-700 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              onClick={() => setHeldSalesOpen(true)}
+            >
+              <PlayCircle className="size-3.5" /> Bekleyenler ({heldSales.length})
+            </Button>
+          )}
+        </div>
         <Button size="lg" className="w-full" disabled={!cart.length || !canWrite} loading={save.isPending} onClick={complete}>
           <CheckCircle2 /> Satışı tamamla
         </Button>
@@ -423,13 +548,44 @@ export function PosPage() {
 
   return (
     <div className="mx-auto max-w-[1400px]">
-      <div className="mb-3 flex items-center gap-2">
-        <h2 className="flex-1 text-lg font-semibold sm:text-xl">Hızlı Satış</h2>
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/satislar/hizli-satislar">
-            <History /> Geçmiş
-          </Link>
-        </Button>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold sm:text-xl">Hızlı Satış</h2>
+          {heldSales.length > 0 && (
+            <button
+              onClick={() => setHeldSalesOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-200 transition"
+            >
+              <PauseCircle className="size-3.5" /> {heldSales.length} Bekleyen Satış
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open("/fiyat-gor", "_blank", "width=1100,height=800")}
+            className="text-xs"
+            title="Müşterinin fiyat ve sepet göreceği 2. ekran"
+          >
+            <Monitor className="size-3.5" /> Müşteri Ekranı (Fiyat Gör)
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setBarcodeModalOpen(true)}
+            className="text-xs"
+          >
+            <ScanBarcode className="size-3.5" /> Barkod Etiketi
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/satislar/hizli-satislar">
+              <History className="size-3.5" /> Geçmiş
+            </Link>
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0">
@@ -524,6 +680,63 @@ export function PosPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bekleyen Satışlar Dialog */}
+      <Dialog open={heldSalesOpen} onOpenChange={setHeldSalesOpen}>
+        <DialogContent title={`Bekleyen Satışlar (${heldSales.length}/5)`}>
+          <div className="space-y-3 py-2">
+            {!heldSales.length ? (
+              <p className="py-6 text-center text-sm text-muted">Bekleyen satış bulunmamaktadır.</p>
+            ) : (
+              heldSales.map((h, idx) => {
+                const totalQty = h.cart.reduce((s, x) => s + x.quantity, 0);
+                const grossTotal = h.cart.reduce((s, x) => s + x.quantity * x.unit_price, 0);
+                const contactObj = (contacts.data ?? []).find((c) => c.id === h.contactId);
+                return (
+                  <div
+                    key={h.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">Satış #{idx + 1}</span>
+                        <span className="text-xs text-muted">({h.time})</span>
+                        {contactObj && (
+                          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium text-text">
+                            {contactObj.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted mt-0.5">
+                        {totalQty} adet ürün · <b className="num text-text">{formatMoney(grossTotal)}</b>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button size="sm" onClick={() => restoreHeldSale(h)}>
+                        <PlayCircle className="size-3.5" /> Yükle
+                      </Button>
+                      <button
+                        onClick={() => removeHeldSale(h.id)}
+                        className="p-1.5 text-muted hover:text-danger rounded-md transition"
+                        title="Sil"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Barkod Etiket Yazdırma Modal */}
+      <BarcodeLabelModal
+        open={barcodeModalOpen}
+        onOpenChange={setBarcodeModalOpen}
+        initialProduct={cart.length > 0 ? cart[cart.length - 1].product : undefined}
+      />
     </div>
   );
 }

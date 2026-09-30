@@ -166,8 +166,8 @@ export function TurnoverComparisons({ orgId }: { orgId: string }) {
       growth: data.monthGrowth,
       isUp: data.monthUp,
       icon: Calendar,
-      gradient: "from-emerald-500/10 via-emerald-500/5 to-transparent",
-      accent: "text-emerald-600 dark:text-emerald-400",
+      gradient: "from-slate-500/10 via-slate-500/5 to-transparent",
+      accent: "text-slate-800 dark:text-slate-200",
     },
     {
       title: "BU YIL / GEÇEN YIL",
@@ -235,7 +235,7 @@ export function TurnoverComparisons({ orgId }: { orgId: string }) {
                     className={cn(
                       "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold tracking-tight shadow-2xs",
                       item.isUp
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
+                        ? "bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700"
                         : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25",
                     )}
                   >

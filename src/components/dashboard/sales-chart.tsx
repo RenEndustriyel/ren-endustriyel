@@ -34,12 +34,12 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
         <div>
           <Link href="/raporlar/gelir-gider" className="group inline-flex items-center gap-2">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-text group-hover:text-primary transition-colors">
-              <BarChart3 className="size-4 text-teal-600 dark:text-teal-400" /> Satış Grafiği
+              <BarChart3 className="size-4 text-slate-700 dark:text-slate-300" /> Satış Grafiği
             </h2>
           </Link>
           <p className="mt-0.5 text-[11px] text-muted">
             {mode === "daily" ? "Son 14 gün (TL)" : "Son 12 ay (TL)"} · Toplam{" "}
-            <span className="font-semibold text-teal-700 dark:text-teal-300">{formatMoney(total)}</span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(total)}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -49,7 +49,7 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
               onClick={() => setMode("daily")}
               className={cn(
                 "rounded-md px-2.5 py-1 transition-colors",
-                mode === "daily" ? "bg-teal-600 text-white font-bold" : "text-muted hover:text-text hover:bg-surface-2",
+                mode === "daily" ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold" : "text-muted hover:text-text hover:bg-surface-2",
               )}
             >
               Günlük
@@ -59,13 +59,13 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
               onClick={() => setMode("monthly")}
               className={cn(
                 "rounded-md px-2.5 py-1 transition-colors",
-                mode === "monthly" ? "bg-teal-600 text-white font-bold" : "text-muted hover:text-text hover:bg-surface-2",
+                mode === "monthly" ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold" : "text-muted hover:text-text hover:bg-surface-2",
               )}
             >
               Aylık
             </button>
           </div>
-          <Link href="/raporlar/gelir-gider" className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 hover:underline">
+          <Link href="/raporlar/gelir-gider" className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:underline">
             Detaylı rapor →
           </Link>
         </div>
@@ -75,8 +75,8 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
           <AreaChart data={rows} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0f9b8e" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#0f9b8e" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="#64748b" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#64748b" stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
@@ -87,10 +87,10 @@ export function SalesChart({ data }: { data: DashboardSummary }) {
               dataKey="amount"
               name="Satış"
               type="monotone"
-              stroke="#0f9b8e"
+              stroke="#475569"
               strokeWidth={2}
               fill="url(#salesFill)"
-              activeDot={{ r: 3.5, strokeWidth: 1.5, stroke: "#fff", fill: "#0f9b8e" }}
+              activeDot={{ r: 3.5, strokeWidth: 1.5, stroke: "#fff", fill: "#475569" }}
             />
           </AreaChart>
         </ResponsiveContainer>
