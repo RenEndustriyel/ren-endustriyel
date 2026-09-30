@@ -18,17 +18,17 @@ export function DialogContent({
 }: React.ComponentProps<typeof D.Content> & { title: string; description?: string }) {
   return (
     <D.Portal>
-      <D.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in" />
+      <D.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in print:hidden" />
       <D.Content
         className={cn(
-          "fixed z-50 flex max-h-[92dvh] w-full flex-col bg-surface shadow-xl focus:outline-none",
+          "fixed z-50 flex max-h-[92dvh] w-full flex-col bg-surface shadow-xl focus:outline-none print:static print:max-h-none print:w-full print:shadow-none print:bg-transparent print:p-0",
           // telefon: alttan çıkan sayfa ; masaüstü: ortada pencere
           "inset-x-0 bottom-0 rounded-t-2xl pb-safe sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl",
           className,
         )}
         {...props}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 print:hidden">
           <div>
             <D.Title className="text-base font-semibold">{title}</D.Title>
             {description ? (
@@ -41,7 +41,7 @@ export function DialogContent({
             <X className="size-5" />
           </D.Close>
         </div>
-        <div className="thin-scroll overflow-y-auto px-5 py-4">{children}</div>
+        <div className="thin-scroll overflow-y-auto px-5 py-4 print:overflow-visible print:p-0">{children}</div>
       </D.Content>
     </D.Portal>
   );

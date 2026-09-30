@@ -14,9 +14,29 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.1.3";
+export const LATEST_VERSION = "2.1.4";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.1.4",
+    date: "30 Eylül 2026",
+    title: "Alış & Satış Faturalarında Yeni Resmi Muhasebe Baskı ve PDF Şablonu",
+    badge: "Yeni Şablon",
+    items: [
+      {
+        type: "yeni",
+        title: "Birebir Muhasebe Fatura Baskı Şablonu",
+        description:
+          "Alış ve satış faturaları için kurumsal siyah çerçeveli, üst başlık, şirket ve cari/vergi detayları, tam hizalı stok kalemleri, cari son bakiye ve toplamlar tablosunu içeren yeni fatura şablonu devreye alındı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Doğrudan Yazdırma ve PDF Çıktısı Entegrasyonu",
+        description:
+          "Hem tarayıcı üzerinden yazdırma (Ctrl+P / Yazdır butonu) hem de PDF indirme çıktısı yeni şablonla birebir senkronize edildi.",
+      },
+    ],
+  },
   {
     version: "2.1.3",
     date: "29 Eylül 2026",

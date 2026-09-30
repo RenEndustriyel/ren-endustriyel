@@ -3,9 +3,8 @@
 import * as React from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Download, QrCode, FileText } from "lucide-react";
-import { formatMoney, formatNumber, formatQty, formatDate } from "@/lib/format";
-import { amountInWords } from "@/lib/pdf/words";
+import { Printer, Download } from "lucide-react";
+import { formatNumber, formatQty, formatDate } from "@/lib/format";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import type { Tables } from "@/lib/supabase/client";
 
@@ -13,14 +12,44 @@ type Org = Tables<"organizations">;
 type Document = Tables<"documents">;
 type DocumentLine = Tables<"document_lines"> & { unit_name?: string | null; product_name?: string | null };
 
+type ExtendedDocument = Document & {
+  lines: DocumentLine[];
+  contact_balance_info?: { current_balance?: number | null } | null;
+  e_invoice_no?: string | null;
+  gib_invoice_number?: string | null;
+  waybill_number?: string | null;
+  e_waybill_number?: string | null;
+  sales_rep?: string | null;
+  representative?: string | null;
+};
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  doc: Document & { lines: DocumentLine[] };
+  doc: ExtendedDocument;
   org: Org | null;
   balanceInfo?: { previous_balance: number; this_amount: number; current_balance: number } | null;
   contactPhone?: string;
   onDownloadPdf?: () => void;
+}
+
+function formatInvoiceDate(d: string | Date | null | undefined): string {
+  if (!d) return "";
+  try {
+    const s = typeof d === "string" ? d : d.toISOString();
+    const [y, m, day] = s.slice(0, 10).split("-");
+    if (!y || !m || !day) return String(d);
+    return `${parseInt(day, 10)}.${parseInt(m, 10)}.${y}`;
+  } catch {
+    return String(d);
+  }
+}
+
+function getInvoiceTitle(docType: string): string {
+  if (docType === "purchase_invoice") return "ALIŞ FATURASI";
+  if (docType === "purchase_return") return "ALIŞ İADE FATURASI";
+  if (docType === "sales_return") return "SATIŞ İADE FATURASI";
+  return "SATIŞ FATURASI";
 }
 
 export function DocumentPrintModal({
@@ -35,11 +64,48 @@ export function DocumentPrintModal({
   if (!doc) return null;
 
   const snap = ((doc.contact_snapshot as Record<string, string | null>) ?? {}) || {};
-  const isInvoice = doc.doc_type === "sales_invoice" || doc.doc_type === "purchase_invoice";
+  const isInvoice =
+    doc.doc_type === "sales_invoice" ||
+    doc.doc_type === "purchase_invoice" ||
+    doc.doc_type === "sales_return" ||
+    doc.doc_type === "purchase_return";
   const isOrder = doc.doc_type === "sales_order" || doc.doc_type === "purchase_order";
   const isQuote = doc.doc_type === "quote";
+  const isPurchase = doc.doc_type.startsWith("purchase");
 
   const cfg = DOC_TYPES[doc.doc_type as DocType] ?? DOC_TYPES.sales_invoice;
+
+  const orgName = org?.legal_name || org?.name || "Ren Endüstriyel";
+  const orgAddress = org?.address || "Han Mh. Yeni Cadde No:23/D";
+  const orgCity = [org?.district, org?.city].filter(Boolean).join(" / ") || "Susurluk / Balıkesir";
+
+  const customerName = snap.name || "Perakende Müşteri";
+  const customerAddress =
+    [snap.address, [snap.district, snap.city].filter(Boolean).join(" / ")].filter(Boolean).join(" - ") ||
+    "TÜRKİYE";
+  const taxOffice = snap.tax_office || "";
+  const taxNumber = snap.tax_number || "";
+
+  const invoiceTitle = getInvoiceTitle(doc.doc_type);
+  const invoiceDate = formatInvoiceDate(doc.issue_date);
+  const docNumber = doc.number || "";
+
+  // Totaller
+  const subtotal =
+    Number(doc.subtotal || 0) > 0
+      ? Number(doc.subtotal)
+      : (doc.lines || []).reduce((sum, l) => sum + Number(l.quantity || 0) * Number(l.unit_price || 0), 0);
+  const discountTotal = Number(doc.discount_total || 0);
+  const netTotal = Number(doc.net_total || 0) > 0 ? Number(doc.net_total) : subtotal - discountTotal;
+  const vatTotal =
+    Number(doc.vat_total || 0) > 0
+      ? Number(doc.vat_total)
+      : (doc.lines || []).reduce((sum, l) => sum + Number(l.vat_amount || 0), 0);
+  const grandTotal = Number(doc.total || 0) > 0 ? Number(doc.total) : netTotal + vatTotal;
+
+  // Son Bakiye
+  const currentBalance =
+    balanceInfo?.current_balance ?? doc.contact_balance_info?.current_balance ?? 0;
 
   // Grup bazlı KDV toplamları
   const vatGroups = Object.entries(
@@ -52,13 +118,6 @@ export function DocumentPrintModal({
     }, {}),
   );
 
-  const orgName = org?.legal_name || org?.name || "REN ENDÜSTRİYEL";
-  const orgAddress = org?.address || "Han Mh. Yeni Cadde No:23/D";
-  const orgCity = [org?.district, org?.city].filter(Boolean).join(" / ") || "Susurluk / Balıkesir";
-  const orgTaxNo = org?.tax_number || "21856457480";
-  const orgTaxOffice = org?.tax_office ? `(${org.tax_office.toLowerCase()})` : "(susurluk)";
-  const orgIban = org?.iban || "TR290001000313509372275007";
-
   const handlePrint = () => {
     window.print();
   };
@@ -68,13 +127,42 @@ export function DocumentPrintModal({
       <DialogContent
         title={`Belge Çıktısı — ${doc.number || "Taslak"}`}
         description="Baskı ve yazdırma önizlemesi"
-        className="sm:max-w-4xl max-h-[92dvh] overflow-y-auto thin-scroll p-4 sm:p-6"
+        className="sm:max-w-4xl max-h-[92dvh] overflow-y-auto thin-scroll p-4 sm:p-6 print:p-0 print:border-none print:shadow-none"
       >
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @media print {
+                @page {
+                  size: A4 portrait;
+                  margin: 8mm;
+                }
+                body {
+                  background: #ffffff !important;
+                  color: #000000 !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                .print-invoice-sheet {
+                  min-height: 275mm !important;
+                  height: 275mm !important;
+                  border: 1px solid #000000 !important;
+                  display: flex !important;
+                  flex-direction: column !important;
+                  justify-content: space-between !important;
+                  page-break-inside: avoid !important;
+                  box-shadow: none !important;
+                }
+              }
+            `,
+          }}
+        />
+
         {/* İşlem Butonları (Yazdırma esnasında gizlenir) */}
         <div className="flex items-center justify-between border-b border-border pb-3 print:hidden">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-              {isInvoice ? "Resmi GİB Formatı (e-Fatura)" : "Satış & Sipariş Notu Formatı"}
+              {isInvoice ? "Fatura Formatı" : "Satış & Sipariş Notu Formatı"}
             </span>
             <span className="text-xs text-muted">{cfg.label}</span>
           </div>
@@ -91,175 +179,156 @@ export function DocumentPrintModal({
         </div>
 
         {/* ------------------------------------------------------------- */}
-        {/* GÖRÜNÜM 1: E-FATURA FORMATI (EKTEKİ 1. FOTOĞRAF İLE BİREBİR)     */}
+        {/* GÖRÜNÜM 1: FATURA ŞABLONU (EKTEKİ FOTOĞRAF İLE BİREBİR AYNISI) */}
         {/* ------------------------------------------------------------- */}
         {isInvoice ? (
-          <div className="mx-auto w-full max-w-[800px] bg-white p-6 sm:p-8 text-zinc-900 font-sans shadow-xs border border-zinc-200 print:border-none print:shadow-none print:p-0">
-            {/* Üst Başlık (Sol: Ren Logo & Şirket, Orta: GİB Logo & e-Fatura, Sağ: Karekod) */}
-            <div className="grid grid-cols-12 items-start gap-4 pb-6 border-b border-zinc-200">
-              {/* Sol: REN Logo & Firma Bilgileri */}
-              <div className="col-span-5 flex flex-col gap-2">
-                <div className="flex size-14 items-center justify-center rounded-full border-2 border-zinc-900 bg-zinc-900 text-white font-bold text-lg tracking-wider">
-                  REN
-                </div>
-                <div className="text-xs leading-relaxed">
-                  <div className="font-bold text-zinc-950 uppercase">{orgName}</div>
-                  <div>{orgAddress}</div>
-                  <div>{orgCity} – Türkiye</div>
-                  <div className="mt-1 text-zinc-600">Vergi No</div>
-                  <div className="font-semibold text-zinc-900">{orgTaxNo} {orgTaxOffice}</div>
+          <div className="mx-auto w-full max-w-[820px] bg-white p-2 sm:p-6 text-black font-sans print:m-0 print:p-0">
+            <div className="print-invoice-sheet border border-black bg-white flex flex-col justify-between min-h-[920px]">
+              {/* 1. Kısım: Üst Başlık (SATIŞ FATURASI / ALIŞ FATURASI) */}
+              <div className="border-b border-black py-1.5 text-center font-bold text-sm tracking-wide uppercase text-black">
+                {invoiceTitle}
+              </div>
+
+              {/* 2. Kısım: Firma Adı ve Sayfa Bölü */}
+              <div className="border-b border-black px-4 py-3 flex justify-end">
+                <div className="text-right">
+                  <div className="font-bold text-sm text-black">{orgName}</div>
+                  <div className="text-xs text-black mt-2 pr-2">/</div>
                 </div>
               </div>
 
-              {/* Orta: GİB Logo & e-Fatura */}
-              <div className="col-span-4 flex flex-col items-center justify-center text-center pt-1">
-                {/* GİB Amblemi */}
-                <div className="flex size-16 items-center justify-center rounded-full border-2 border-red-600 p-1 shadow-2xs">
-                  <div className="flex size-full items-center justify-center rounded-full bg-red-600 text-white font-black text-sm tracking-tighter">
-                    GİB
-                  </div>
-                </div>
-                <div className="mt-1 text-sm font-bold text-zinc-800 tracking-tight">
-                  e-Fatura
-                </div>
-              </div>
-
-              {/* Sağ: Karekod (QR Code) */}
-              <div className="col-span-3 flex flex-col items-end">
-                <div className="flex size-24 items-center justify-center border border-zinc-300 p-1 bg-zinc-50 rounded">
-                  <QrCode className="size-full text-zinc-900" />
-                </div>
-              </div>
-            </div>
-
-            {/* Müşteri (Sayın) ve Fatura Meta Bilgileri */}
-            <div className="grid grid-cols-12 gap-4 py-4 border-b border-zinc-200 text-xs">
-              {/* Sayın / Alıcı */}
-              <div className="col-span-7">
-                <div className="font-medium text-zinc-500 mb-1">Sayın</div>
-                <div className="font-bold text-zinc-950 uppercase">{snap.name || "Perakende Müşteri"}</div>
-                <div className="text-zinc-700">{[snap.address, snap.district, snap.city].filter(Boolean).join(" ")} – Türkiye</div>
-                {snap.tax_number && (
-                  <div className="mt-1.5">
-                    <span className="text-zinc-500">Vergi No: </span>
-                    <span className="font-semibold">{snap.tax_number} {snap.tax_office ? `(${snap.tax_office})` : ""}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Fatura No / Tarih / Ödeme Tarihi */}
-              <div className="col-span-5 flex flex-col items-end justify-start text-right space-y-1.5">
-                <div>
-                  <div className="text-[11px] text-zinc-500">Fatura Numarası</div>
-                  <div className="font-bold font-mono text-zinc-950 text-sm">{doc.number || "SF02026000000004"}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] text-zinc-500">Fatura Tarihi</div>
-                  <div className="font-medium text-zinc-900">{formatDate(doc.issue_date)}</div>
-                </div>
-                {doc.due_date && (
+              {/* 3. Kısım: Müşteri ve Belge Meta Bilgileri */}
+              <div className="border-b border-black p-4 grid grid-cols-2 gap-4 text-xs text-black">
+                {/* Sol: Müşteri / Cari Bilgileri */}
+                <div className="flex flex-col justify-between">
                   <div>
-                    <div className="text-[11px] text-zinc-500">Ödeme Tarihi</div>
-                    <div className="font-medium text-zinc-900">{formatDate(doc.due_date)}</div>
+                    <div className="font-bold text-sm uppercase text-black">{customerName}</div>
+                    <div className="uppercase text-black mt-0.5 text-[11px] leading-tight">
+                      {customerAddress}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
+                  <div className="mt-4 space-y-0.5 text-[11px] text-black">
+                    <div className="flex">
+                      <span className="w-24">Vergi Dairesi</span>
+                      <span className="mr-2">:</span>
+                      <span>{taxOffice}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="w-24">Vergi No</span>
+                      <span className="mr-2">:</span>
+                      <span>{taxNumber}</span>
+                    </div>
+                  </div>
+                </div>
 
-            {/* Fatura Kalemleri Tablosu */}
-            <div className="py-4">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-zinc-300 text-[11px] font-semibold text-zinc-600">
-                    <th className="py-2 text-left w-8">No</th>
-                    <th className="py-2 text-left">Hizmet / Ürün</th>
-                    <th className="py-2 text-right w-16">Miktar</th>
-                    <th className="py-2 text-right w-24">Birim Fiyat</th>
-                    <th className="py-2 text-right w-16">KDV</th>
-                    <th className="py-2 text-right w-24">Toplam</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {doc.lines.map((l, idx) => (
-                    <tr key={l.id || idx}>
-                      <td className="py-2.5 text-left text-zinc-500">{idx + 1}</td>
-                      <td className="py-2.5 text-left font-medium text-zinc-900">
-                        {l.description || l.product_name || "—"}
-                      </td>
-                      <td className="py-2.5 text-right font-mono">{formatQty(l.quantity)}</td>
-                      <td className="py-2.5 text-right font-mono">{formatNumber(l.unit_price)} TL</td>
-                      <td className="py-2.5 text-right font-mono">%{Number(l.vat_rate || 0).toFixed(2)}</td>
-                      <td className="py-2.5 text-right font-mono font-medium">{formatNumber(l.net_amount || l.total_amount)} TL</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Alt Alan (Sol: Senaryo & ETTN, Sağ: Toplamlar) */}
-            <div className="grid grid-cols-12 gap-4 pt-4 border-t border-zinc-300 text-xs">
-              {/* Sol: Senaryo, Fatura Tipi, Özelleştirme No, ETTN */}
-              <div className="col-span-5 space-y-2 text-zinc-700">
-                <div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Senaryo</div>
-                  <div className="font-semibold text-zinc-900">TEMELFATURA</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Fatura Tipi</div>
-                  <div className="font-semibold text-zinc-900">SATIS</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Özelleştirme No</div>
-                  <div className="font-medium text-zinc-900">TR1.2</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider">ETTN</div>
-                  <div className="font-mono text-[10.5px] text-zinc-800 break-all">
-                    {doc.id ? `${doc.id}-471a-bfe7-ee908adc353d` : "49703fd2-c3cc-471a-bfe7-ee908adc353d"}
+                {/* Sağ: Fatura ve Belge Bilgileri */}
+                <div className="flex justify-end">
+                  <div className="space-y-0.5 text-[11px] text-black min-w-[210px]">
+                    <div className="flex">
+                      <span className="w-28">Tarih</span>
+                      <span className="mr-2">:</span>
+                      <span>{invoiceDate}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="w-28">Belge No</span>
+                      <span className="mr-2">:</span>
+                      <span className="font-medium">{docNumber}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="w-28">e-Fatura</span>
+                      <span className="mr-2">:</span>
+                      <span>{doc.e_invoice_no || doc.gib_invoice_number || ""}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="w-28">İrsaliye</span>
+                      <span className="mr-2">:</span>
+                      <span>{doc.waybill_number || ""}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="w-28">e-İrsaliye</span>
+                      <span className="mr-2">:</span>
+                      <span>{doc.e_waybill_number || ""}</span>
+                    </div>
+                    <div className="flex">
+                      <span className="w-28">{isPurchase ? "Satın Alma Temsilcisi" : "Satış Temsilcisi"}</span>
+                      <span className="mr-2">:</span>
+                      <span>{doc.sales_rep || doc.representative || ""}</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Sağ: Vergi ve Toplamlar Tablosu */}
-              <div className="col-span-7 space-y-1.5 text-right">
-                <div className="flex justify-between py-0.5">
-                  <span className="text-zinc-600">Mal Hizmet Toplam Tutarı</span>
-                  <span className="font-mono font-medium">{formatNumber(doc.subtotal || doc.net_total)} TL</span>
-                </div>
-                {Number(doc.discount_total || 0) > 0 && (
-                  <div className="flex justify-between py-0.5 text-zinc-600">
-                    <span>Toplam İndirim</span>
-                    <span className="font-mono">{formatNumber(doc.discount_total)} TL</span>
-                  </div>
-                )}
-                {vatGroups.map(([rate, g]) => (
-                  <div key={rate} className="flex justify-between py-0.5 text-zinc-700">
-                    <span>Hesaplanan KDV GERÇEK (%{Number(rate).toFixed(1)})</span>
-                    <span className="font-mono">{formatNumber(g.vat)} TL</span>
+              {/* 4. Kısım: Tablo Başlıkları */}
+              <div className="border-b border-black flex py-1 px-3 text-xs font-bold text-black">
+                <div className="w-[42%] text-left">Stok</div>
+                <div className="w-[18%] text-right">Miktar</div>
+                <div className="w-[12%] text-right">Fiyat</div>
+                <div className="w-[8%] text-right">Kdv</div>
+                <div className="w-[8%] text-right">%İsk</div>
+                <div className="w-[12%] text-right">Tutar</div>
+              </div>
+
+              {/* 5. Kısım: Tablo Satırları */}
+              <div className="flex-1 flex flex-col justify-start">
+                {doc.lines.map((l, idx) => (
+                  <div key={l.id || idx} className="flex px-3 py-1 text-xs text-black leading-snug">
+                    <div className="w-[42%] text-left font-medium uppercase truncate pr-2">
+                      {l.description || l.product_name || "—"}
+                    </div>
+                    <div className="w-[18%] text-right font-mono tabular-nums">
+                      {formatNumber(l.quantity)} {(l.unit_name || "ADET").toUpperCase()}
+                    </div>
+                    <div className="w-[12%] text-right font-mono tabular-nums">
+                      {formatNumber(l.unit_price)}
+                    </div>
+                    <div className="w-[8%] text-right font-mono tabular-nums">
+                      {Math.round(Number(l.vat_rate || 0))}
+                    </div>
+                    <div className="w-[8%] text-right font-mono tabular-nums">
+                      {formatNumber(l.discount_rate || 0)}
+                    </div>
+                    <div className="w-[12%] text-right font-mono tabular-nums">
+                      {formatNumber(l.net_amount || (Number(l.quantity || 0) * Number(l.unit_price || 0) * (1 - Number(l.discount_rate || 0) / 100)))}
+                    </div>
                   </div>
                 ))}
-                <div className="flex justify-between py-1 border-t border-zinc-200 font-semibold text-zinc-900">
-                  <span>Vergiler Dahil Toplam Tutar</span>
-                  <span className="font-mono">{formatNumber(doc.total)} TL</span>
-                </div>
-                <div className="flex justify-between py-1.5 font-bold text-sm text-zinc-950 border-t border-zinc-300">
-                  <span>Ödenecek Tutar</span>
-                  <span className="font-mono text-base">{formatNumber(doc.total)} TL</span>
-                </div>
               </div>
-            </div>
 
-            {/* En Alt: Fatura Notu (IBAN) ve Yazıyla Toplam Tutar */}
-            <div className="mt-6 pt-4 border-t border-zinc-200 text-xs text-zinc-700 space-y-2">
-              <div>
-                <div className="font-semibold text-zinc-900">Fatura Notu</div>
-                <div className="font-mono text-[11px] text-zinc-800">
-                  Ziraat Bankası Susurluk IBAN (TRL) {orgIban}
-                  {doc.notes ? ` · ${doc.notes}` : ""}
+              {/* 6. Kısım: Alt Bilgi (Son Bakiye & Toplamlar) */}
+              <div className="p-3 flex items-end justify-between text-xs text-black">
+                {/* Sol: Son Bakiye */}
+                <div className="font-bold text-black text-xs sm:text-sm">
+                  Son Bakiye : {formatNumber(currentBalance)} TL
                 </div>
-              </div>
-              <div className="font-semibold text-zinc-900">
-                Yazıyla Toplam Tutar: <span className="font-medium text-zinc-800">{amountInWords(Number(doc.total || 0), "TRY").replace("Yalnız: ", "").replace(/\s+/g, "")}</span>
+
+                {/* Sağ: Toplamlar Tablosu */}
+                <div className="space-y-0.5 text-xs text-black min-w-[210px]">
+                  <div className="flex justify-between">
+                    <span className="w-24">Toplam</span>
+                    <span className="mr-2">:</span>
+                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(subtotal)} TL</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="w-24">İskonto</span>
+                    <span className="mr-2">:</span>
+                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(discountTotal)} TL</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="w-24">Ara Toplam</span>
+                    <span className="mr-2">:</span>
+                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(netTotal)} TL</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="w-24">Kdv</span>
+                    <span className="mr-2">:</span>
+                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(vatTotal)} TL</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-black">
+                    <span className="w-24">Genel Toplam</span>
+                    <span className="mr-2">:</span>
+                    <span className="flex-1 text-right font-mono tabular-nums">{formatNumber(grandTotal)} TL</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
