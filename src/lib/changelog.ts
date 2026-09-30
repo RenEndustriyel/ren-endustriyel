@@ -14,9 +14,35 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.1.4";
+export const LATEST_VERSION = "2.1.6";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.1.6",
+    date: "30 Eylül 2026",
+    title: "Yığın Taşması (Call Stack) Düzeltmesi, Grafik Eksen Korumaları ve Render Optimizasyonu",
+    badge: "Sistem & Performans",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Panel Yükleme ve Yığın Taşması (Stack Overflow) Çözümü",
+        description:
+          "Büyüme & Sağlık skorbordunda ve grafik eksen hesaplamalarında veri yüklenirken oluşan sayısal taşma riski güvene alındı; tarayıcı kilitlenmeleri ve 'Maximum call stack size exceeded' hatası tamamen giderildi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Global Context ve Render Optimizasyonu",
+        description:
+          "Kurum sağlayıcısı (OrgProvider), stok uyarı modülü ve satış grafikleri React.useMemo ile güçlendirilerek gereksiz sayfa yenilenmeleri önlendi.",
+      },
+      {
+        type: "yeni",
+        title: "Eksi Stok Uyarı ve Engelleme Modülü",
+        description:
+          "Ayarlar -> Stok ve Depolar altından yönetilebilen eksi stok uyarısı ve eksiye düşmeyi engelleme tercihleri ile ürün kartlarında alış/satış için bağımsız KDV dahil/hariç seçenekleri devreye alındı.",
+      },
+    ],
+  },
   {
     version: "2.1.4",
     date: "30 Eylül 2026",

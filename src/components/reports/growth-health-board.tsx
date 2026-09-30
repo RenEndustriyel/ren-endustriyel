@@ -314,7 +314,7 @@ export function GrowthHealthBoard({
                 yAxisId="right"
                 orientation="right"
                 tickFormatter={(v) => `%${v}`}
-                domain={[0, (max: number) => Math.max(Math.ceil(max / 10) * 10, 50)]}
+                domain={[0, (max: number) => (Number.isFinite(max) && max > 0 ? Math.max(Math.ceil(max / 10) * 10, 50) : 50)]}
                 tick={{ fontSize: 10, fill: "var(--muted)" }}
                 axisLine={false}
                 tickLine={false}

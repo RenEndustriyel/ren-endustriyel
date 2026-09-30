@@ -18,10 +18,13 @@ const monthLabel = (m: string) => {
 
 export function SalesChart({ data }: { data: DashboardSummary }) {
   const [mode, setMode] = React.useState<"daily" | "monthly">("daily");
-  const rows =
-    mode === "daily"
-      ? data.sales_daily.map((d) => ({ label: d.date, amount: Number(d.amount) }))
-      : data.sales_monthly.map((d) => ({ label: d.month, amount: Number(d.amount) }));
+  const rows = React.useMemo(() => {
+    const list = mode === "daily" ? (data?.sales_daily ?? []) : (data?.sales_monthly ?? []);
+    return list.map((d: any) => ({
+      label: String(mode === "daily" ? d.date : d.month),
+      amount: Number(d.amount) || 0,
+    }));
+  }, [mode, data?.sales_daily, data?.sales_monthly]);
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const fmt = mode === "daily" ? formatShortDay : monthLabel;
 

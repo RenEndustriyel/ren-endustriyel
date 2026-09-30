@@ -27,12 +27,14 @@ export function StockWarningSettings() {
 
   const [saving, setSaving] = React.useState(false);
 
+  const settingsKey = JSON.stringify(org?.settings ?? {});
+
   // Kurum ayarları güncellendiğinde senkronize et
   React.useEffect(() => {
     const s = (org?.settings && typeof org.settings === "object" ? org.settings : {}) as Record<string, any>;
     setWarnNegative(s.warn_negative_stock !== false);
     setBlockNegative(s.block_negative_stock === true);
-  }, [org?.settings]);
+  }, [settingsKey]);
 
   const saveSettings = async (newWarn: boolean, newBlock: boolean) => {
     if (!org) return;

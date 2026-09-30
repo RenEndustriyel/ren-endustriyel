@@ -61,16 +61,24 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
 
 
   const role = current?.role ?? null;
-  const value: OrgState = {
-    memberships,
-    org: current?.organization ?? null,
-    role,
-    loading: query.isPending && !!user,
-    canWrite: role === "owner" || role === "admin" || role === "staff",
-    isAdmin: role === "owner" || role === "admin",
-    switchOrg,
-    refresh,
-  };
+  const org = current?.organization ?? null;
+  const canWrite = role === "owner" || role === "admin" || role === "staff";
+  const isAdmin = role === "owner" || role === "admin";
+  const loading = query.isPending && !!user;
+
+  const value: OrgState = React.useMemo(
+    () => ({
+      memberships,
+      org,
+      role,
+      loading,
+      canWrite,
+      isAdmin,
+      switchOrg,
+      refresh,
+    }),
+    [memberships, org, role, loading, canWrite, isAdmin, switchOrg, refresh],
+  );
 
   return <OrgContext.Provider value={value}>{children}</OrgContext.Provider>;
 }
