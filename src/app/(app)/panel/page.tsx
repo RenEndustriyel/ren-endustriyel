@@ -5,6 +5,7 @@ import { AlertCircle, RotateCw, TrendingUp } from "lucide-react";
 import { useOrg } from "@/providers/org-provider";
 import { useDashboard } from "@/components/dashboard/use-dashboard";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
+import { PeriodSummary } from "@/components/dashboard/period-summary";
 import { SalesChart } from "@/components/dashboard/sales-chart";
 import { GrowthHealthBoard } from "@/components/reports/growth-health-board";
 import { TurnoverComparisons } from "@/components/dashboard/turnover-comparisons";
@@ -14,8 +15,10 @@ import {
   RecentActivity,
   UpcomingPaymentsCard,
   CurrencySummary,
+  CriticalStock,
 } from "@/components/dashboard/widgets";
 import { AgendaWidget } from "@/components/dashboard/agenda-widget";
+import { ModulesGrid } from "@/components/dashboard/modules-grid";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { Button } from "@/components/ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -42,6 +45,8 @@ export default function PanelPage() {
         refetch(),
         qc.invalidateQueries({ queryKey: ["rates"] }),
         qc.invalidateQueries({ queryKey: ["reminders"] }),
+        qc.invalidateQueries({ queryKey: ["period-summary"] }),
+        qc.invalidateQueries({ queryKey: ["turnover-comparisons"] }),
       ]);
     } finally {
       setManualLoading(false);
@@ -50,7 +55,7 @@ export default function PanelPage() {
 
   const isBusy = isFetching || manualLoading;
 
-  // Eksiye düşen stok kontrolü (Kullanıcı isteği: Sadece eksiye düştüğünde bildirim gelsin)
+  // Eksiye düşen stok kontrolü
   const { data: negativeProducts } = useQuery({
     queryKey: ["negative_stock_alert", org?.id],
     enabled: !!org?.id,
@@ -71,7 +76,11 @@ export default function PanelPage() {
   React.useEffect(() => {
     if (negativeProducts && negativeProducts.length > 0) {
       toast.error(`⚠️ Eksiye Düşen Stok Bildirimi (${negativeProducts.length} Ürün)`, {
-        description: negativeProducts.map((p) => `${p.name}: ${p.stock_qty}`).slice(0, 3).join(", ") + (negativeProducts.length > 3 ? "..." : ""),
+        description:
+          negativeProducts
+            .map((p) => `${p.name}: ${p.stock_qty}`)
+            .slice(0, 3)
+            .join(", ") + (negativeProducts.length > 3 ? "..." : ""),
         id: "negative-stock-toast",
         duration: 9000,
       });
@@ -79,16 +88,20 @@ export default function PanelPage() {
   }, [negativeProducts]);
 
   return (
-    <div className="mx-auto flex max-w-[1400px] flex-col gap-4">
-      {/* 1. Başlık Alanı */}
-      <div className="flex items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 text-white shadow-2xs">
-            <TrendingUp className="size-4.5 text-white" />
+    <div className="mx-auto flex max-w-[1400px] flex-col gap-6">
+      {/* 1. Başlık Alanı - Pusulam Birebir Tipografi ve İkon Boyutu */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shadow-soft shrink-0">
+            <TrendingUp size={22} className="text-white" />
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-bold tracking-tight text-text">Genel Bakış</h1>
-            <p className="text-[11px] text-muted">İşletmenizin anlık durumu</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Genel Bakış
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              İşletmenizin anlık durumu
+            </p>
           </div>
         </div>
 
@@ -97,7 +110,7 @@ export default function PanelPage() {
           size="sm"
           onClick={handleRefresh}
           disabled={isBusy}
-          className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
+          className="h-9 gap-1.5 px-3 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           <RotateCw className={cn("size-3.5", isBusy && "animate-spin")} />
           <span className="hidden sm:inline">Yenile</span>
@@ -105,10 +118,10 @@ export default function PanelPage() {
       </div>
 
       {error && !data && (
-        <Card className="flex items-center gap-3 p-4 text-sm text-danger">
+        <Card className="flex items-center gap-3 p-4 text-sm text-danger rounded-2xl border-rose-200 bg-rose-50/50">
           <AlertCircle className="size-5 shrink-0" />
           <span className="flex-1">Panel yüklenemedi: {errorMessage(error)}</span>
-          <Button size="sm" variant="outline" onClick={() => refetch()}>
+          <Button size="sm" variant="outline" onClick={() => refetch()} className="rounded-xl">
             Tekrar dene
           </Button>
         </Card>
@@ -121,19 +134,22 @@ export default function PanelPage() {
           {/* REN AI Günlük Sabah Brifingi Banner */}
           {!hideMoney && <DailyBriefingWidget variant="banner" />}
 
-          {/* 2. Üst 5 KPI Kartı (Pusulam renk ve gradyanları ile) */}
+          {/* Dönem Özeti (Özet gizleme/gösterme, Dünün özeti şeridi ve 6 sparkline kartı) */}
+          {!hideMoney && <PeriodSummary orgId={org!.id} />}
+
+          {/* 2. Üst 5 KPI Kartı (Pusulam birebir rounded-2xl, gradyanlar ve metrikler) */}
           <KpiCards data={data} hideCash={hideMoney} />
 
-          {/* Dönemsel Ciro Kıyaslamaları (Bugün vs Dün, Bu Ay vs Geçen Ay, Bu Yıl vs Geçen Yıl) */}
+          {/* Dönemsel Ciro Kıyaslamaları */}
           <TurnoverComparisons orgId={org!.id} />
 
-          {/* Büyüme & Sağlık Skorbordu (İşletme büyüme, kârlılık ve fiziksel hacim hibrit analizi) */}
+          {/* Büyüme & Sağlık Skorbordu */}
           {!hideMoney && <GrowthHealthBoard orgId={org!.id} variant="dashboard" />}
 
-          {/* 3. Satış Grafiği (Tam genişlikte, Pusulam yeşili) */}
+          {/* 3. Satış Grafiği */}
           <SalesChart data={data} />
 
-          {/* 4. En Çok Satan Ürünler (Pusulam tarzı 4 sütunlu kart ızgarası) */}
+          {/* 4. En Çok Satan Ürünler */}
           <TopProducts data={data} />
 
           {/* 5. Toplam Alacak / Toplam Borç / Net Durum (3 kart) */}
@@ -145,12 +161,17 @@ export default function PanelPage() {
             <UpcomingPaymentsCard data={data} />
           </div>
 
+          {/* 7. Kritik Stok Uyarısı Banner */}
+          <CriticalStock data={data} />
 
-          {/* 8. Ajanda (Takvim & Notlar / Hatırlatmalar - Dövizin üstünde) */}
+          {/* 8. Ajanda (Takvim & Notlar / Hatırlatmalar) */}
           <AgendaWidget />
 
-          {/* 9. Döviz Özeti / Kur Bilgileri (En altta) */}
+          {/* 9. Döviz Özeti / Kur Bilgileri */}
           {!hideMoney && <CurrencySummary data={data} />}
+
+          {/* 10. Modüller (Pusulam birebir modül listesi) */}
+          <ModulesGrid />
         </>
       ) : null}
     </div>
