@@ -58,13 +58,13 @@ export function ProductDetail({ id }: { id: string }) {
   const del = async () => {
     if (!(await confirm({ title: `${p.name} silinsin mi?`, description: "Ürün listeden kaldırılır; geçmiş belgeler korunur.", danger: true, confirmText: "Sil" }))) return;
     await remove(p.id, "Ürün silindi");
-    router.replace("/stok/urunler");
+    router.replace("/urunler");
   };
 
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
-        back="/stok/urunler"
+        back="/urunler"
         title={p.name}
         description={
           <span className="flex flex-wrap items-center gap-2">

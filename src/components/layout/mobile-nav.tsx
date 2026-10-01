@@ -95,7 +95,7 @@ export function MobileNav() {
 
           {/* 4. Ürünler */}
           <Link
-            href="/stok/urunler"
+            href="/urunler"
             className={cn(
               "flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition active:scale-95",
               isUrunActive

@@ -56,6 +56,27 @@ export function Topbar() {
     "Ren Endüstriyel";
   const userInitials = getInitials(userName) || "RE";
 
+  const getPageTitle = (path: string) => {
+    if (path === "/panel" || path === "/") return "Panel";
+    if (path.startsWith("/urunler") || path.startsWith("/stok/urunler")) return "Ürünler";
+    if (path.startsWith("/hizli-satis")) return "Hızlı Satış";
+    if (path.startsWith("/yapay-zeka")) return "REN AI";
+    if (path.startsWith("/giderler/alis-faturalari") || path.startsWith("/alislar")) return "Alışlar";
+    if (path.startsWith("/satislar/faturalar") || path.startsWith("/satislar")) return "Satışlar";
+    if (path.startsWith("/giderler/masraflar") || path.startsWith("/masraflar")) return "Masraflar";
+    if (path.startsWith("/stok/hareketler") || path.startsWith("/stoklar")) return "Stoklar";
+    if (path.startsWith("/cariler/musteriler") || path.startsWith("/musteriler")) return "Müşteriler";
+    if (path.startsWith("/cariler/tedarikciler") || path.startsWith("/tedarikciler")) return "Tedarikçiler";
+    if (path.startsWith("/satislar/teklifler") || path.startsWith("/teklifler")) return "Teklifler";
+    if (path.startsWith("/nakit/hesaplar") || path.startsWith("/hesaplar")) return "Hesaplar";
+    if (path.startsWith("/ajanda") || path.startsWith("/cari-hatirlatmalar")) return "Hatırlatmalar";
+    if (path.startsWith("/raporlar")) return "Raporlar";
+    if (path.startsWith("/ayarlar")) return "Ayarlar";
+    return "Panel";
+  };
+
+  const pageTitle = getPageTitle(pathname);
+
   return (
     <header
       className="sticky top-0 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 items-center justify-between gap-2 px-2 sm:px-4 lg:px-8 min-w-0 flex"
@@ -72,7 +93,7 @@ export function Topbar() {
             {org?.name || "Ren Endüstriyel"}
           </div>
           <div className="font-bold text-[15px] truncate leading-tight text-slate-900 dark:text-white">
-            Panel
+            {pageTitle}
           </div>
         </div>
 
