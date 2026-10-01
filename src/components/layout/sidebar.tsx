@@ -52,6 +52,67 @@ export function Sidebar() {
   const collapsed = stored === "collapsed";
   const toggle = () => setStored(collapsed ? "open" : "collapsed");
 
+  const [items, setItems] = React.useState(PUSULAM_SIDEBAR_NAV);
+  const [draggedIdx, setDraggedIdx] = React.useState<number | null>(null);
+  const [overIdx, setOverIdx] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem("ren-sidebar-order");
+      if (saved) {
+        const order: string[] = JSON.parse(saved);
+        const sorted = [...PUSULAM_SIDEBAR_NAV].sort((a, b) => {
+          const idxA = order.indexOf(a.href);
+          const idxB = order.indexOf(b.href);
+          if (idxA === -1 && idxB === -1) return 0;
+          if (idxA === -1) return 1;
+          if (idxB === -1) return -1;
+          return idxA - idxB;
+        });
+        setItems(sorted);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (overIdx !== index) setOverIdx(index);
+  };
+
+  const handleDragLeave = () => {
+    setOverIdx(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    setOverIdx(null);
+    if (draggedIdx === null || draggedIdx === targetIndex) {
+      setDraggedIdx(null);
+      return;
+    }
+
+    const updated = [...items];
+    const [moved] = updated.splice(draggedIdx, 1);
+    updated.splice(targetIndex, 0, moved);
+    setItems(updated);
+    setDraggedIdx(null);
+
+    try {
+      localStorage.setItem("ren-sidebar-order", JSON.stringify(updated.map((i) => i.href)));
+    } catch {
+      // ignore
+    }
+  };
+
   return (
     <aside
       className={cn(
@@ -102,14 +163,14 @@ export function Sidebar() {
       </div>
 
       {/* 2. Menü Listesi */}
-      <nav className="flex-1 overflow-y-auto py-2 space-y-0.5 px-3" aria-label="Ana menü">
+      <nav className="flex-1 overflow-y-auto thin-scroll py-2 space-y-0.5 px-3" aria-label="Ana menü">
         {!collapsed && (
           <p className="px-2 pb-1.5 text-[10px] font-medium text-slate-400 dark:text-slate-500 select-none">
             Sıralamak için ⋮⋮ tutup sürükleyin
           </p>
         )}
 
-        {PUSULAM_SIDEBAR_NAV.map((item) => {
+        {items.map((item, idx) => {
           const isActive =
             item.href === "/panel"
               ? pathname === "/panel" || pathname === "/"
@@ -117,7 +178,17 @@ export function Sidebar() {
           const Icon = item.icon;
 
           return (
-            <div key={item.href} className="rounded-xl transition">
+            <div
+              key={item.href}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, idx)}
+              className={cn(
+                "rounded-xl transition relative",
+                draggedIdx === idx && "opacity-40",
+                overIdx === idx && draggedIdx !== idx && "ring-2 ring-slate-400 dark:ring-slate-500 rounded-xl"
+              )}
+            >
               <Link
                 href={item.href}
                 className={cn(
@@ -132,6 +203,7 @@ export function Sidebar() {
                 {!collapsed && (
                   <span
                     draggable
+                    onDragStart={(e) => handleDragStart(e, idx)}
                     role="button"
                     tabIndex={0}
                     aria-label={`${item.label} sırasını değiştir`}
