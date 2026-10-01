@@ -33,7 +33,7 @@ export const PUSULAM_SIDEBAR_NAV = [
   { href: "/yapay-zeka", label: "REN AI", icon: Sparkles, color: "text-purple-500 animate-pulse-slow" },
   { href: "/hizli-satis", label: "Hızlı Satış", icon: Zap, color: "text-amber-500" },
   { href: "/urunler", label: "Ürünler", icon: Tag, color: "text-violet-500" },
-  { href: "/giderler/alis-faturalari", label: "Alışlar", icon: Scale, color: "text-amber-500" },
+  { href: "/alislar", label: "Alışlar", icon: Scale, color: "text-amber-500" },
   { href: "/satislar/faturalar", label: "Satışlar", icon: ShoppingCart, color: "text-emerald-500" },
   { href: "/giderler/masraflar", label: "Masraflar", icon: Banknote, color: "text-rose-500" },
   { href: "/stok/hareketler", label: "Stoklar", icon: Warehouse, color: "text-cyan-500" },
@@ -176,7 +176,9 @@ export function Sidebar() {
               ? pathname === "/panel" || pathname === "/"
               : item.href === "/urunler"
                 ? pathname.startsWith("/urunler") || pathname.startsWith("/stok/urunler")
-                : pathname.startsWith(item.href);
+                : item.href === "/alislar"
+                  ? pathname.startsWith("/alislar") || pathname.startsWith("/giderler/alis-faturalari")
+                  : pathname.startsWith(item.href);
           const Icon = item.icon;
 
           return (
