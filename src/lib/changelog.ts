@@ -14,9 +14,47 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.1.6";
+export const LATEST_VERSION = "2.2.0";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.2.0",
+    date: "1 Ekim 2026",
+    title: "Yapay Zeka Sabah Yönetici Analizi, Kâr/Zarar Trend Grafiği, Canlı Kurlarla Satış ve Pusulam Birebir Ürün Detayı",
+    badge: "Büyük Güncelleme",
+    items: [
+      {
+        type: "yeni",
+        title: "Yapay Zeka Sabah Yönetici Analizi & Aksiyon Önerileri (AI Briefing)",
+        description:
+          "Ana sayfanın en üstünde dün, geçen hafta ve bu ayki satış, alış ve sipariş verilerini otomatik analiz eden yönetici özeti ve öncelikli aksiyon butonları (Bekleyen Siparişleri Faturalandır, Kritik Stok Takviyesi, Vadesi Gelen Alacaklar, Marj Kontrolü) devreye alındı.",
+      },
+      {
+        type: "yeni",
+        title: "İşletme Kârda mı / Zararda mı Skorbordu & 3 Periyotlu Trend Çizgi Grafiği",
+        description:
+          "Panelin en üstünde dinamik KÂRDA / ZARARDA durum rozeti, net marj yüzdesi, aylık ciro büyüme oranı ile Günlük (14G), Haftalık (8H) ve Aylık (12A) periyotlarında Gelir, Gider ve Net Kâr eğrilerini gösteren interaktif Recharts trend çizgi grafiği eklendi.",
+      },
+      {
+        type: "yeni",
+        title: "Döviz Modülü Sayfa Altına Taşındı · TCMB Canlı Kurlarla Aylık Satış Karşılıkları",
+        description:
+          "Döviz özeti sayfanın en altına konumlandırıldı. Bu ayki satış cirosunun TCMB anlık kurlarıyla ₺ TRY, $ USD, € EUR, £ GBP ve Has Altın (Gram) karşılıkları, döviz kasaları ve canlı mini kur çevirici hizmete sunuldu.",
+      },
+      {
+        type: "yeni",
+        title: "Pusulam Birebir Ürün Detay Sayfası & Hızlı Ticaret Modalleri",
+        description:
+          "Ürün detay sayfası Pusulam ile 1:1 eşleştirildi: Hızlı Satış, Hızlı Alış, Fiyat Gör modalleri, barkod alanı, KDV dahil/hariç hesaplayıcı ve tam hareket geçmişi entegre edildi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Tailwind CSS v4 & IDE Linter Standardizasyonu",
+        description:
+          "@custom-variant ve @theme direktifleri VS Code ve IDE denetleyicisine tanıtılarak sistem kararlılığı sağlandı.",
+      },
+    ],
+  },
   {
     version: "2.1.6",
     date: "30 Eylül 2026",

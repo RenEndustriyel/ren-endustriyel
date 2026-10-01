@@ -23,10 +23,13 @@ import {
   PanelLeftOpen,
   Settings,
   ExternalLink,
+  ChevronRight,
 } from "lucide-react";
 import { useOrg } from "@/providers/org-provider";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/lib/use-local-storage";
+import { useChangelog } from "./changelog-context";
+import { LATEST_VERSION } from "@/lib/changelog";
 
 export const PUSULAM_SIDEBAR_NAV = [
   { href: "/panel", label: "Panel", icon: LayoutGrid, color: "text-white" },
@@ -48,6 +51,7 @@ export const PUSULAM_SIDEBAR_NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const { org } = useOrg();
+  const { openChangelog } = useChangelog();
   const [stored, setStored] = useLocalStorage("ren-sidebar");
   const collapsed = stored === "collapsed";
   const toggle = () => setStored(collapsed ? "open" : "collapsed");
@@ -254,17 +258,20 @@ export function Sidebar() {
       <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
         {!collapsed ? (
           <>
-            <Link
-              href="/versiyonlar"
-              title="Sürüm Geçmişi ve Değişiklik Günlüğü"
-              className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+            <button
+              type="button"
+              onClick={openChangelog}
+              title="Güncelleme Notları ve Sürüm Geçmişi"
+              className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer group text-left"
             >
-              <span className="flex items-center gap-2">
-                <Sparkles size={14} className="text-purple-500" />
-                <span>v2.4.50 Versiyon Notları</span>
+              <span className="flex items-center gap-2 truncate">
+                <Sparkles size={14} className="text-purple-500 shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="truncate">v{LATEST_VERSION} Versiyon Notları</span>
               </span>
-              <ExternalLink size={12} className="text-slate-400" />
-            </Link>
+              <span className="p-0.5 rounded text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 group-hover:translate-x-0.5 transition-all">
+                <ChevronRight size={14} className="shrink-0" />
+              </span>
+            </button>
 
             <Link
               href="/ayarlar"
@@ -275,13 +282,23 @@ export function Sidebar() {
             </Link>
           </>
         ) : (
-          <Link
-            href="/ayarlar"
-            title="Ayarlar"
-            className="flex items-center justify-center h-10 w-10 mx-auto rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 transition"
-          >
-            <Settings size={18} />
-          </Link>
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={openChangelog}
+              title={`v${LATEST_VERSION} Güncelleme Notları`}
+              className="flex items-center justify-center h-10 w-10 mx-auto rounded-xl text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950/30 transition cursor-pointer"
+            >
+              <Sparkles size={18} />
+            </button>
+            <Link
+              href="/ayarlar"
+              title="Ayarlar"
+              className="flex items-center justify-center h-10 w-10 mx-auto rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 transition"
+            >
+              <Settings size={18} />
+            </Link>
+          </div>
         )}
       </div>
     </aside>
