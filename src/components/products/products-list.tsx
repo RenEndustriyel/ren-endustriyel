@@ -326,8 +326,8 @@ export function ProductsList() {
                   type="button"
                   onClick={() => setSlideSelectMode((v) => !v)}
                   className={cn(
-                    "btn-ghost text-xs sm:text-sm flex items-center gap-1.5",
-                    slideSelectMode && "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white"
+                    "btn-ghost",
+                    slideSelectMode && "!bg-slate-200 dark:!bg-slate-700 !text-slate-900 dark:!text-white"
                   )}
                 >
                   <Presentation size={16} />
@@ -337,7 +337,7 @@ export function ProductsList() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("brands")}
-                  className="btn-ghost text-xs sm:text-sm flex items-center gap-1.5"
+                  className="btn-ghost"
                 >
                   <Tags size={16} />
                   <span>Marka & Kategori</span>
@@ -346,7 +346,7 @@ export function ProductsList() {
                 <button
                   type="button"
                   onClick={exportRows}
-                  className="btn-ghost text-xs sm:text-sm flex items-center gap-1.5"
+                  className="btn-ghost"
                 >
                   <Download size={16} />
                   <span>Excel'e Aktar</span>
@@ -355,7 +355,7 @@ export function ProductsList() {
                 <button
                   type="button"
                   onClick={() => setBulkImageOpen(true)}
-                  className="btn-ghost text-xs sm:text-sm flex items-center gap-1.5"
+                  className="btn-ghost"
                 >
                   <Images size={16} />
                   <span>Toplu Resim</span>
@@ -364,7 +364,7 @@ export function ProductsList() {
                 <button
                   type="button"
                   onClick={() => setImportOpen(true)}
-                  className="btn-ghost text-xs sm:text-sm flex items-center gap-1.5"
+                  className="btn-ghost"
                 >
                   <FileSpreadsheet size={16} />
                   <span>Excel'den Yükle</span>
@@ -374,7 +374,7 @@ export function ProductsList() {
                   <button
                     type="button"
                     onClick={() => router.push("/urunler/yeni")}
-                    className="btn-primary text-xs sm:text-sm flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                    className="btn-primary"
                   >
                     + Yeni Ürün
                   </button>
