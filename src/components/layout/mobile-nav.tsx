@@ -74,7 +74,7 @@ export function MobileNav() {
 
           {/* 3. Müşteriler */}
           <Link
-            href="/cariler/musteriler"
+            href="/musteriler"
             className={cn(
               "flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition active:scale-95",
               isMusteriActive

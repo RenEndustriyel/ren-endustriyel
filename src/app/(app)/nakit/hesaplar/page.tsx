@@ -1,7 +1,7 @@
 "use client";
 
-import { AccountsPage } from "@/components/cash/accounts-page";
+import { AccountsList } from "@/components/cash/accounts-list";
 
 export default function Page() {
-  return <AccountsPage />;
+  return <AccountsList />;
 }

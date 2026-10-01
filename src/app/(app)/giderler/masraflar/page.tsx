@@ -1,7 +1,7 @@
 "use client";
 
-import { DocumentList } from "@/components/documents/document-list";
+import { ExpensesList } from "@/components/expenses/expenses-list";
 
 export default function Page() {
-  return <DocumentList type="expense" />;
+  return <ExpensesList />;
 }

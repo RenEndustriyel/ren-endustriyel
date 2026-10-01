@@ -35,13 +35,13 @@ export const PUSULAM_SIDEBAR_NAV = [
   { href: "/urunler", label: "Ürünler", icon: Tag, color: "text-violet-500" },
   { href: "/alislar", label: "Alışlar", icon: Scale, color: "text-amber-500" },
   { href: "/satislar/faturalar", label: "Satışlar", icon: ShoppingCart, color: "text-emerald-500" },
-  { href: "/giderler/masraflar", label: "Masraflar", icon: Banknote, color: "text-rose-500" },
+  { href: "/masraflar", label: "Masraflar", icon: Banknote, color: "text-rose-500" },
   { href: "/stok/hareketler", label: "Stoklar", icon: Warehouse, color: "text-cyan-500" },
-  { href: "/cariler/musteriler", label: "Müşteriler", icon: Users, color: "text-sky-500" },
-  { href: "/cariler/tedarikciler", label: "Tedarikçiler", icon: Truck, color: "text-indigo-500" },
+  { href: "/musteriler", label: "Müşteriler", icon: Users, color: "text-sky-500" },
+  { href: "/tedarikciler", label: "Tedarikçiler", icon: Truck, color: "text-indigo-500" },
   { href: "/satislar/teklifler", label: "Teklifler", icon: FileText, color: "text-purple-500" },
-  { href: "/nakit/hesaplar", label: "Hesaplar", icon: Wallet, color: "text-teal-500" },
-  { href: "/ajanda", label: "Hatırlatmalar", icon: Bell, color: "text-amber-600" },
+  { href: "/hesaplar", label: "Hesaplar", icon: Wallet, color: "text-teal-500" },
+  { href: "/cari-hatirlatmalar", label: "Hatırlatmalar", icon: Bell, color: "text-amber-600" },
   { href: "/raporlar", label: "Raporlar", icon: ChartColumn, color: "text-fuchsia-500" },
 ];
 
@@ -178,7 +178,19 @@ export function Sidebar() {
                 ? pathname.startsWith("/urunler") || pathname.startsWith("/stok/urunler")
                 : item.href === "/alislar"
                   ? pathname.startsWith("/alislar") || pathname.startsWith("/giderler/alis-faturalari")
-                  : pathname.startsWith(item.href);
+                  : item.href === "/masraflar"
+                    ? pathname.startsWith("/masraflar") || pathname.startsWith("/giderler/masraflar")
+                    : item.href === "/musteriler"
+                      ? pathname.startsWith("/musteriler") || pathname.startsWith("/cariler/musteriler")
+                      : item.href === "/tedarikciler"
+                        ? pathname.startsWith("/tedarikciler") || pathname.startsWith("/cariler/tedarikciler")
+                        : item.href === "/hesaplar"
+                          ? pathname.startsWith("/hesaplar") || pathname.startsWith("/nakit")
+                          : item.href === "/cari-hatirlatmalar"
+                            ? pathname.startsWith("/cari-hatirlatmalar") || pathname.startsWith("/ajanda")
+                            : item.href === "/raporlar"
+                              ? pathname.startsWith("/raporlar")
+                              : pathname.startsWith(item.href);
           const Icon = item.icon;
 
           return (
