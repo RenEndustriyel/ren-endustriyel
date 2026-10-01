@@ -20,6 +20,8 @@ import { useDashboard } from "@/components/dashboard/use-dashboard";
 import { formatMoney, formatDate } from "@/lib/format";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { cn } from "@/lib/utils";
+import { ExecutiveGrowthCard } from "@/components/dashboard/executive-growth-card";
+import { CurrencySalesFooter } from "@/components/dashboard/currency-sales-footer";
 
 const MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -155,13 +157,6 @@ export default function PanelPage() {
     return { chartData: [], chartSubtitle: "", totalSales: 0 };
   }, [chartMode, data?.sales_daily, data?.sales_monthly, data?.kpi?.month_sales]);
 
-  // Kurlar ve döviz hesapları
-  const usdRate = data?.rates?.USD || 41.0;
-  const eurRate = data?.rates?.EUR || 45.0;
-  const monthSalesTRY = Number(data?.kpi?.month_sales) || 0;
-  const monthSalesUSD = usdRate > 0 ? monthSalesTRY / usdRate : 0;
-  const monthSalesEUR = eurRate > 0 ? monthSalesTRY / eurRate : 0;
-
   const cashBankTRY = Number(data?.kpi?.cash_bank) || 0;
   const receivableTRY = Number(data?.kpi?.receivable) || 0;
   const payableTRY = Number(data?.kpi?.payable) || 0;
@@ -194,6 +189,9 @@ export default function PanelPage() {
           </p>
         </div>
       </div>
+
+      {/* Yapay Zeka Sabah Analizi, Kâr/Zarar Durumu ve Büyüme Trend Çizgi Grafiği (En Üst Alan) */}
+      <ExecutiveGrowthCard data={data} orgId={org?.id || ""} />
 
       {/* 2. Dönem Özeti (Özet gizli / göster) */}
       <section className="space-y-3" aria-label="Dönem özeti">
@@ -429,79 +427,6 @@ export default function PanelPage() {
         </div>
       </div>
 
-      {/* 5. Döviz Özeti (Kare kutucuklar, tıklanabilir) */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-            <DollarSign size={17} className="text-blue-500" /> Döviz Özeti
-          </h2>
-          <Link
-            href="/ayarlar"
-            className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 inline-flex items-center gap-1 hover:underline"
-          >
-            <span>Canlı Kuru Çek</span>
-            <ExternalLink size={12} />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-          <Link
-            href="/satislar/faturalar"
-            className="rounded-xl border border-slate-100 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700 transition block cursor-pointer"
-          >
-            <div className="text-xs text-slate-400">Bu ay satış (USD)</div>
-            <div className="font-bold text-blue-600 dark:text-blue-400 mt-0.5 tabular-nums">
-              ${monthSalesUSD.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="text-[11px] text-slate-400">
-              ≈ {formatMoney(monthSalesUSD * usdRate)}
-            </div>
-          </Link>
-
-          <Link
-            href="/satislar/faturalar"
-            className="rounded-xl border border-slate-100 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700 transition block cursor-pointer"
-          >
-            <div className="text-xs text-slate-400">Bu ay satış (EUR)</div>
-            <div className="font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 tabular-nums">
-              €{monthSalesEUR.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="text-[11px] text-slate-400">
-              ≈ {formatMoney(monthSalesEUR * eurRate)}
-            </div>
-          </Link>
-
-          <Link
-            href="/nakit/hesaplar"
-            className="rounded-xl border border-slate-100 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700 transition block cursor-pointer"
-          >
-            <div className="text-xs text-slate-400">
-              Kasa USD · 1$ = {usdRate.toFixed(2)} ₺
-            </div>
-            <div className="font-bold mt-0.5 text-slate-800 dark:text-slate-100 tabular-nums">
-              $0,00
-            </div>
-            <div className="text-[11px] text-slate-400">≈ 0,00 TL</div>
-          </Link>
-
-          <Link
-            href="/nakit/hesaplar"
-            className="rounded-xl border border-slate-100 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-800/40 hover:border-slate-300 dark:hover:border-slate-700 transition block cursor-pointer"
-          >
-            <div className="text-xs text-slate-400">
-              Kasa EUR · 1€ = {eurRate.toFixed(2)} ₺
-            </div>
-            <div className="font-bold mt-0.5 text-slate-800 dark:text-slate-100 tabular-nums">
-              €0,00
-            </div>
-            <div className="text-[11px] text-slate-400">≈ 0,00 TL</div>
-          </Link>
-        </div>
-
-        <p className="text-xs text-slate-400 mt-3">
-          Aylık ciro ve kasa toplamı döviz belgeleri kayıtlı kurla TL'ye çevrilir. Güncel kur: Ayarlar → Canlı Kuru Çek.
-        </p>
-      </div>
 
       {/* 6. Cari Bakiye Kartları (3 Kart, Tıklanabilir) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -684,6 +609,9 @@ export default function PanelPage() {
           )}
         </div>
       </div>
+
+      {/* 7. Canlı Kur & Aylık Satış Döviz Karşılıkları (En Alt Alan) */}
+      <CurrencySalesFooter data={data} />
 
       {/* 8. Sayfa Yardım Butonu (Pusulam Birebir Sağ Alt Buton & Popover) */}
       <div className="pointer-events-none fixed z-[80] right-4 sm:right-5 lg:right-6 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:bottom-6">
