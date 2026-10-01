@@ -1,13 +1,23 @@
 "use client";
 
+import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, Moon, Sun, Monitor, LogOut, Settings, Building2, Check, ChevronDown, Plus } from "lucide-react";
-import { findNavItem } from "@/lib/nav";
-import { useIsClient } from "@/lib/use-local-storage";
-import { formatLongDate } from "@/lib/format";
+import {
+  Search,
+  Bell,
+  Moon,
+  Sun,
+  ChevronDown,
+  Building2,
+  Check,
+  Plus,
+  LogOut,
+  Settings,
+} from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
-import { useOrg, ROLE_LABELS } from "@/providers/org-provider";
+import { useOrg } from "@/providers/org-provider";
 import { useTheme } from "@/providers/theme-provider";
+import { useCommandPalette } from "./command-palette";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,12 +26,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown";
-import { BrandMark } from "./brand";
-import { OnlineStatus } from "./online-status";
-import { useCommandPalette } from "./command-palette";
-import { InstallButton } from "./install-banner";
+import { formatLongDate } from "@/lib/format";
 
-function initials(name: string) {
+function getInitials(name: string) {
   return name
     .split(/[\s@._-]+/)
     .filter(Boolean)
@@ -34,109 +41,155 @@ export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { org, role, memberships, switchOrg } = useOrg();
+  const { org, memberships, switchOrg } = useOrg();
   const { theme, setTheme } = useTheme();
   const palette = useCommandPalette();
-  const current = findNavItem(pathname);
-  const isClient = useIsClient();
-  const today = isClient ? formatLongDate(new Date()) : "";
 
-  const name = (user?.user_metadata?.full_name as string | undefined) || user?.email || "";
+  const [dateStr, setDateStr] = React.useState("");
+  React.useEffect(() => {
+    setDateStr(formatLongDate(new Date()));
+  }, []);
+
+  const userName =
+    (user?.user_metadata?.full_name as string | undefined) ||
+    user?.email ||
+    "Ren Endüstriyel";
+  const userInitials = getInitials(userName) || "RE";
 
   return (
-    <header className="pt-safe sticky top-0 z-30 border-b border-border bg-surface/90 backdrop-blur">
-      <div className="flex h-14 items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-5">
-        {/* telefon: logo */}
-        <div className="md:hidden">
-          <BrandMark size={32} />
+    <header
+      className="sticky top-0 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 items-center justify-between gap-2 px-2 sm:px-4 lg:px-8 min-w-0 flex"
+      style={{
+        paddingTop: "max(0.25rem, env(safe-area-inset-top, 0px))",
+        minHeight: "calc(3.5rem + env(safe-area-inset-top, 0px))",
+      }}
+    >
+      {/* Sol: Başlık & Şube & Tarih */}
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 overflow-hidden">
+        {/* Mobil Başlık */}
+        <div className="min-w-0 flex-1 overflow-hidden lg:hidden">
+          <div className="text-[10px] font-medium text-slate-400 truncate leading-none mb-0.5">
+            {org?.name || "Ren Endüstriyel"}
+          </div>
+          <div className="font-bold text-[15px] truncate leading-tight text-slate-900 dark:text-white">
+            Panel
+          </div>
         </div>
 
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-semibold sm:text-lg">{current?.title ?? "Ren Endüstriyel"}</h1>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="hidden max-w-full items-center gap-1 text-xs text-muted hover:text-text sm:flex">
-              <span className="truncate">
-                {org?.name}
-                {today && ` · ${today}`}
-              </span>
-              {memberships.length > 1 && <ChevronDown className="size-3 shrink-0" />}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel>Firmalar</DropdownMenuLabel>
-              {memberships.map((m) => (
-                <DropdownMenuItem key={m.organization.id} onSelect={() => switchOrg(m.organization.id)}>
-                  <Building2 />
-                  <span className="flex-1 truncate">{m.organization.name}</span>
-                  {m.organization.id === org?.id && <Check className="!text-primary" />}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => router.push("/kurulum?yeni=1")}>
-                <Plus />
-                Yeni firma ekle
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {/* Masaüstü Başlık */}
+        <div className="hidden lg:block min-w-0 flex-1 overflow-hidden">
+          <div className="font-semibold flex items-center gap-2 min-w-0">
+            <span className="truncate max-w-[16rem] text-slate-900 dark:text-white font-bold text-sm">
+              {org?.name || "Ren Endüstriyel"}
+            </span>
+            <select
+              className="text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1 pr-6 min-w-0 max-w-[22rem] truncate text-slate-700 dark:text-slate-300 outline-none"
+              title="Merkez"
+              defaultValue="merkez"
+            >
+              <option value="merkez">Merkez</option>
+            </select>
+          </div>
+          <div className="text-xs text-slate-400 truncate">
+            {dateStr || "1 Ekim 2026 Perşembe"}
+          </div>
         </div>
 
+        {/* Mobil Şube Seçici */}
+        <select
+          className="lg:hidden text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-1.5 py-1.5 pr-5 min-w-0 max-w-[5.5rem] truncate shrink-0 text-slate-700 dark:text-slate-300 outline-none"
+          title="Merkez"
+          defaultValue="merkez"
+        >
+          <option value="merkez">Merkez</option>
+        </select>
+      </div>
+
+      {/* Sağ: Arama, Bildirimler, Tema & Kullanıcı */}
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+        {/* Arama Butonu Masaüstü */}
         <button
           onClick={palette.open}
-          className="hidden h-9 items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 text-sm text-muted hover:text-text md:flex md:w-56 lg:w-64"
+          className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 transition mr-1"
         >
-          <Search className="size-4" />
-          <span className="flex-1 text-left">Ara…</span>
-          <kbd className="rounded border border-border bg-surface px-1.5 text-[10px]">Ctrl K</kbd>
+          <Search size={15} />
+          <span>Ara...</span>
+          <kbd className="text-[10px] border border-slate-300 dark:border-slate-600 rounded px-1.5 py-0.5 ml-2 font-mono">
+            Ctrl K
+          </kbd>
         </button>
-        <button onClick={palette.open} className="rounded-lg p-2 text-muted hover:bg-surface-2 md:hidden" aria-label="Ara">
-          <Search className="size-5" />
+
+        {/* Arama Butonu Mobil */}
+        <button
+          onClick={palette.open}
+          className="md:hidden h-10 w-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+          title="Ara"
+        >
+          <Search size={18} className="text-slate-500" />
         </button>
 
-        <InstallButton />
-
-        <OnlineStatus />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 rounded-full outline-none" aria-label="Kullanıcı menüsü">
-            <span className="flex size-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-              {initials(name) || "?"}
+        {/* Bildirimler */}
+        <div className="relative">
+          <button
+            onClick={() => router.push("/ajanda")}
+            className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+            title="Bildirimler"
+          >
+            <Bell size={18} className="text-slate-600 dark:text-slate-300" />
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+              3
             </span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <div className="px-2.5 py-2">
-              <div className="truncate text-sm font-semibold">{name}</div>
-              <div className="truncate text-xs text-muted">
-                {org?.name} · {role ? ROLE_LABELS[role] : ""}
+          </button>
+        </div>
+
+        {/* Koyu / Açık Mod Geçişi */}
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className="h-10 w-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300"
+          title={theme === "dark" ? "Açık moda geç" : "Koyu moda geç"}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
+        {/* Kullanıcı Menüsü */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-1 sm:gap-2 rounded-xl pl-1 pr-1 sm:pl-1.5 sm:pr-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition outline-none">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center text-xs font-bold">
+                {userInitials}
               </div>
-            </div>
+              <ChevronDown size={16} className="text-slate-400 hidden sm:block" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 shadow-xl border-slate-200 dark:border-slate-800">
+            <DropdownMenuLabel className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+              {userName}
+            </DropdownMenuLabel>
+            <div className="text-xs text-slate-400 px-2 pb-1 truncate">{user?.email}</div>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>Görünüm</DropdownMenuLabel>
-            {(
-              [
-                ["light", "Açık", Sun],
-                ["dark", "Koyu", Moon],
-                ["system", "Sistem", Monitor],
-              ] as const
-            ).map(([t, label, Icon]) => (
-              <DropdownMenuItem key={t} onSelect={(e) => { e.preventDefault(); setTheme(t); }}>
-                <Icon />
-                <span className="flex-1">{label}</span>
-                {theme === t && <Check className="!text-primary" />}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => router.push("/ayarlar")}>
-              <Settings />
-              Ayarlar
+            <DropdownMenuItem onClick={() => router.push("/ayarlar")} className="rounded-xl">
+              <Settings className="size-4 mr-2" /> Ayarlar
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={async () => {
-                await signOut();
-                router.replace("/giris");
-              }}
-              className="text-danger"
-            >
-              <LogOut className="!text-danger" />
-              Çıkış
+            {memberships && memberships.length > 1 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs font-semibold text-slate-400">Firmalar</DropdownMenuLabel>
+                {memberships.map((m) => (
+                  <DropdownMenuItem
+                    key={m.organization.id}
+                    onSelect={() => switchOrg(m.organization.id)}
+                    className="rounded-xl"
+                  >
+                    <Building2 className="size-4 mr-2" />
+                    <span className="flex-1 truncate">{m.organization.name}</span>
+                    {m.organization.id === org?.id && <Check className="size-4 ml-1 text-emerald-500" />}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => signOut()} className="text-rose-600 rounded-xl">
+              <LogOut className="size-4 mr-2" /> Çıkış Yap
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

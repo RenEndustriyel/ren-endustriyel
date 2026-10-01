@@ -12,19 +12,31 @@ import { OfflineBanner } from "./online-status";
 import { InstallBanner } from "./install-banner";
 import { CommandPaletteProvider } from "./command-palette";
 import { BrandMark } from "./brand";
-import { useAccounts, useCategories, useContacts, useContactBalances, useProducts, useUnits, useWarehouses, usePriceLists, useRows } from "@/lib/data";
+import {
+  useAccounts,
+  useCategories,
+  useContacts,
+  useContactBalances,
+  useProducts,
+  useUnits,
+  useWarehouses,
+  usePriceLists,
+  useRows,
+} from "@/lib/data";
 import { useRates } from "@/lib/rates";
+import { ChangelogProvider } from "./changelog-context";
+import { ChangelogDialog } from "./changelog-dialog";
 
 export function FullScreenLoader() {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-slate-100 dark:bg-slate-950">
       <BrandMark size={72} className="animate-pulse" />
-      <Loader2 className="size-5 animate-spin text-muted" />
+      <Loader2 className="size-5 animate-spin text-slate-400" />
     </div>
   );
 }
 
-/** Sık kullanılan listeleri önceden yükler: çevrimdışıyken formlar ve seçiciler çalışsın */
+/** Sık kullanılan listeleri önceden yükler */
 function Warmup() {
   useContacts();
   useContactBalances();
@@ -41,10 +53,6 @@ function Warmup() {
   useRates();
   return null;
 }
-
-/** Oturum + firma koruması ve uygulama iskeleti */
-import { ChangelogProvider } from "./changelog-context";
-import { ChangelogDialog } from "./changelog-dialog";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -67,19 +75,78 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <ChangelogProvider>
       <CommandPaletteProvider>
         <Warmup />
-        <div className="flex min-h-dvh">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <OfflineBanner />
-            <InstallBanner />
-            <Topbar />
-            <main className="min-w-0 flex-1 px-3 pb-28 pt-4 sm:px-5 sm:pt-5 md:pb-8">
-              <React.Suspense fallback={null}>{children}</React.Suspense>
-            </main>
+        <div className="min-h-dvh flex w-full max-w-[100vw] overflow-x-hidden bg-slate-100 dark:bg-slate-950">
+          <div className="contents">
+            <Sidebar />
           </div>
+
+          <div className="flex-1 min-w-0 lg:ml-64 transition-[margin] duration-200 flex flex-col min-h-dvh">
+            <div className="contents">
+              <OfflineBanner />
+              <InstallBanner />
+              <Topbar />
+            </div>
+
+            <main className="flex-1 flex flex-col min-h-0 min-w-0 w-full animate-fade-in p-3 sm:p-4 lg:p-8 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:pb-8 overflow-x-hidden">
+              <div className="flex-1">
+                <React.Suspense fallback={null}>{children}</React.Suspense>
+              </div>
+            </main>
+
+            {/* Pusulam 1:1 Masaüstü Footer */}
+            <footer className="hidden lg:flex lg:flex-col border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-3 py-2.5 items-center gap-1.5 text-[11px] sm:text-xs text-slate-400">
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 max-w-5xl">
+                <a href="/biz-kimiz" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  Biz Kimiz
+                </a>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <a href="/tanitim" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  Tanıtım
+                </a>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <button type="button" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  Akademi
+                </button>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <button type="button" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  Destek
+                </button>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <a href="mailto:destek@renendustriyel.com" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  destek@renendustriyel.com
+                </a>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <a href="/yardim" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  Yardım
+                </a>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <a href="/gizlilik" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  Gizlilik
+                </a>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <a href="/veri-guvenligi" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  Veri Güvenliği
+                </a>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <a href="/kvkk" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  KVKK
+                </a>
+                <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">·</span>
+                <span className="w-full sm:w-auto text-center">© 2026 Ren Endüstriyel</span>
+              </div>
+              <div
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium tracking-wide transition text-violet-600 dark:text-violet-400 hover:text-fuchsia-600 dark:hover:text-fuchsia-400"
+                title="REN AI ürünüdür"
+              >
+                <span className="text-slate-400 dark:text-slate-500">powered by</span>
+                <span className="font-semibold">REN AI</span>
+              </div>
+            </footer>
+          </div>
+
+          <MobileNav />
+          <ChangelogDialog />
         </div>
-        <MobileNav />
-        <ChangelogDialog />
       </CommandPaletteProvider>
     </ChangelogProvider>
   );
