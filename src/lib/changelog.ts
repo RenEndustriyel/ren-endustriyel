@@ -14,9 +14,47 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.2.2";
+export const LATEST_VERSION = "2.2.3";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.2.3",
+    date: "2 Ekim 2026",
+    title: "Pusulam ERP Birebir (1:1) Hızlı Satış (POS) Terminali Entegrasyonu",
+    badge: "1:1 Pusulam POS Terminali",
+    items: [
+      {
+        type: "yeni",
+        title: "Pusulam ERP ile %100 Birebir Görsel ve Fonksiyonel Tasarım",
+        description:
+          "Pusulam POS kaynak kodları ve arayüz yapısı tersine mühendislikle çözümlenerek; birebir Klasik (Teal) ve Modern (Slate) tema desteği, tam ekran kiosk modu, canlı ses efektleri (Barkod, Onay, Hata bip sesleri) ve F1-F12 kısayol çubuğu entegre edildi.",
+      },
+      {
+        type: "yeni",
+        title: "Gelişmiş Terminal Başlığı ve Alt İşlem Çubuğu",
+        description:
+          "Kasa bakiyesi gizleme/gösterme göz butonu, çevrim içi durumu, vardiya yönetimi, Z raporu, iade modu (kırmızı şeritli stok iadesi), son satışı geri alma (↩ Geri Al), barkod etiket basımı, kiosk fiyat sorgulama ve toptan/perakende (2. Fiyat) geçişi eklendi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "12 Sütunlu Hızlı Barkod ve Miktar Giriş Alanı",
+        description:
+          "F3 Miktar artır/azalt ve hızlı çarpan butonları (2×, 3×, 4×, 5×), F4 Barkod/Ürün adı anlık arama açılır kutusu, F2 ürün seçici, kamera okuyucu ve tek tuşla iptal alanı Pusulam düzenine göre konumlandırıldı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Klavye Odaklı Sepet Tablosu ve Akıllı Para Üstü Merkezi",
+        description:
+          "Sepette Yukarı/Aşağı ok tuşları ile gezinme, satır içi anlık fiyat düzenleme, F5 Ödenen tutar girişi, devasa Para Üstü kutusu ve hızlı Türk Lirası banknot butonları (Tam, ₺20, ₺50, ₺100, ₺200, ₺500, ₺1000) ile sıfır gecikmeli kasa deneyimi sağlandı.",
+      },
+      {
+        type: "yeni",
+        title: "Boyutlandırılabilir Hızlı Ürünler Paneli ve Pusulam Modalları",
+        description:
+          "Kategori sekmeleri, 'Düzenle/Bitti' hızlı buton yönetimi, Stoksuz Ürün Satışı, Müşteri Seçimi (F8), Karma Ödeme (F10), İskonto/İndirim (F11/F12) ve Eski Fişler modalları Pusulam ile birebir eşleştirildi.",
+      },
+    ],
+  },
   {
     version: "2.2.2",
     date: "2 Ekim 2026",

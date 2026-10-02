@@ -26,6 +26,7 @@ import {
 import { useRates } from "@/lib/rates";
 import { ChangelogProvider } from "./changelog-context";
 import { ChangelogDialog } from "./changelog-dialog";
+import { cn } from "@/lib/utils";
 
 export function FullScreenLoader() {
   return (
@@ -71,6 +72,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (authLoading || !session || !org) return <FullScreenLoader />;
 
+  const isPosPage = pathname === "/hizli-satis";
+
   return (
     <ChangelogProvider>
       <CommandPaletteProvider>
@@ -84,18 +87,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="contents">
               <OfflineBanner />
               <InstallBanner />
-              <Topbar />
+              {!isPosPage && <Topbar />}
             </div>
 
-            <main className="flex-1 flex flex-col min-h-0 min-w-0 w-full animate-fade-in p-3 sm:p-4 lg:p-8 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:pb-8 overflow-x-hidden">
-              <div className="flex-1">
+            <main
+              className={cn(
+                "flex-1 flex flex-col min-h-0 min-w-0 w-full animate-fade-in",
+                isPosPage
+                  ? "p-0 pb-0 lg:pb-0 h-dvh overflow-hidden"
+                  : "p-3 sm:p-4 lg:p-8 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:pb-8 overflow-x-hidden"
+              )}
+            >
+              <div className="flex-1 flex flex-col min-h-0">
                 <React.Suspense fallback={null}>{children}</React.Suspense>
               </div>
             </main>
 
             {/* Pusulam 1:1 Masaüstü Footer */}
-            <footer className="hidden lg:flex lg:flex-col border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-3 py-2.5 items-center gap-1.5 text-[11px] sm:text-xs text-slate-400">
-              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 max-w-5xl">
+            {!isPosPage && (
+              <footer className="hidden lg:flex lg:flex-col border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-3 py-2.5 items-center gap-1.5 text-[11px] sm:text-xs text-slate-400">
+                <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 max-w-5xl">
                 <a href="/biz-kimiz" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Biz Kimiz
                 </a>
@@ -142,6 +153,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="font-semibold">REN AI</span>
               </div>
             </footer>
+            )}
           </div>
 
           <MobileNav />
