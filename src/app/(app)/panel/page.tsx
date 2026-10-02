@@ -13,42 +13,81 @@ import {
   FileText,
   CircleHelp,
   X,
-  ExternalLink,
+  TriangleAlert,
+  Sparkles,
+  Zap,
+  Tag,
+  Scale,
+  ShoppingCart,
+  Banknote,
+  FileCheck,
+  Building2,
+  Warehouse,
+  Users,
+  Truck,
+  ScrollText,
+  Wallet,
+  Landmark,
+  Megaphone,
+  Bell,
+  Calendar,
+  Store,
+  UsersRound,
+  GraduationCap,
+  Briefcase,
+  HandCoins,
 } from "lucide-react";
 import { useOrg } from "@/providers/org-provider";
 import { useDashboard } from "@/components/dashboard/use-dashboard";
-import { formatMoney, formatDate } from "@/lib/format";
+import { formatMoney, formatDate, formatQty, formatNumber } from "@/lib/format";
+import { useRates } from "@/lib/rates";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { cn } from "@/lib/utils";
-import { ExecutiveGrowthCard } from "@/components/dashboard/executive-growth-card";
-import { CurrencySalesFooter } from "@/components/dashboard/currency-sales-footer";
 
 const MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
 ];
 
-type ChartPeriod = "gun" | "hafta" | "ay" | "3ay" | "buyil" | "gecenyil";
-
-const PERIOD_BUTTONS: { id: ChartPeriod; label: string }[] = [
-  { id: "gun", label: "Günlük" },
-  { id: "hafta", label: "Haftalık" },
-  { id: "ay", label: "Aylık" },
-  { id: "3ay", label: "3 Aylık" },
-  { id: "buyil", label: "Bu Yıl" },
-  { id: "gecenyil", label: "Geçen Yıl" },
+// Pusulam 1:1 Modül Listesi (23 adet)
+const MODULES = [
+  { title: "Numex AI", href: "/numex-ai", icon: Sparkles, iconColor: "text-purple-500", extraClass: "animate-pulse-slow" },
+  { title: "Hızlı Satış", href: "/hizli-satis", icon: Zap, iconColor: "text-amber-500" },
+  { title: "Ürünler", href: "/urunler", icon: Tag, iconColor: "text-violet-500" },
+  { title: "Alışlar", href: "/alislar", icon: Scale, iconColor: "text-amber-500" },
+  { title: "Satışlar", href: "/satislar", icon: ShoppingCart, iconColor: "text-emerald-500" },
+  { title: "Masraflar", href: "/masraflar", icon: Banknote, iconColor: "text-rose-500" },
+  { title: "e-Fatura", href: "/e-fatura", icon: FileCheck, iconColor: "text-teal-600" },
+  { title: "Şubeler", href: "/subeler", icon: Building2, iconColor: "text-sky-600" },
+  { title: "Stoklar", href: "/stoklar", icon: Warehouse, iconColor: "text-cyan-500" },
+  { title: "Müşteriler", href: "/musteriler", icon: Users, iconColor: "text-sky-500" },
+  { title: "Tedarikçiler", href: "/tedarikciler", icon: Truck, iconColor: "text-indigo-500" },
+  { title: "Teklifler", href: "/teklifler", icon: FileText, iconColor: "text-purple-500" },
+  { title: "Çek & Senet", href: "/cek-senet", icon: ScrollText, iconColor: "text-orange-600" },
+  { title: "Hesaplar", href: "/hesaplar", icon: Wallet, iconColor: "text-teal-500" },
+  { title: "Banka Ekstresi", href: "/banka", icon: Landmark, iconColor: "text-emerald-600" },
+  { title: "Kampanya", href: "/cari-kampanya", icon: Megaphone, iconColor: "text-rose-500" },
+  { title: "Hatırlatmalar", href: "/cari-hatirlatmalar", icon: Bell, iconColor: "text-amber-600" },
+  { title: "Raporlar", href: "/raporlar", icon: BarChart3, iconColor: "text-fuchsia-500" },
+  { title: "Ajanda (Takvim & Notlar)", href: "/ajanda", icon: Calendar, iconColor: "text-blue-500" },
+  { title: "E-Ticaret", href: "/e-ticaret", icon: Store, iconColor: "text-orange-500" },
+  { title: "Çalışanlar & Ekip", href: "/ekip", icon: UsersRound, iconColor: "text-indigo-500" },
+  { title: "Akademi", href: "/akademi", icon: GraduationCap, iconColor: "text-indigo-600" },
+  { title: "Muhasebeci Ağı", href: "/muhasebeci-agi", icon: Briefcase, iconColor: "text-violet-600" },
 ];
 
 export default function PanelPage() {
   const { org } = useOrg();
   const { data } = useDashboard(org?.id || "");
+  const ratesQuery = useRates();
+
   const [summaryOpen, setSummaryOpen] = React.useState(false);
-  const [chartMode, setChartMode] = React.useState<ChartPeriod>("gun");
+  const [chartMode, setChartMode] = React.useState<"gun" | "hafta" | "ay">("gun");
   const [helpOpen, setHelpOpen] = React.useState(false);
 
   const currentMonthName = MONTHS[new Date().getMonth()];
 
-  // Satış grafiği verileri: Günlük, Haftalık, Aylık, 3 Aylık, Bu Yıl, Geçen Yıl
+  // Satış grafiği verileri (Günlük, Haftalık, Aylık)
   const { chartData, chartSubtitle, totalSales } = React.useMemo(() => {
     const daily = data?.sales_daily || [];
     const monthly = data?.sales_monthly || [];
@@ -104,96 +143,38 @@ export default function PanelPage() {
       return { chartData: pts, chartSubtitle: "Son 12 ay (TL)", totalSales: sum };
     }
 
-    if (chartMode === "3ay") {
-      const quarters = ["1. Çeyrek", "2. Çeyrek", "3. Çeyrek", "4. Çeyrek"];
-      const pts = quarters.map((q, idx) => {
-        const monthsInQuarter = [idx * 3 + 1, idx * 3 + 2, idx * 3 + 3];
-        const val = monthly
-          .filter((m: any) => {
-            if (!m.month) return false;
-            const mNum = parseInt(m.month.split("-")[1], 10);
-            return monthsInQuarter.includes(mNum);
-          })
-          .reduce((acc: number, c: any) => acc + (Number(c.amount) || 0), 0);
-        return {
-          name: q,
-          satış: val,
-        };
-      });
-      const sum = pts.reduce((acc, c) => acc + c.satış, 0);
-      return { chartData: pts, chartSubtitle: "Dönemsel (3 Aylık)", totalSales: sum };
-    }
-
-    if (chartMode === "buyil") {
-      const thisYear = new Date().getFullYear();
-      const monthNames = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-      const pts = monthNames.map((name, idx) => {
-        const key = `${thisYear}-${String(idx + 1).padStart(2, "0")}`;
-        const found = monthly.find((m: any) => m.month === key);
-        return {
-          name,
-          satış: found ? Number(found.amount) || 0 : (idx === new Date().getMonth() ? Number(data?.kpi?.month_sales) || 0 : 0),
-        };
-      });
-      const sum = pts.reduce((acc, c) => acc + c.satış, 0);
-      return { chartData: pts, chartSubtitle: `${thisYear} Yılı Toplam (TL)`, totalSales: sum };
-    }
-
-    if (chartMode === "gecenyil") {
-      const lastYear = new Date().getFullYear() - 1;
-      const monthNames = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-      const pts = monthNames.map((name, idx) => {
-        const key = `${lastYear}-${String(idx + 1).padStart(2, "0")}`;
-        const found = monthly.find((m: any) => m.month === key);
-        return {
-          name,
-          satış: found ? Number(found.amount) || 0 : 0,
-        };
-      });
-      const sum = pts.reduce((acc, c) => acc + c.satış, 0);
-      return { chartData: pts, chartSubtitle: `${lastYear} Yılı Toplam (TL)`, totalSales: sum };
-    }
-
     return { chartData: [], chartSubtitle: "", totalSales: 0 };
   }, [chartMode, data?.sales_daily, data?.sales_monthly, data?.kpi?.month_sales]);
 
+  // Döviz bilgileri
+  const usdRate = Number(data?.rates?.USD) || Number(ratesQuery?.data?.USD?.forex_buying ?? 0) || 49.04;
+  const eurRate = Number(data?.rates?.EUR) || Number(ratesQuery?.data?.EUR?.forex_buying ?? 0) || 55.40;
+  const monthSalesTRY = Number(data?.kpi?.month_sales) || 0;
+  const salesUSD = usdRate > 0 ? monthSalesTRY / usdRate : 0;
+  const salesEUR = eurRate > 0 ? monthSalesTRY / eurRate : 0;
+  const cashUSD = Number(data?.currency?.cash_usd) || 0;
+  const cashEUR = Number(data?.currency?.cash_eur) || 0;
+
+  // Bakiye & net durum
   const cashBankTRY = Number(data?.kpi?.cash_bank) || 0;
   const receivableTRY = Number(data?.kpi?.receivable) || 0;
   const payableTRY = Number(data?.kpi?.payable) || 0;
   const netStatus = receivableTRY - payableTRY;
 
-  // İlgili bölüme yönlendirme linkleri
-  const getMovementLink = (t: any) => {
-    if (t.kind === "document") {
-      if (t.type === "pos_sale") return `/satislar/hizli-satislar`;
-      if (t.type === "purchase_invoice") return `/giderler/alis-faturalari`;
-      if (t.type === "expense" || t.type === "salary") return `/giderler/masraflar`;
-      return `/satislar/faturalar`;
-    }
-    return `/nakit/hareketler`;
-  };
-
   return (
     <div className="space-y-6">
       {/* 1. Başlık Alanı */}
       <div className="flex items-center gap-3">
-        <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center shadow-soft shrink-0">
+        <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center shadow-soft shrink-0">
           <TrendingUp size={22} />
         </div>
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Genel Bakış
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            İşletmenizin anlık durumu
-          </p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Genel Bakış</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">İşletmenizin anlık durumu</p>
         </div>
       </div>
 
-      {/* Yapay Zeka Sabah Analizi, Kâr/Zarar Durumu ve Büyüme Trend Çizgi Grafiği (En Üst Alan) */}
-      <ExecutiveGrowthCard data={data} orgId={org?.id || ""} />
-
-      {/* 2. Dönem Özeti (Özet gizli / göster) */}
+      {/* 2. Dönem Özeti (Özet gizli / göster butonu) */}
       <section className="space-y-3" aria-label="Dönem özeti">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <button
@@ -201,13 +182,13 @@ export default function PanelPage() {
             aria-expanded={summaryOpen}
             onClick={() => setSummaryOpen((v) => !v)}
             title={summaryOpen ? "Özeti gizle" : "Özeti göster"}
-            className="flex items-center gap-2 font-semibold rounded-lg -mx-1 px-1 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+            className="flex items-center gap-2 font-semibold rounded-lg -mx-1 px-1 hover:text-brand-600 transition-colors"
           >
             Özet
             {summaryOpen ? (
-              <EyeOff size={17} className="text-slate-400" />
+              <EyeOff size={17} className="text-brand-500" />
             ) : (
-              <Eye size={17} className="text-slate-700 dark:text-slate-300" />
+              <Eye size={17} className="text-brand-500" />
             )}
             {!summaryOpen && (
               <span className="text-xs font-normal text-slate-400">
@@ -220,7 +201,7 @@ export default function PanelPage() {
         {summaryOpen && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-1">
             <Link
-              href="/satislar/faturalar"
+              href="/satislar"
               className="card p-3.5 hover:border-slate-400 dark:hover:border-slate-600 transition block cursor-pointer"
             >
               <div className="text-xs text-slate-400">Bugünkü Satış</div>
@@ -244,7 +225,7 @@ export default function PanelPage() {
             </Link>
 
             <Link
-              href="/giderler/masraflar"
+              href="/masraflar"
               className="card p-3.5 hover:border-slate-400 dark:hover:border-slate-600 transition block cursor-pointer"
             >
               <div className="text-xs text-slate-400">Bu Ayki Masraflar</div>
@@ -255,7 +236,7 @@ export default function PanelPage() {
             </Link>
 
             <Link
-              href="/raporlar/gelir-gider"
+              href="/raporlar"
               className="card p-3.5 hover:border-slate-400 dark:hover:border-slate-600 transition block cursor-pointer"
             >
               <div className="text-xs text-slate-400">Bu Ay Net Fark</div>
@@ -268,122 +249,130 @@ export default function PanelPage() {
         )}
       </section>
 
-      {/* 3. Üst 5 KPI Kartı (Kare içine alınmış, tıklanabilir) */}
+      {/* 3. Üst 5 KPI Kartı (Pusulam Birebir Renk & Boyut) */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
-        {/* Ekim Cirosu -> Satış Faturaları */}
+        {/* 1. Ekim Cirosu */}
         <Link
-          href="/satislar/faturalar"
-          title="Satışları görüntüle"
-          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-amber-400 to-amber-500 shadow-soft min-w-0 overflow-hidden hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all block cursor-pointer"
+          href="/satislar"
+          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-amber-400 to-amber-500 shadow-soft min-w-0 overflow-hidden hover:opacity-95 transition block cursor-pointer"
         >
           <div className="text-lg sm:text-xl font-bold tabular-nums truncate">
             {formatMoney(data?.kpi?.month_sales ?? 0)}
           </div>
-          <div className="text-xs font-medium opacity-90 mt-0.5 truncate flex items-center justify-between">
-            <span>{currentMonthName} Cirosu</span>
-            <span className="text-[10px] opacity-75">→</span>
+          <div className="text-xs font-medium opacity-90 mt-0.5 truncate">
+            {currentMonthName} Cirosu
           </div>
         </Link>
 
-        {/* Ekim Masrafları -> Masraflar */}
+        {/* 2. Ekim Masrafları */}
         <Link
-          href="/giderler/masraflar"
-          title="Masrafları görüntüle"
-          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-rose-400 to-rose-500 shadow-soft min-w-0 overflow-hidden hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all block cursor-pointer"
+          href="/masraflar"
+          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-rose-400 to-rose-500 shadow-soft min-w-0 overflow-hidden hover:opacity-95 transition block cursor-pointer"
         >
           <div className="text-lg sm:text-xl font-bold tabular-nums truncate">
             {formatMoney(data?.kpi?.month_expenses ?? 0)}
           </div>
-          <div className="text-xs font-medium opacity-90 mt-0.5 truncate flex items-center justify-between">
-            <span>{currentMonthName} Masrafları</span>
-            <span className="text-[10px] opacity-75">→</span>
+          <div className="text-xs font-medium opacity-90 mt-0.5 truncate">
+            {currentMonthName} Masrafları
           </div>
         </Link>
 
-        {/* Bugünkü Tahsilat -> Nakit / Kasa Hareketleri */}
+        {/* 3. Bugünkü Tahsilat */}
         <Link
           href="/nakit/hareketler"
-          title="Tahsilat hareketlerini görüntüle"
-          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-blue-400 to-blue-500 shadow-soft min-w-0 overflow-hidden hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all block cursor-pointer"
+          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-blue-400 to-blue-500 shadow-soft min-w-0 overflow-hidden hover:opacity-95 transition block cursor-pointer"
         >
           <div className="text-lg sm:text-xl font-bold tabular-nums truncate">
             {formatMoney(data?.kpi?.today_collections ?? 0)}
           </div>
-          <div className="text-xs font-medium opacity-90 mt-0.5 truncate flex items-center justify-between">
-            <span>Bugünkü Tahsilat</span>
-            <span className="text-[10px] opacity-75">→</span>
+          <div className="text-xs font-medium opacity-90 mt-0.5 truncate">
+            Bugünkü Tahsilat
           </div>
         </Link>
 
-        {/* Kasa / Banka (TL) -> Hesaplar */}
+        {/* 4. Kasa / Banka (TL) */}
         <Link
-          href="/nakit/hesaplar"
-          title="Hesapları ve kasayı görüntüle"
-          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-slate-600 to-slate-700 shadow-soft min-w-0 overflow-hidden hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all block cursor-pointer"
+          href="/hesaplar"
+          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-soft min-w-0 overflow-hidden hover:opacity-95 transition block cursor-pointer"
         >
           <div className="text-lg sm:text-xl font-bold tabular-nums truncate">
             {formatMoney(cashBankTRY)}
           </div>
-          <div className="text-xs font-medium opacity-90 mt-0.5 truncate flex items-center justify-between">
-            <span>Kasa / Banka (TL)</span>
-            <span className="text-[10px] opacity-75">→</span>
+          <div className="text-xs font-medium opacity-90 mt-0.5 truncate">
+            Kasa / Banka (TL)
           </div>
         </Link>
 
-        {/* Açık Hesap (Alacak) -> Müşteriler */}
+        {/* 5. Açık Hesap (Alacak) */}
         <Link
-          href="/cariler/musteriler"
-          title="Müşteri alacaklarını görüntüle"
-          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-slate-700 to-slate-900 shadow-soft min-w-0 overflow-hidden col-span-2 md:col-span-1 lg:col-span-1 hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all block cursor-pointer"
+          href="/musteriler"
+          className="rounded-2xl px-4 py-3 text-white bg-gradient-to-br from-brand-400 to-brand-600 shadow-soft min-w-0 overflow-hidden col-span-2 sm:col-span-1 lg:col-span-1 hover:opacity-95 transition block cursor-pointer"
         >
           <div className="text-lg sm:text-xl font-bold tabular-nums truncate">
             {formatMoney(receivableTRY)}
           </div>
-          <div className="text-xs font-medium opacity-90 mt-0.5 truncate flex items-center justify-between">
-            <span>Açık Hesap (Alacak)</span>
-            <span className="text-[10px] opacity-75">→</span>
+          <div className="text-xs font-medium opacity-90 mt-0.5 truncate">
+            Açık Hesap (Alacak)
           </div>
         </Link>
       </div>
 
-      {/* 4. Satış Grafiği (Günlük, Haftalık, Aylık, 3 Aylık, Bu Yıl, Geçen Yıl) */}
+      {/* 4. Satış Grafiği */}
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
-            <h2 className="font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <BarChart3 size={17} className="text-slate-700 dark:text-slate-300" /> Satış Grafiği
+            <h2 className="font-semibold flex items-center gap-2">
+              <BarChart3 size={17} className="lucide lucide-chart-column text-brand-500" /> Satış Grafiği
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {chartSubtitle} · Toplam{" "}
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
+              <span className="font-semibold text-brand-600 dark:text-brand-400">
                 {formatMoney(totalSales)}
               </span>
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto text-xs font-bold p-0.5 bg-slate-50 dark:bg-slate-800/60 max-w-full thin-scroll">
-              {PERIOD_BUTTONS.map((btn) => (
-                <button
-                  key={btn.id}
-                  type="button"
-                  onClick={() => setChartMode(btn.id)}
-                  className={cn(
-                    "px-2.5 py-1.5 rounded-md transition whitespace-nowrap text-xs",
-                    chartMode === btn.id
-                      ? "bg-slate-900 text-white font-bold shadow-xs dark:bg-slate-100 dark:text-slate-900"
-                      : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                  )}
-                >
-                  {btn.label}
-                </button>
-              ))}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setChartMode("gun")}
+                className={cn(
+                  "px-3 py-1.5 transition",
+                  chartMode === "gun"
+                    ? "bg-brand-500 text-white"
+                    : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                )}
+              >
+                Günlük
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode("hafta")}
+                className={cn(
+                  "px-3 py-1.5 transition",
+                  chartMode === "hafta"
+                    ? "bg-brand-500 text-white"
+                    : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                )}
+              >
+                Haftalık
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode("ay")}
+                className={cn(
+                  "px-3 py-1.5 transition",
+                  chartMode === "ay"
+                    ? "bg-brand-500 text-white"
+                    : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                )}
+              >
+                Aylık
+              </button>
             </div>
 
-            <Link
-              href="/raporlar/satis"
-              className="text-xs font-semibold text-slate-700 dark:text-slate-300 hover:underline shrink-0 ml-1"
-            >
+            <Link className="text-xs font-semibold text-brand-600 hover:underline" href="/raporlar">
               Detaylı rapor →
             </Link>
           </div>
@@ -394,8 +383,8 @@ export default function PanelPage() {
             <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <defs>
                 <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#64748b" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#64748b" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor="#0f9b8e" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#0f9b8e" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#94a3b833" />
@@ -409,16 +398,17 @@ export default function PanelPage() {
               <Tooltip
                 formatter={(val) => [formatMoney(Number(val) || 0), "Satış"]}
                 contentStyle={{
-                  borderRadius: 12,
+                  backgroundColor: "#ffffff",
+                  borderRadius: "12px",
                   border: "none",
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                  boxShadow: "rgba(0, 0, 0, 0.1) 0px 4px 20px",
                 }}
               />
               <Area
                 type="monotone"
                 dataKey="satış"
                 name="Satış"
-                stroke="#475569"
+                stroke="#0f9b8e"
                 strokeWidth={2.5}
                 fill="url(#salesFill)"
               />
@@ -427,17 +417,96 @@ export default function PanelPage() {
         </div>
       </div>
 
+      {/* 5. En Çok Satan Ürünler */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold">En Çok Satan Ürünler</h2>
+          <Link className="text-xs font-semibold text-brand-600 hover:underline" href="/raporlar">
+            Tüm rapor →
+          </Link>
+        </div>
 
-      {/* 6. Cari Bakiye Kartları (3 Kart, Tıklanabilir) */}
+        {(!data?.top_products || data.top_products.length === 0) ? (
+          <p className="text-sm text-slate-400 py-4 text-center">Bu ay henüz satış yok.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {data.top_products.slice(0, 4).map((p: any, idx: number) => (
+              <Link
+                key={p.id || idx}
+                href={`/urunler?q=${encodeURIComponent(p.name)}`}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-500/50 transition block group"
+              >
+                <div className="text-[10px] font-bold text-slate-400">#{idx + 1}</div>
+                <div
+                  className="font-semibold text-sm truncate mt-0.5 text-slate-900 dark:text-slate-100 group-hover:text-brand-600 transition-colors"
+                  title={p.name}
+                >
+                  {p.name}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">{formatQty(p.quantity)} adet</div>
+                <div className="text-sm font-bold text-brand-600 mt-1">{formatMoney(p.amount)}</div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 6. Döviz Özeti */}
+      <div className="card p-5">
+        <h2 className="font-semibold mb-3 flex items-center gap-2">
+          <DollarSign size={17} className="lucide lucide-dollar-sign text-blue-500" /> Döviz Özeti
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+          <div>
+            <div className="text-xs text-slate-400">Bu ay satış (USD)</div>
+            <div className="font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+              ${formatNumber(salesUSD)}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              ≈ {formatMoney(monthSalesTRY)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-400">Bu ay satış (EUR)</div>
+            <div className="font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">
+              €{formatNumber(salesEUR)}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              ≈ {formatMoney(monthSalesTRY)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-400">
+              Kasa USD · 1$ = {formatNumber(usdRate)} ₺
+            </div>
+            <div className="font-bold mt-0.5">${formatNumber(cashUSD)}</div>
+            <div className="text-[11px] text-slate-400">
+              ≈ {formatMoney(cashUSD * usdRate)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-400">
+              Kasa EUR · 1€ = {formatNumber(eurRate)} ₺
+            </div>
+            <div className="font-bold mt-0.5">€{formatNumber(cashEUR)}</div>
+            <div className="text-[11px] text-slate-400">
+              ≈ {formatMoney(cashEUR * eurRate)}
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-slate-400 mt-3">
+          Aylık ciro ve kasa toplamı döviz belgeleri kayıtlı kurla TL&apos;ye çevrilir. Güncel kur: Ayarlar → Canlı Kuru Çek.
+        </p>
+      </div>
+
+      {/* 7. Cari Bakiye Kartları (Toplam Alacak, Borç, Net Durum) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Link
-          href="/cariler/musteriler"
-          title="Müşterileri görüntüle"
+          href="/musteriler"
           className="card p-5 hover:border-slate-400 dark:hover:border-slate-600 transition block cursor-pointer"
         >
-          <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>Toplam Alacak (Müşteriler)</span>
-            <span className="text-xs text-slate-400">Müşteriler →</span>
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            Toplam Alacak (Müşteriler)
           </div>
           <div className="text-2xl font-bold text-emerald-500 mt-1 tabular-nums">
             {formatMoney(receivableTRY)}
@@ -445,13 +514,11 @@ export default function PanelPage() {
         </Link>
 
         <Link
-          href="/cariler/tedarikciler"
-          title="Tedarikçileri görüntüle"
+          href="/tedarikciler"
           className="card p-5 hover:border-slate-400 dark:hover:border-slate-600 transition block cursor-pointer"
         >
-          <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>Toplam Borç (Tedarikçiler)</span>
-            <span className="text-xs text-slate-400">Tedarikçiler →</span>
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            Toplam Borç (Tedarikçiler)
           </div>
           <div className="text-2xl font-bold text-rose-500 mt-1 tabular-nums">
             {formatMoney(payableTRY)}
@@ -459,73 +526,61 @@ export default function PanelPage() {
         </Link>
 
         <Link
-          href="/raporlar/cari-bakiye"
-          title="Cari bakiye raporunu görüntüle"
+          href="/raporlar"
           className="card p-5 hover:border-slate-400 dark:hover:border-slate-600 transition block cursor-pointer"
         >
-          <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center justify-between">
-            <span>Net Durum</span>
-            <span className="text-xs text-slate-400">Rapor →</span>
-          </div>
-          <div
-            className={cn(
-              "text-2xl font-bold mt-1 tabular-nums",
-              netStatus >= 0 ? "text-slate-800 dark:text-slate-200" : "text-rose-500"
-            )}
-          >
+          <div className="text-sm text-slate-500 dark:text-slate-400">Net Durum</div>
+          <div className="text-2xl font-bold mt-1 text-brand-500 tabular-nums">
             {formatMoney(netStatus)}
           </div>
         </Link>
       </div>
 
-      {/* 7. Son Hareketler & Yaklaşan / Geciken Ödemeler (Tıklanabilir Satırlar) */}
+      {/* 8. Son Hareketler & Yaklaşan / Geciken Ödemeler */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Sol Sütun: Son Hareketler */}
+        {/* Sol: Son Hareketler */}
         <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <Clock size={17} className="text-slate-700 dark:text-slate-300" /> Son Hareketler
-            </h2>
-            <Link
-              href="/nakit/hareketler"
-              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:underline"
-            >
-              Tüm hareketler →
-            </Link>
-          </div>
-
+          <h2 className="font-semibold mb-3 flex items-center gap-2">
+            <Clock size={17} className="lucide lucide-clock text-brand-500" /> Son Hareketler
+          </h2>
           {(!data?.recent || data.recent.length === 0) ? (
-            <p className="text-sm text-slate-400 py-6 text-center">
-              Henüz hareket yok.
-            </p>
+            <p className="text-sm text-slate-400 py-6 text-center">Henüz hareket yok.</p>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {data.recent.slice(0, 10).map((t: any) => {
-                const isPositive = t.amount >= 0;
-                const linkHref = getMovementLink(t);
+                const isPositive = Number(t.amount) >= 0;
+                const isMoneyTxn = t.kind === "transaction" || t.type === "collection" || t.type === "payment";
+
+                // Başlık
+                let titleText = t.party || "İşlem";
+                if (t.type === "pos_sale") titleText = `Hızlı satış · ${t.party || "Perakende"}`;
+                else if (t.type === "sales_invoice" || t.type === "sale") titleText = `Satış · ${t.party || "Müşteri"}`;
+                else if (t.type === "purchase_invoice" || t.type === "purchase") titleText = `Alış · ${t.party || "Tedarikçi"}`;
+                else if (t.type === "expense" || t.type === "salary") titleText = `Masraf · ${t.party || "Gider"}`;
+                else if (t.type === "collection") titleText = `Tahsilat · ${t.party || "Müşteri"}`;
+                else if (t.type === "payment") titleText = `Ödeme · ${t.party || "Tedarikçi"}`;
+
+                // Alt açıklama
+                const dateStr = formatDate(t.date);
+                const descPart = t.description ? ` · ${t.description}` : (t.number ? ` · ${t.number}` : "");
+                const methodStr = t.method === "credit_card" ? " · Kredi Kartı" : t.method === "bank_transfer" ? " · Banka" : t.method === "cash" ? " · Nakit" : "";
+                const subText = `${dateStr}${descPart}${methodStr}`;
+
                 return (
-                  <Link
-                    key={t.id}
-                    href={linkHref}
-                    className="flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group cursor-pointer"
-                  >
+                  <div key={t.id} className="flex items-center gap-3 py-2.5">
                     <div
                       className={cn(
-                        "h-9 w-9 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105",
-                        isPositive
-                          ? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                          : "bg-rose-50 dark:bg-rose-900/30 text-rose-500"
+                        "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
+                        isMoneyTxn
+                          ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500"
+                          : "bg-brand-50 dark:bg-brand-900/30 text-brand-500"
                       )}
                     >
-                      <FileText size={16} />
+                      {isMoneyTxn ? <HandCoins size={16} /> : <FileText size={16} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate text-slate-800 dark:text-slate-200 group-hover:text-slate-950 dark:group-hover:text-white">
-                        {t.party || t.type}
-                      </div>
-                      <div className="text-xs text-slate-400 truncate">
-                        {formatDate(t.date)} {t.number && `· ${t.number}`}
-                      </div>
+                      <div className="text-sm font-medium truncate">{titleText}</div>
+                      <div className="text-xs text-slate-400 truncate">{subText}</div>
                     </div>
                     <div
                       className={cn(
@@ -536,7 +591,7 @@ export default function PanelPage() {
                       {isPositive ? "+" : "−"}
                       {formatMoney(Math.abs(t.amount))}
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -546,37 +601,22 @@ export default function PanelPage() {
           </p>
         </div>
 
-        {/* Sağ Sütun: Yaklaşan / Geciken Ödemeler */}
+        {/* Sağ: Yaklaşan / Geciken Ödemeler */}
         <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <CalendarClock size={17} className="text-rose-500" /> Yaklaşan / Geciken Ödemeler
-            </h2>
-            <Link
-              href="/giderler/alis-faturalari"
-              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:underline"
-            >
-              Alış faturaları →
-            </Link>
-          </div>
-
+          <h2 className="font-semibold mb-3 flex items-center gap-2">
+            <CalendarClock size={17} className="lucide lucide-calendar-clock text-rose-500" /> Yaklaşan / Geciken Ödemeler
+          </h2>
           {(!data?.timeline || data.timeline.length === 0) ? (
-            <p className="text-sm text-slate-400 py-6 text-center">
-              Ödenecek masraf yok.
-            </p>
+            <p className="text-sm text-slate-400 py-6 text-center">Ödenecek masraf yok.</p>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {data.timeline.slice(0, 6).map((t: any) => {
                 const isOverdue = t.days_overdue > 0;
                 return (
-                  <Link
-                    key={t.id}
-                    href={`/giderler/alis-faturalari`}
-                    className="flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group cursor-pointer"
-                  >
+                  <div key={t.id} className="flex items-center gap-3 py-2.5">
                     <div
                       className={cn(
-                        "h-9 w-9 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105",
+                        "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
                         isOverdue
                           ? "bg-rose-50 dark:bg-rose-900/30 text-rose-500"
                           : "bg-amber-50 dark:bg-amber-900/30 text-amber-500"
@@ -585,9 +625,7 @@ export default function PanelPage() {
                       <CalendarClock size={16} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate text-slate-800 dark:text-slate-200 group-hover:text-slate-950 dark:group-hover:text-white">
-                        {t.party || "Ödeme"}
-                      </div>
+                      <div className="text-sm font-medium truncate">{t.party || "Ödeme"}</div>
                       <div className="text-xs text-slate-400 truncate">
                         Vade: {formatDate(t.due_date)} {isOverdue && "(Gecikmiş)"}
                       </div>
@@ -602,7 +640,7 @@ export default function PanelPage() {
                         </span>
                       )}
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -610,10 +648,54 @@ export default function PanelPage() {
         </div>
       </div>
 
-      {/* 7. Canlı Kur & Aylık Satış Döviz Karşılıkları (En Alt Alan) */}
-      <CurrencySalesFooter data={data} />
+      {/* 9. Kritik Stok Uyarısı */}
+      {data?.critical_stock && data.critical_stock.length > 0 && (
+        <div className="card p-5 border-l-4 border-l-amber-400">
+          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold mb-3">
+            <TriangleAlert size={18} className="lucide lucide-triangle-alert" />
+            Kritik Stok Uyarısı ({data.critical_stock.length})
+            <Link className="ml-auto text-xs font-medium text-brand-600 hover:underline" href="/urunler?filtre=kritik">
+              Tümünü gör →
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {data.critical_stock.map((p: any) => (
+              <Link
+                key={p.id}
+                className="chip bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:ring-1 hover:ring-amber-400"
+                href="/urunler?filtre=kritik"
+              >
+                {p.name} · {formatQty(p.stock_qty)} ad
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* 8. Sayfa Yardım Butonu (Pusulam Birebir Sağ Alt Buton & Popover) */}
+      {/* 10. Modüller (Pusulam 23 Adet Modül Kartı Grid) */}
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">
+          Modüller
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+          {MODULES.map((m) => (
+            <Link
+              key={m.href}
+              className="card p-3 sm:p-4 flex flex-col items-center gap-2 hover:shadow-soft hover:-translate-y-0.5 transition group min-w-0"
+              href={m.href}
+            >
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-brand-50 dark:group-hover:bg-brand-900/30 transition shrink-0">
+                <m.icon size={20} className={cn(m.iconColor, m.extraClass)} />
+              </div>
+              <span className="text-[11px] sm:text-xs font-semibold text-center text-slate-600 dark:text-slate-300 leading-tight line-clamp-2">
+                {m.title}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* 11. Sayfa Yardım Butonu (Pusulam Birebir Sağ Alt Popover) */}
       <div className="pointer-events-none fixed z-[80] right-4 sm:right-5 lg:right-6 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:bottom-6">
         <div className="pointer-events-auto relative flex flex-col items-end gap-2">
           {helpOpen && (
@@ -643,7 +725,7 @@ export default function PanelPage() {
 
               <div className="px-4 py-3 max-h-[min(60vh,28rem)] overflow-y-auto text-[13px] leading-relaxed">
                 <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  İşletmenizin anlık özeti. Bu ayki ciro, masraf, tahsilat ve yaklaşan ödemeleri tek bakışta görürsünüz.
+                  İşletmenizin anlık özeti. Bu ayki ciro, masraf, tahsilat, kritik stok ve yaklaşan ödemeleri tek bakışta görürsünüz.
                 </p>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">
                   Özellikler
@@ -659,7 +741,15 @@ export default function PanelPage() {
                   </li>
                   <li className="flex gap-2 text-slate-600 dark:text-slate-300">
                     <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
-                    <span>Son hareketler ve detaylı satış grafiği</span>
+                    <span>Kritik stok uyarıları</span>
+                  </li>
+                  <li className="flex gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                    <span>Son hareketler ve satış grafiği</span>
+                  </li>
+                  <li className="flex gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                    <span>Kurulum kontrol listesi (ilk kullanım)</span>
                   </li>
                 </ul>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">
@@ -683,7 +773,7 @@ export default function PanelPage() {
             title="Panel yardımı"
             aria-expanded={helpOpen}
             onClick={() => setHelpOpen((v) => !v)}
-            className="h-9 w-9 rounded-full flex items-center justify-center border transition bg-white/70 dark:bg-slate-900/70 border-slate-200/60 dark:border-slate-700/60 text-slate-400/70 hover:text-slate-500 hover:border-slate-300 dark:hover:text-slate-300 shadow-sm"
+            className="h-9 w-9 rounded-full flex items-center justify-center border transition bg-white/70 dark:bg-slate-900/70 border-slate-200/60 dark:border-slate-700/60 text-slate-400/70 hover:text-slate-500 hover:border-slate-300 dark:hover:text-slate-300"
           >
             <CircleHelp size={18} />
           </button>

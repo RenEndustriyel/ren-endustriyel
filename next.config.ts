@@ -23,6 +23,21 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      { source: "/numex-ai", destination: "/yapay-zeka" },
+      { source: "/stoklar", destination: "/urunler" },
+      { source: "/subeler", destination: "/ayarlar" },
+      { source: "/cek-senet", destination: "/nakit/cekler" },
+      { source: "/banka", destination: "/hesaplar" },
+      { source: "/cari-kampanya", destination: "/cariler" },
+      { source: "/teklifler", destination: "/satislar" },
+      { source: "/e-ticaret", destination: "/ayarlar" },
+      { source: "/ekip", destination: "/ayarlar" },
+      { source: "/akademi", destination: "/ayarlar" },
+      { source: "/muhasebeci-agi", destination: "/ayarlar" },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -14,9 +14,35 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.2.4";
+export const LATEST_VERSION = "2.2.5";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.2.5",
+    date: "2 Ekim 2026",
+    title: "1:1 Pusulam Genel Bakış (Panel) Düzeni & 23 Modül Grid Eşitlemesi",
+    badge: "1:1 Panel & Modüller",
+    items: [
+      {
+        type: "yeni",
+        title: "Pusulam Canlı HTML'i ile Birebir Genel Bakış (Dashboard) Düzeni",
+        description:
+          "Pusulam'dan kopyalanan DOM yapısına uygun olarak 5 gradient KPI kartı (Amber, Rose, Blue, Emerald, Brand Teal), 3 periyotlu Satış Grafiği, En Çok Satan Ürünler kartı ve Döviz Özeti kutusu 1:1 entegre edildi.",
+      },
+      {
+        type: "yeni",
+        title: "23 Adet Pusulam Modül Kutusunun Tamamı Eklendi",
+        description:
+          "Panelin alt kısmına Numex/REN AI, Hızlı Satış, Ürünler, Alışlar, Satışlar, Masraflar, e-Fatura, Şubeler, Stoklar, Müşteriler, Tedarikçiler, Teklifler, Çek & Senet, Hesaplar, Banka Ekstresi, Kampanya, Hatırlatmalar, Raporlar, Ajanda, E-Ticaret, Çalışanlar & Ekip, Akademi ve Muhasebeci Ağı modül kartları ikonlarıyla yerleştirildi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Pusulam İmza Teal (#0f9b8e) Renk ve Grafik Teması Eşitlendi",
+        description:
+          "Tailwind brand renk skalası Pusulam'ın orijinal #0f9b8e tonuna kalibre edildi; Satış Grafiği alan gradyanı ve çizgisi #0f9b8e ile uyarlandı.",
+      },
+    ],
+  },
   {
     version: "2.2.4",
     date: "2 Ekim 2026",
