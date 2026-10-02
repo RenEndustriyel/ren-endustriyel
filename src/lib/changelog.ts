@@ -14,9 +14,35 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.2.0";
+export const LATEST_VERSION = "2.2.1";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.2.1",
+    date: "2 Ekim 2026",
+    title: "Kasa/Banka Hızlı Para Giriş-Çıkışı Düzeltmesi & Pusulam Canlı Tasarım Entegrasyonu",
+    badge: "Canlı Düzeltme & Tasarım",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Kasa & Banka Hızlı Para Girişi/Çıkışı (transactions_type_check) Hatası Düzeltildi",
+        description:
+          "Hesaplar ekranındaki hızlı para girişi ve çıkışı işlemlerinde veritabanı kısıtlamasına takılan türler 'other_income' ve 'other_expense' olarak standartlaştırıldı; anlık bakiye senkronizasyonu sağlandı.",
+      },
+      {
+        type: "duzeltme",
+        title: "Hesaplar Arası Virman / Transfer İşlemi Güçlendirildi",
+        description:
+          "İki hesap arasındaki para aktarımı tekil atomik virman kaydı ile veritabanı trigger mekanizmasına tam uyumlu hale getirildi.",
+      },
+      {
+        type: "yeni",
+        title: "Pusulam Birebir Renkli Metrik Çerçeveleri & Belirgin Kutu Tasarımı",
+        description:
+          "Ürün detay ve yönetim ekranlarında Pusulam'ın orijinal zümrüt yeşili, kehribar ve mavi gradient kartları ile tüm liste ve form kutularında belirgin çerçeve hatları devreye alındı.",
+      },
+    ],
+  },
   {
     version: "2.2.0",
     date: "1 Ekim 2026",

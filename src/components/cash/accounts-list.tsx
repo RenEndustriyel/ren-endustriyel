@@ -21,8 +21,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { AccountForm } from "./account-form";
 import { useOrg } from "@/providers/org-provider";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function AccountsList() {
+  const qc = useQueryClient();
   const accountsQuery = useAccounts();
   const updateAccount = useUpdate("accounts");
   const saveTxn = useRpc("save_transaction");
@@ -78,35 +80,28 @@ export function AccountsList() {
           toast.error("Hedef hesap seçin");
           return;
         }
-        // Transfer out
+        if (targetAccountId === quickTxn.account.id) {
+          toast.error("Farklı bir hedef hesap seçin");
+          return;
+        }
+        const targetAcc = accounts.find((a) => a.id === targetAccountId);
+        const sourceCur = quickTxn.account.currency || "TRY";
+        const targetCur = targetAcc?.currency || "TRY";
+
         await saveTxn.call({
           p_txn: {
             id: newId(),
             org_id: org.id,
             type: "transfer",
-            direction: "out",
+            direction: "transfer",
             txn_date: isoDate(),
             account_id: quickTxn.account.id,
+            to_account_id: targetAccountId,
             amount: amountNum,
-            currency: quickTxn.account.currency || "TRY",
+            to_amount: amountNum,
+            currency: sourceCur,
             exchange_rate: 1,
-            description: txnDesc || "Hesaplar arası transfer (Çıkış)",
-          },
-          p_allocations: null,
-        });
-        // Transfer in
-        await saveTxn.call({
-          p_txn: {
-            id: newId(),
-            org_id: org.id,
-            type: "transfer",
-            direction: "in",
-            txn_date: isoDate(),
-            account_id: targetAccountId,
-            amount: amountNum,
-            currency: quickTxn.account.currency || "TRY",
-            exchange_rate: 1,
-            description: txnDesc || "Hesaplar arası transfer (Giriş)",
+            description: txnDesc || `Virman (${quickTxn.account.name} → ${targetAcc?.name ?? "Hedef Hesap"})`,
           },
           p_allocations: null,
         });
@@ -116,7 +111,7 @@ export function AccountsList() {
           p_txn: {
             id: newId(),
             org_id: org.id,
-            type: quickTxn.type === "in" ? "income" : "expense",
+            type: quickTxn.type === "in" ? "other_income" : "other_expense",
             direction: quickTxn.type,
             txn_date: isoDate(),
             account_id: quickTxn.account.id,
@@ -129,6 +124,13 @@ export function AccountsList() {
         });
         toast.success(quickTxn.type === "in" ? "Para girişi kaydedildi" : "Para çıkışı kaydedildi");
       }
+
+      qc.invalidateQueries({ queryKey: ["rows", "accounts"] });
+      qc.invalidateQueries({ queryKey: ["rows", "transactions"] });
+      qc.invalidateQueries({ queryKey: ["account_statement"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      await accountsQuery.refetch();
+
       setQuickTxn(null);
       setTxnAmount("");
       setTxnDesc("");
