@@ -14,9 +14,35 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.2.3";
+export const LATEST_VERSION = "2.2.4";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.2.4",
+    date: "2 Ekim 2026",
+    title: "Hızlı Satış Seçili Ürün Beyazlık Düzeltmesi & 1:1 Pusulam Koyu Slate Terminal Teması",
+    badge: "1:1 Görsel Düzeltme & Kontrast",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Sepette Seçili Ürünün Beyaz Görünmesi ve Okunamaması Sorunu Giderildi",
+        description:
+          "Sepette ürün satırına tıklandığında oluşan parlak beyaz zemin (#f0fdfa) ve beyaz metin çakışması tamamen ortadan kaldırıldı; Pusulam ile birebir uyumlu koyu zümrüt/teal (#0e3b43) seçim vurgusu ve net beyaz tipografi uygulandı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Pusulam Canlı Arayüzü ile 1:1 Renk, Buton ve Kutu Eşitlemesi",
+        description:
+          "Arka plan rengi (#0b171e), üst bar, 12 sütunlu miktar/çarpan (2x, 4x, 6x, +), barkod arama kutusu ve sağdaki hızlı ürünler paneli Pusulam ekran görüntüsü ile piksel seviyesinde birebir eşitlendi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Üst Gezinme Çubuğu (Topbar) POS Ekranına Entegre Edildi",
+        description:
+          "Pusulam'daki gibi şirket/mağaza seçicisi, genel arama ve profil alanını içeren üst çubuk terminalin üzerinde kalacak şekilde düzenlendi.",
+      },
+    ],
+  },
   {
     version: "2.2.3",
     date: "2 Ekim 2026",

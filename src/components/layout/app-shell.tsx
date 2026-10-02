@@ -87,14 +87,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="contents">
               <OfflineBanner />
               <InstallBanner />
-              {!isPosPage && <Topbar />}
+              <Topbar />
             </div>
 
             <main
               className={cn(
                 "flex-1 flex flex-col min-h-0 min-w-0 w-full animate-fade-in",
                 isPosPage
-                  ? "p-0 pb-0 lg:pb-0 h-dvh overflow-hidden"
+                  ? "p-0 pb-0 lg:pb-0 overflow-hidden"
                   : "p-3 sm:p-4 lg:p-8 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:pb-8 overflow-x-hidden"
               )}
             >
