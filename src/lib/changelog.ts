@@ -14,9 +14,35 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.2.1";
+export const LATEST_VERSION = "2.2.2";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.2.2",
+    date: "2 Ekim 2026",
+    title: "Hızlı Satış & Satış Faturalarının Gün, Ay, Yıl Periyotlarına Tam Dahil Edilmesi",
+    badge: "Satış & Ciro Entegrasyonu",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Hızlı Satışlar (pos_sale) ve Faturalar Günlük, Haftalık, Aylık ve Yıllık Raporlara Dahil Edildi",
+        description:
+          "Raporlar ve kontrol panelinde yalnızca 'pos' arandığı için eksik kalan hızlı satışlar ('pos_sale') tüm satış faturası toplamları, ciro grafikleri, kârlılık tabloları ve en çok satanlar listesine eksiksiz dahil edildi.",
+      },
+      {
+        type: "yeni",
+        title: "Kontrol Paneli Dönem Özeti: Günlük, Haftalık, Aylık ve Yıllık Karşılaştırma",
+        description:
+          "Dönem özetinde 'Bu Yıl' desteği eklendi. Gün (Bugün vs Dün), Hafta (Bu Hafta vs Geçen Hafta), Ay (Bu Ay vs Geçen Ay) ve Yıl (Bu Yıl vs Geçen Yıl) bazında dinamik sparkline barları ve sepet ortalamasıyla gerçek zamanlı hesaplama sağlandı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Raporlar Çalışma Alanına Yıllık Dönem Seçeneği & Saatlik POS Analizi Eklendi",
+        description:
+          "Raporlar sayfasında yıllık (Son 5 Yıl) analiz sekmesi aktif edildi; bugün yapılan hızlı satışların saatlik dökümü gerçek işlem saatlerine göre dinamik olarak hesaplanıp grafikleştirildi.",
+      },
+    ],
+  },
   {
     version: "2.2.1",
     date: "2 Ekim 2026",

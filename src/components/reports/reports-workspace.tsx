@@ -57,7 +57,7 @@ export function ReportsWorkspace() {
     | "tops"
   >("genel");
 
-  const [period, setPeriod] = React.useState<"day" | "week" | "month">("month");
+  const [period, setPeriod] = React.useState<"day" | "week" | "month" | "year">("month");
   const [helpOpen, setHelpOpen] = React.useState(false);
 
   // Kârlılık date range
@@ -72,7 +72,7 @@ export function ReportsWorkspace() {
   // 1. Documents (Sales, Purchases, Expenses, POS)
   const docsQuery = useRows<Row<"documents">>("documents", {
     params: ["reports_financial_docs"],
-    select: "id, doc_type, issue_date, due_date, total, status, category_id, number, description, contact_id, payment_status",
+    select: "id, doc_type, issue_date, due_date, total, status, category_id, number, description, contact_id, payment_status, created_at",
     order: [{ column: "issue_date", ascending: false }],
   });
 
@@ -130,7 +130,7 @@ export function ReportsWorkspace() {
   const currentMonthDocs = docs.filter((d) => (d.issue_date ?? "").startsWith(currentMonthKey));
 
   const currentMonthSales = currentMonthDocs
-    .filter((d) => d.doc_type === "sales_invoice" || d.doc_type === "pos")
+    .filter((d) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale" || d.doc_type === "pos")
     .reduce((sum, d) => sum + Number(d.total ?? 0), 0);
 
   const currentMonthExpenses = currentMonthDocs
@@ -144,7 +144,14 @@ export function ReportsWorkspace() {
   const currentMonthProfit = currentMonthSales - (currentMonthPurchases + currentMonthExpenses);
 
   // Period text label
-  const periodLabel = period === "day" ? "Son 30 Gün" : period === "week" ? "Son 12 Hafta" : "Son 6 Ay";
+  const periodLabel =
+    period === "day"
+      ? "Son 30 Gün"
+      : period === "week"
+      ? "Son 12 Hafta"
+      : period === "year"
+      ? "Son 5 Yıl"
+      : "Son 6 Ay";
 
   // Periodic Data (F): genel, kar, nakit, kdv
   const periodicData = React.useMemo(() => {
@@ -162,7 +169,45 @@ export function ReportsWorkspace() {
       KDV: number;
     }> = [];
 
-    if (period === "month") {
+    if (period === "year") {
+      for (let i = 4; i >= 0; i--) {
+        const y = now.getFullYear() - i;
+        const yKey = `${y}`;
+        const label = `${y}`;
+
+        const yDocs = docs.filter((doc) => (doc.issue_date ?? "").startsWith(yKey));
+        const s = yDocs
+          .filter((doc) => doc.doc_type === "sales_invoice" || doc.doc_type === "pos_sale" || doc.doc_type === "pos")
+          .reduce((sum, doc) => sum + Number(doc.total ?? 0), 0);
+        const a = yDocs
+          .filter((doc) => doc.doc_type === "purchase_invoice")
+          .reduce((sum, doc) => sum + Number(doc.total ?? 0), 0);
+        const m = yDocs
+          .filter((doc) => doc.doc_type === "expense")
+          .reduce((sum, doc) => sum + Number(doc.total ?? 0), 0);
+
+        const yTxns = txns.filter((t) => (t.txn_date ?? "").startsWith(yKey));
+        const giris = yTxns.filter((t) => t.direction === "in").reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
+        const cikis = yTxns.filter((t) => t.direction === "out").reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
+
+        const hesaplananKdv = Math.round(s * 0.18);
+        const indirilecekKdv = Math.round(a * 0.18 + m * 0.18);
+
+        list.push({
+          name: label,
+          Satış: Math.round(s),
+          Alış: Math.round(a),
+          Masraf: Math.round(m),
+          Net: Math.round(s - a - m),
+          Giriş: Math.round(giris || s),
+          Çıkış: Math.round(cikis || (a + m)),
+          Akış: Math.round((giris || s) - (cikis || (a + m))),
+          Hesaplanan: hesaplananKdv,
+          İndirilecek: indirilecekKdv,
+          KDV: hesaplananKdv - indirilecekKdv,
+        });
+      }
+    } else if (period === "month") {
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const mIdx = d.getMonth();
@@ -171,7 +216,7 @@ export function ReportsWorkspace() {
 
         const mDocs = docs.filter((doc) => (doc.issue_date ?? "").startsWith(mKey));
         const s = mDocs
-          .filter((doc) => doc.doc_type === "sales_invoice" || doc.doc_type === "pos")
+          .filter((doc) => doc.doc_type === "sales_invoice" || doc.doc_type === "pos_sale" || doc.doc_type === "pos")
           .reduce((sum, doc) => sum + Number(doc.total ?? 0), 0);
         const a = mDocs
           .filter((doc) => doc.doc_type === "purchase_invoice")
@@ -214,7 +259,7 @@ export function ReportsWorkspace() {
         });
 
         const s = wDocs
-          .filter((doc) => doc.doc_type === "sales_invoice" || doc.doc_type === "pos")
+          .filter((doc) => doc.doc_type === "sales_invoice" || doc.doc_type === "pos_sale" || doc.doc_type === "pos")
           .reduce((sum, doc) => sum + Number(doc.total ?? 0), 0);
         const a = wDocs
           .filter((doc) => doc.doc_type === "purchase_invoice")
@@ -249,7 +294,7 @@ export function ReportsWorkspace() {
 
         const dDocs = docs.filter((doc) => doc.issue_date === dStr);
         const s = dDocs
-          .filter((doc) => doc.doc_type === "sales_invoice" || doc.doc_type === "pos")
+          .filter((doc) => doc.doc_type === "sales_invoice" || doc.doc_type === "pos_sale" || doc.doc_type === "pos")
           .reduce((sum, doc) => sum + Number(doc.total ?? 0), 0);
         const a = dDocs
           .filter((doc) => doc.doc_type === "purchase_invoice")
@@ -321,7 +366,7 @@ export function ReportsWorkspace() {
     // Sales docs in range
     const rangeDocs = docs.filter(
       (d) =>
-        (d.doc_type === "sales_invoice" || d.doc_type === "pos") &&
+        (d.doc_type === "sales_invoice" || d.doc_type === "pos_sale" || d.doc_type === "pos") &&
         (d.issue_date ?? "") >= profitDates.from &&
         (d.issue_date ?? "") <= profitDates.to
     );
@@ -506,17 +551,28 @@ export function ReportsWorkspace() {
       const label = `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
 
       const dayPosTotal = docs
-        .filter((doc) => doc.doc_type === "pos" && doc.issue_date === dStr)
+        .filter((doc) => (doc.doc_type === "pos_sale" || doc.doc_type === "pos") && doc.issue_date === dStr)
         .reduce((sum, doc) => sum + Number(doc.total ?? 0), 0);
 
       last14Days.push({ name: label, satış: Math.round(dayPosTotal) });
     }
 
     // Bugün Saatlik POS
-    const todayPos = docs.filter((doc) => doc.doc_type === "pos" && doc.issue_date === todayStr);
+    const todayPos = docs.filter(
+      (doc) => (doc.doc_type === "pos_sale" || doc.doc_type === "pos") && doc.issue_date === todayStr
+    );
+    const hourlyMap = new Map<number, { tutar: number; adet: number }>();
+    for (const p of todayPos) {
+      const h = (p as any).created_at ? new Date((p as any).created_at).getHours() : 12;
+      const cur = hourlyMap.get(h) ?? { tutar: 0, adet: 0 };
+      cur.tutar += Number(p.total ?? 0);
+      cur.adet += 1;
+      hourlyMap.set(h, cur);
+    }
     const hourly: Array<{ saat: string; tutar: number; adet: number }> = [];
     for (let h = 8; h <= 22; h++) {
-      hourly.push({ saat: `${String(h).padStart(2, "0")}:00`, tutar: 0, adet: 0 });
+      const st = hourlyMap.get(h) ?? { tutar: 0, adet: 0 };
+      hourly.push({ saat: `${String(h).padStart(2, "0")}:00`, tutar: Math.round(st.tutar), adet: st.adet });
     }
 
     // Bu Ay Ödeme Türü
@@ -536,7 +592,7 @@ export function ReportsWorkspace() {
     // Current month sales
     const mDocs = docs.filter(
       (d) =>
-        (d.doc_type === "sales_invoice" || d.doc_type === "pos") &&
+        (d.doc_type === "sales_invoice" || d.doc_type === "pos_sale" || d.doc_type === "pos") &&
         (d.issue_date ?? "").startsWith(currentMonthKey)
     );
     const mDocSet = new Set(mDocs.map((d) => d.id));
@@ -702,6 +758,7 @@ export function ReportsWorkspace() {
                 { id: "day", label: "Günlük" },
                 { id: "week", label: "Haftalık" },
                 { id: "month", label: "Aylık" },
+                { id: "year", label: "Yıllık" },
               ].map((p) => (
                 <button
                   key={p.id}

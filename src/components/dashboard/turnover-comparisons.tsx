@@ -72,7 +72,8 @@ export function useTurnoverComparisons(orgId: string) {
         .neq("status", "draft")
         .neq("status", "cancelled")
         .in("doc_type", ["sales_invoice", "pos_sale", "sales_return"])
-        .gte("issue_date", lastYearStart);
+        .gte("issue_date", lastYearStart)
+        .limit(50000);
 
       if (error) throw error;
 

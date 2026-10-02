@@ -52,7 +52,7 @@ export function ExecutiveGrowthCard({ data, orgId }: ExecutiveGrowthCardProps) {
   const recentDocsQuery = useRows<any>("documents", {
     select: "id, doc_type, number, issue_date, total, net_total, status, contact_id",
     order: [{ column: "issue_date", ascending: false }],
-    limit: 1000,
+    limit: 5000,
   });
 
   // Tarih tanımları
@@ -100,9 +100,9 @@ export function ExecutiveGrowthCard({ data, orgId }: ExecutiveGrowthCardProps) {
     // Dün
     const yDocs = docs.filter((d: any) => d.issue_date === yesterdayStr);
     const ySales = yDocs
-      .filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale")
+      .filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale" || d.doc_type === "pos")
       .reduce((s: number, d: any) => s + Number(d.total || 0), 0);
-    const ySalesCount = yDocs.filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale").length;
+    const ySalesCount = yDocs.filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale" || d.doc_type === "pos").length;
     const yPurchases = yDocs
       .filter((d: any) => d.doc_type === "purchase_invoice" || d.doc_type === "expense" || d.doc_type === "salary")
       .reduce((s: number, d: any) => s + Number(d.total || 0), 0);
@@ -114,7 +114,7 @@ export function ExecutiveGrowthCard({ data, orgId }: ExecutiveGrowthCardProps) {
     // Geçen Hafta (Son 7 ila 14 gün arası)
     const lwDocs = docs.filter((d: any) => d.issue_date >= fourteenDaysStr && d.issue_date < sevenDaysStr);
     const lwSales = lwDocs
-      .filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale")
+      .filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale" || d.doc_type === "pos")
       .reduce((s: number, d: any) => s + Number(d.total || 0), 0);
     const lwPurchases = lwDocs
       .filter((d: any) => d.doc_type === "purchase_invoice" || d.doc_type === "expense" || d.doc_type === "salary")
@@ -126,7 +126,7 @@ export function ExecutiveGrowthCard({ data, orgId }: ExecutiveGrowthCardProps) {
     // Bu Ay
     const tmDocs = docs.filter((d: any) => d.issue_date >= thisMonthStartStr);
     const tmSales = monthSales || tmDocs
-      .filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale")
+      .filter((d: any) => d.doc_type === "sales_invoice" || d.doc_type === "pos_sale" || d.doc_type === "pos")
       .reduce((s: number, d: any) => s + Number(d.total || 0), 0);
     const tmPurchases = monthExpenses || tmDocs
       .filter((d: any) => d.doc_type === "purchase_invoice" || d.doc_type === "expense" || d.doc_type === "salary")
