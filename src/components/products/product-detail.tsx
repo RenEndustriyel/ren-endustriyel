@@ -4,10 +4,10 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  ShoppingBag,
+  ShoppingCart,
   RotateCcw,
-  Truck,
-  Printer,
+  Scale,
+  Tag,
   Star,
   Trash2,
   Pencil,
@@ -18,6 +18,8 @@ import {
   Check,
   Clock,
   SlidersHorizontal,
+  CircleHelp,
+  X,
 } from "lucide-react";
 import {
   useRow,
@@ -106,6 +108,7 @@ export function ProductDetail({ id }: { id: string }) {
   const [editOpen, setEditOpen] = React.useState<boolean>(false);
   const [adjustOpen, setAdjustOpen] = React.useState<boolean>(false);
   const [favorites, setFavorites] = React.useState<Set<string>>(new Set());
+  const [helpOpen, setHelpOpen] = React.useState<boolean>(false);
 
   // Load favorites from localStorage (matching POS and products list)
   React.useEffect(() => {
@@ -364,7 +367,7 @@ export function ProductDetail({ id }: { id: string }) {
                 className="btn-ghost"
                 onClick={() => setQuickTradeMode("sale")}
               >
-                <ShoppingBag size={16} /> Satış Yap
+                <ShoppingCart size={16} /> Satış Yap
               </button>
               <button
                 type="button"
@@ -378,7 +381,7 @@ export function ProductDetail({ id }: { id: string }) {
                 className="btn-ghost"
                 onClick={() => setQuickTradeMode("purchase")}
               >
-                <Truck size={16} /> Alış Yap
+                <Scale size={16} /> Alış Yap
               </button>
             </>
           )}
@@ -388,7 +391,7 @@ export function ProductDetail({ id }: { id: string }) {
             className="btn-ghost"
             onClick={() => setBarcodeModalOpen(true)}
           >
-            <Printer size={16} /> {p.barcode ? "Etiket Yazdır" : "Barkod / Etiket"}
+            <Tag size={16} /> {p.barcode ? "Etiket Yazdır" : "Barkod / Etiket"}
           </button>
 
           <button
@@ -426,11 +429,11 @@ export function ProductDetail({ id }: { id: string }) {
       </div>
 
       {/* 2. MAIN HERO PRODUCT CARD (Pusulam Birebir) */}
-      <div className="card p-5 overflow-hidden relative border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+      <div className="card p-5 overflow-hidden relative border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
         <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 via-transparent to-violet-500/5 pointer-events-none" />
         <div className="relative flex flex-col lg:flex-row gap-5">
           {/* Ürün Görseli */}
-          <div className="h-28 w-28 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 border border-slate-200/80 dark:border-slate-700">
+          <div className="h-28 w-28 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 border border-slate-300 dark:border-slate-700">
             {p.image_path ? (
               <img src={p.image_path} alt={p.name} className="h-full w-full object-cover" />
             ) : (
@@ -448,15 +451,15 @@ export function ProductDetail({ id }: { id: string }) {
             </h1>
 
             <div className="flex flex-wrap gap-2 mt-2">
-              {brand && <span className="chip">{brand}</span>}
-              {categoryName && <span className="chip">{categoryName}</span>}
               {p.barcode && (
                 <span className="chip inline-flex items-center gap-1 font-mono">
                   <Barcode size={12} /> {p.barcode}
                 </span>
               )}
+              {brand && <span className="chip">{brand}</span>}
+              {categoryName && <span className="chip">{categoryName}</span>}
               {altUnits.data && altUnits.data.length > 0 && (
-                <span className="chip bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+                <span className="chip bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 border-brand-200 dark:border-brand-800">
                   {altUnits.data.length} varyant
                 </span>
               )}
@@ -464,7 +467,7 @@ export function ProductDetail({ id }: { id: string }) {
 
             <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-sm text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center gap-1.5">
-                <Warehouse size={14} /> {primaryWarehouseName}
+                <Warehouse size={14} /> {primaryWarehouseName || "—"}
               </span>
               <span>Birim: {unitName}</span>
               <span>KDV: %{Number(p.vat_rate ?? 20)}</span>
@@ -492,13 +495,13 @@ export function ProductDetail({ id }: { id: string }) {
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-left border border-slate-100 dark:border-slate-800/50">
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-left border border-slate-300 dark:border-slate-700 shadow-xs">
                 <div className="text-[10px] uppercase text-slate-400 font-bold">Alış</div>
-                <div className="font-bold text-slate-800 dark:text-slate-200">
+                <div className="font-bold text-slate-900 dark:text-slate-100">
                   {formatMoney(Number(p.purchase_price ?? 0))}
                 </div>
               </div>
-              <div className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-2.5 text-left border border-brand-100 dark:border-brand-900/40">
+              <div className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-2.5 text-left border border-brand-200 dark:border-brand-800 shadow-xs">
                 <div className="text-[10px] uppercase text-brand-600/80 dark:text-brand-400/80 font-bold">
                   Satış
                 </div>
@@ -511,51 +514,55 @@ export function ProductDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 3. 4-METRIC STATS (Pusulam Birebir) */}
+      {/* 3. 4-METRIC STATS (Pusulam Birebir - Çerçeve İçi Renkli) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="card p-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-            Toplam Satış
-          </div>
-          <div className="text-xl sm:text-2xl font-black mt-1 tabular-nums text-emerald-600 dark:text-emerald-400">
+        {/* Toplam Satış */}
+        <div className="rounded-2xl p-4 sm:p-5 text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-soft min-w-0 overflow-hidden">
+          <div className="text-xl sm:text-3xl font-bold tabular-nums truncate">
             {formatQty(stats.soldQty)} {unitName}
           </div>
+          <div className="text-xs sm:text-sm/relaxed font-medium opacity-90 mt-0.5 truncate">
+            Toplam Satış
+          </div>
         </div>
 
-        <div className="card p-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-            Satış Tutarı
-          </div>
-          <div className="text-xl sm:text-2xl font-black mt-1 tabular-nums text-emerald-600 dark:text-emerald-400">
+        {/* Satış Tutarı */}
+        <div className="rounded-2xl p-4 sm:p-5 text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-soft min-w-0 overflow-hidden">
+          <div className="text-xl sm:text-3xl font-bold tabular-nums truncate">
             {formatMoney(stats.soldAmount)}
           </div>
+          <div className="text-xs sm:text-sm/relaxed font-medium opacity-90 mt-0.5 truncate">
+            Satış Tutarı
+          </div>
         </div>
 
-        <div className="card p-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-            Toplam Alış
-          </div>
-          <div className="text-xl sm:text-2xl font-black mt-1 tabular-nums text-amber-600 dark:text-amber-400">
+        {/* Toplam Alış */}
+        <div className="rounded-2xl p-4 sm:p-5 text-white bg-gradient-to-br from-amber-400 to-amber-500 shadow-soft min-w-0 overflow-hidden">
+          <div className="text-xl sm:text-3xl font-bold tabular-nums truncate">
             {formatQty(stats.boughtQty)} {unitName}
           </div>
+          <div className="text-xs sm:text-sm/relaxed font-medium opacity-90 mt-0.5 truncate">
+            Toplam Alış
+          </div>
         </div>
 
-        <div className="card p-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-            Kâr Marjı
-          </div>
-          <div className="text-xl sm:text-2xl font-black mt-1 tabular-nums text-blue-600 dark:text-blue-400">
+        {/* Kâr Marjı */}
+        <div className="rounded-2xl p-4 sm:p-5 text-white bg-gradient-to-br from-blue-400 to-blue-500 shadow-soft min-w-0 overflow-hidden">
+          <div className="text-xl sm:text-3xl font-bold tabular-nums truncate">
             %{stats.marginPct.toFixed(0)}
+          </div>
+          <div className="text-xs sm:text-sm/relaxed font-medium opacity-90 mt-0.5 truncate">
+            Kâr Marjı
           </div>
         </div>
       </div>
 
-      {/* 4. 2 SUMMARY CARDS: ALIS & SATIS DETAYLARI */}
+      {/* 4. 2 SUMMARY CARDS: ALIS & SATIS DETAYLARI (Belirgin Çerçeveli) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Stok Girişleri (Alış) */}
-        <div className="card p-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+        <div className="card p-4 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
           <h3 className="font-semibold flex items-center gap-2 mb-3 text-sm text-slate-800 dark:text-slate-100">
-            <Truck size={16} className="text-amber-500" /> Stok Girişleri (Alış)
+            <Scale size={16} className="text-amber-500" /> Stok Girişleri (Alış)
           </h3>
           <div className="space-y-2 text-sm">
             <SummaryRow label="İlk giriş" value={stats.firstIn ? formatDate(stats.firstIn.date) : "—"} />
@@ -566,9 +573,9 @@ export function ProductDetail({ id }: { id: string }) {
         </div>
 
         {/* Satışlar (Çıkış) */}
-        <div className="card p-4 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+        <div className="card p-4 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
           <h3 className="font-semibold flex items-center gap-2 mb-3 text-sm text-slate-800 dark:text-slate-100">
-            <ShoppingBag size={16} className="text-emerald-500" /> Satışlar (Çıkış)
+            <ShoppingCart size={16} className="text-emerald-500" /> Satışlar (Çıkış)
           </h3>
           <div className="space-y-2 text-sm">
             <SummaryRow label="İlk satış" value={stats.firstOut ? formatDate(stats.firstOut.date) : "—"} />
@@ -579,16 +586,16 @@ export function ProductDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 5. TAB NAVIGATION BUTTONS */}
-      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* 5. TAB NAVIGATION BUTTONS (Belirgin Çerçeveli) */}
+      <div className="flex gap-2 flex-wrap">
         <button
           type="button"
           onClick={() => setActiveTab("ozet")}
           className={cn(
             "px-4 py-2 rounded-xl text-sm font-semibold transition shrink-0",
             activeTab === "ozet"
-              ? "bg-brand-500 text-white shadow-sm"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand-400"
+              ? "bg-brand-500 text-white shadow-sm border border-brand-600"
+              : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600"
           )}
         >
           Hareketler
@@ -599,8 +606,8 @@ export function ProductDetail({ id }: { id: string }) {
           className={cn(
             "px-4 py-2 rounded-xl text-sm font-semibold transition shrink-0",
             activeTab === "satis"
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-emerald-600 dark:text-emerald-400 hover:border-emerald-400"
+              ? "bg-brand-500 text-white shadow-sm border border-brand-600"
+              : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600"
           )}
         >
           Satışlar ({stats.sales.length})
@@ -611,8 +618,8 @@ export function ProductDetail({ id }: { id: string }) {
           className={cn(
             "px-4 py-2 rounded-xl text-sm font-semibold transition shrink-0",
             activeTab === "alis"
-              ? "bg-amber-600 text-white shadow-sm"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-amber-600 dark:text-amber-400 hover:border-amber-400"
+              ? "bg-brand-500 text-white shadow-sm border border-brand-600"
+              : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600"
           )}
         >
           Alışlar ({stats.purchases.length})
@@ -623,8 +630,8 @@ export function ProductDetail({ id }: { id: string }) {
           className={cn(
             "px-4 py-2 rounded-xl text-sm font-semibold transition shrink-0",
             activeTab === "transfer"
-              ? "bg-blue-600 text-white shadow-sm"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-blue-600 dark:text-blue-400 hover:border-blue-400"
+              ? "bg-brand-500 text-white shadow-sm border border-brand-600"
+              : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600"
           )}
         >
           Transfer ({stats.transfers.length})
@@ -635,8 +642,8 @@ export function ProductDetail({ id }: { id: string }) {
           className={cn(
             "px-4 py-2 rounded-xl text-sm font-semibold transition shrink-0",
             activeTab === "bilgi"
-              ? "bg-violet-600 text-white shadow-sm"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-violet-600 dark:text-violet-400 hover:border-violet-400"
+              ? "bg-brand-500 text-white shadow-sm border border-brand-600"
+              : "bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600"
           )}
         >
           Bilgi
@@ -681,8 +688,8 @@ export function ProductDetail({ id }: { id: string }) {
       )}
 
       {activeTab === "bilgi" && (
-        <div className="card p-5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div className="card p-5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
             <InfoItem label="Ürün adı" value={p.name} />
             <InfoItem label="Barkod / SKU" value={p.barcode || p.code || "—"} />
             <InfoItem label="Marka" value={brand || "—"} />
@@ -703,7 +710,7 @@ export function ProductDetail({ id }: { id: string }) {
 
           {/* Depolardaki Dağılım */}
           {p.type === "product" && warehouses.data && warehouses.data.length > 0 && (
-            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+            <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
                   <Warehouse size={16} className="text-slate-400" /> Depolardaki Stok Dağılımı
@@ -724,7 +731,7 @@ export function ProductDetail({ id }: { id: string }) {
                   return (
                     <div
                       key={w.id}
-                      className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 px-3.5 py-2.5 text-xs"
+                      className="flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3.5 py-2.5 text-xs shadow-xs"
                     >
                       <span className="font-medium text-slate-700 dark:text-slate-300 truncate mr-2">
                         {w.name}
@@ -746,7 +753,7 @@ export function ProductDetail({ id }: { id: string }) {
 
           {/* Alternatif Birimler / Varyantlar */}
           {altUnits.data && altUnits.data.length > 0 && (
-            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+            <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
               <h3 className="font-semibold mb-3 text-sm text-slate-800 dark:text-slate-100">
                 Alternatif Birimler / Varyantlar
               </h3>
@@ -754,7 +761,7 @@ export function ProductDetail({ id }: { id: string }) {
                 {altUnits.data.map((u) => (
                   <div
                     key={u.id}
-                    className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-slate-800 px-3.5 py-2.5 text-sm bg-slate-50/40 dark:bg-slate-800/20"
+                    className="flex items-center justify-between rounded-xl border border-slate-300 dark:border-slate-700 px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/20"
                   >
                     <div>
                       <div className="font-medium text-slate-800 dark:text-slate-200">
@@ -774,11 +781,11 @@ export function ProductDetail({ id }: { id: string }) {
           )}
 
           {p.notes && (
-            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+            <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
               <h3 className="font-semibold mb-1 text-sm text-slate-800 dark:text-slate-100">
                 Açıklama / Notlar
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
+              <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                 {p.notes}
               </p>
             </div>
@@ -829,6 +836,65 @@ export function ProductDetail({ id }: { id: string }) {
           unit={unitName}
         />
       )}
+
+      {/* 8. PUSULAM SAYFA YARDIMI (Bottom-right floating help) */}
+      <div className="pointer-events-none fixed z-[80] right-4 sm:right-5 lg:right-6 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:bottom-6">
+        <div className="pointer-events-auto relative flex flex-col items-end gap-2">
+          {helpOpen && (
+            <div
+              role="dialog"
+              className="w-[min(22rem,calc(100vw-1.5rem))] origin-bottom-right rounded-2xl border border-slate-300 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl transition-all duration-200 ease-out absolute bottom-12 right-0 animate-in fade-in slide-in-from-bottom-2"
+            >
+              <div className="flex items-start justify-between gap-2 px-4 pt-3.5 pb-2 border-b border-slate-200 dark:border-slate-800">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                    Ürün Detayı
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Bu sayfa hakkında · Esc</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHelpOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+                  aria-label="Kapat"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="px-4 py-3 max-h-[min(60vh,28rem)] overflow-y-auto text-[13px] leading-relaxed">
+                <p className="text-slate-600 dark:text-slate-300 mb-3">
+                  Ürünün stok hareketleri ve satış/alış geçmişi.
+                </p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">
+                  Özellikler
+                </p>
+                <ul className="space-y-1.5 mb-3">
+                  <li className="flex gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                    <span>Stok timeline</span>
+                  </li>
+                  <li className="flex gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                    <span>İlgili faturalar</span>
+                  </li>
+                  <li className="flex gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="mt-1.5 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0" />
+                    <span>Fiyat bilgisi</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setHelpOpen((v) => !v)}
+            title="Ürün Detayı yardımı"
+            className="h-9 w-9 rounded-full flex items-center justify-center border transition bg-white/90 dark:bg-slate-900/90 border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-700 hover:border-slate-400 dark:hover:text-slate-300 shadow-sm"
+          >
+            <CircleHelp size={18} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -850,11 +916,11 @@ function SummaryRow({ label, value }: { label: string; value: React.ReactNode })
 
 function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-slate-50/70 dark:bg-slate-800/40">
       <div className="text-[11px] uppercase tracking-wide text-slate-400 font-bold">
         {label}
       </div>
-      <div className="font-medium mt-0.5 text-slate-800 dark:text-slate-200 truncate">
+      <div className="font-semibold mt-1 text-slate-800 dark:text-slate-200 truncate">
         {value}
       </div>
     </div>
@@ -878,21 +944,21 @@ function MovementList({
 
   if (items.length === 0) {
     return (
-      <div className="card p-8 text-center text-sm text-slate-400 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+      <div className="card p-8 text-center text-sm text-slate-400 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
         {empty}
       </div>
     );
   }
 
   return (
-    <div className="card p-2 sm:p-3 overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+    <div className="card p-2 sm:p-3 overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {visible.map((n) => {
           const isSale = n.kind === "sale";
           const isPurchase = n.kind === "purchase";
           const isTransfer = n.kind === "transfer";
 
-          const IconComponent = isSale ? ShoppingBag : isPurchase ? Truck : ArrowLeftRight;
+          const IconComponent = isSale ? ShoppingCart : isPurchase ? Scale : ArrowLeftRight;
           const iconBg = isSale
             ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300"
             : isPurchase
@@ -906,14 +972,14 @@ function MovementList({
                 if (n.link) router.push(n.link);
               }}
               className={cn(
-                "flex items-center gap-3 px-3 py-3 rounded-xl transition",
+                "flex items-center gap-3 px-3 py-3 rounded-xl transition border border-transparent hover:border-slate-200 dark:hover:border-slate-700",
                 n.link ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40" : ""
               )}
             >
               {/* İkon Kutusu */}
               <div
                 className={cn(
-                  "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
+                  "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700/60",
                   iconBg
                 )}
               >

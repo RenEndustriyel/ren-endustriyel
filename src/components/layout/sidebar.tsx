@@ -32,10 +32,10 @@ import { useChangelog } from "./changelog-context";
 import { LATEST_VERSION } from "@/lib/changelog";
 
 export const PUSULAM_SIDEBAR_NAV = [
-  { href: "/panel", label: "Panel", icon: LayoutGrid, color: "text-white" },
+  { href: "/panel", label: "Panel", icon: LayoutGrid, color: "text-brand-500" },
   { href: "/yapay-zeka", label: "REN AI", icon: Sparkles, color: "text-purple-500 animate-pulse-slow" },
   { href: "/hizli-satis", label: "Hızlı Satış", icon: Zap, color: "text-amber-500" },
-  { href: "/urunler", label: "Ürünler", icon: Tag, color: "text-violet-500" },
+  { href: "/urunler", label: "Ürünler", icon: Tag, color: "text-brand-500" },
   { href: "/alislar", label: "Alışlar", icon: Scale, color: "text-amber-500" },
   { href: "/satislar/faturalar", label: "Satışlar", icon: ShoppingCart, color: "text-emerald-500" },
   { href: "/masraflar", label: "Masraflar", icon: Banknote, color: "text-rose-500" },
@@ -215,7 +215,7 @@ export function Sidebar() {
                   "flex items-center gap-2 rounded-xl transition text-sm font-medium",
                   collapsed ? "justify-center p-2.5" : "pl-1.5 pr-3 py-2.5",
                   isActive
-                    ? "bg-slate-900 text-white shadow-sm shadow-slate-900/30 font-semibold"
+                    ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30 font-semibold"
                     : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                 )}
                 title={item.label}
@@ -262,13 +262,13 @@ export function Sidebar() {
               type="button"
               onClick={openChangelog}
               title="Güncelleme Notları ve Sürüm Geçmişi"
-              className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer group text-left"
+              className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition cursor-pointer group text-left"
             >
               <span className="flex items-center gap-2 truncate">
-                <Sparkles size={14} className="text-purple-500 shrink-0 group-hover:scale-110 transition-transform" />
+                <Sparkles size={14} className="text-brand-500 shrink-0 group-hover:scale-110 transition-transform" />
                 <span className="truncate">v{LATEST_VERSION} Versiyon Notları</span>
               </span>
-              <span className="p-0.5 rounded text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 group-hover:translate-x-0.5 transition-all">
+              <span className="p-0.5 rounded text-brand-400 group-hover:text-brand-600 dark:group-hover:text-brand-300 group-hover:translate-x-0.5 transition-all">
                 <ChevronRight size={14} className="shrink-0" />
               </span>
             </button>

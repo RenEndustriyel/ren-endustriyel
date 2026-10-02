@@ -30,7 +30,7 @@ export function MobileNav() {
             className={cn(
               "flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition active:scale-95",
               isPanelActive
-                ? "text-slate-900 dark:text-white"
+                ? "text-brand-600 dark:text-brand-400"
                 : "text-slate-400 dark:text-slate-500"
             )}
             aria-current={isPanelActive ? "page" : undefined}
@@ -39,13 +39,13 @@ export function MobileNav() {
               className={cn(
                 "flex items-center justify-center h-7 w-11 rounded-full transition",
                 isPanelActive
-                  ? "bg-slate-100 dark:bg-slate-800"
+                  ? "bg-brand-50 dark:bg-brand-950/60"
                   : ""
               )}
             >
               <LayoutGrid
                 size={20}
-                className={isPanelActive ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500"}
+                className={isPanelActive ? "text-brand-600 dark:text-brand-400" : "text-brand-500"}
               />
             </span>
             <span className="leading-none truncate max-w-[4.5rem]">Panel</span>
@@ -57,17 +57,17 @@ export function MobileNav() {
             className={cn(
               "flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition active:scale-95",
               isSatisActive
-                ? "text-slate-900 dark:text-white"
+                ? "text-brand-600 dark:text-brand-400"
                 : "text-slate-400 dark:text-slate-500"
             )}
           >
             <span
               className={cn(
                 "flex items-center justify-center h-7 w-11 rounded-full transition",
-                isSatisActive ? "bg-slate-100 dark:bg-slate-800" : ""
+                isSatisActive ? "bg-brand-50 dark:bg-brand-950/60" : ""
               )}
             >
-              <Zap size={20} className="text-amber-500" />
+              <Zap size={20} className={isSatisActive ? "text-brand-600 dark:text-brand-400" : "text-amber-500"} />
             </span>
             <span className="leading-none truncate max-w-[4.5rem]">Satış</span>
           </Link>
@@ -78,17 +78,17 @@ export function MobileNav() {
             className={cn(
               "flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition active:scale-95",
               isMusteriActive
-                ? "text-slate-900 dark:text-white"
+                ? "text-brand-600 dark:text-brand-400"
                 : "text-slate-400 dark:text-slate-500"
             )}
           >
             <span
               className={cn(
                 "flex items-center justify-center h-7 w-11 rounded-full transition",
-                isMusteriActive ? "bg-slate-100 dark:bg-slate-800" : ""
+                isMusteriActive ? "bg-brand-50 dark:bg-brand-950/60" : ""
               )}
             >
-              <Users size={20} className="text-sky-500" />
+              <Users size={20} className={isMusteriActive ? "text-brand-600 dark:text-brand-400" : "text-sky-500"} />
             </span>
             <span className="leading-none truncate max-w-[4.5rem]">Müşteriler</span>
           </Link>
@@ -99,17 +99,17 @@ export function MobileNav() {
             className={cn(
               "flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition active:scale-95",
               isUrunActive
-                ? "text-slate-900 dark:text-white"
+                ? "text-brand-600 dark:text-brand-400"
                 : "text-slate-400 dark:text-slate-500"
             )}
           >
             <span
               className={cn(
                 "flex items-center justify-center h-7 w-11 rounded-full transition",
-                isUrunActive ? "bg-slate-100 dark:bg-slate-800" : ""
+                isUrunActive ? "bg-brand-50 dark:bg-brand-950/60" : ""
               )}
             >
-              <Tag size={20} className="text-violet-500" />
+              <Tag size={20} className={isUrunActive ? "text-brand-600 dark:text-brand-400" : "text-brand-500"} />
             </span>
             <span className="leading-none truncate max-w-[4.5rem]">Ürünler</span>
           </Link>

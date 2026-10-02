@@ -94,6 +94,17 @@
   --color-sidebar-fg: var(--sidebar-fg);
   --color-sidebar-muted: var(--sidebar-muted);
   --color-sidebar-active: var(--sidebar-active);
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+  --color-brand-950: #022c22;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --radius-card: var(--radius);
 }
@@ -139,22 +150,23 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0;
 }
 
-/* Pusulam Birebir Kart ve Gölge Sınıfları */
+/* Pusulam Birebir Kart ve Gölge Sınıfları - Belirgin Çerçeve */
 .card {
   border-radius: 1rem;
   border-width: 1px;
-  border-color: rgba(226, 232, 240, 0.8);
+  border-color: #cbd5e1;
   background-color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
 }
 .dark .card,
 :is(.dark .card) {
-  border-color: rgb(30, 41, 59);
-  background-color: rgb(15, 23, 42);
+  border-color: #334155;
+  background-color: #0f172a;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.25);
 }
 
 .shadow-soft {
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.12), 0 2px 6px -1px rgba(0, 0, 0, 0.06);
 }
 
 .chip {
@@ -168,14 +180,14 @@ input[type="number"]::-webkit-outer-spin-button {
   font-weight: 600;
   background-color: rgb(241, 245, 249);
   color: rgb(51, 65, 85);
-  border: 1px solid rgb(226, 232, 240);
+  border: 1px solid #cbd5e1;
 }
 
 .dark .chip,
 :is(.dark .chip) {
   background-color: rgb(30, 41, 59);
   color: rgb(226, 232, 240);
-  border-color: rgb(51, 65, 85);
+  border-color: #475569;
 }
 
 /* Pusulam Birebir Buton ve Girdi Sınıfları */
@@ -190,7 +202,7 @@ input[type="number"]::-webkit-outer-spin-button {
   line-height: 1.25rem;
   font-weight: 600;
   white-space: nowrap;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid #cbd5e1;
   background-color: #ffffff;
   color: rgb(51, 65, 85);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -200,7 +212,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .btn-ghost:hover {
   background-color: rgb(241, 245, 249);
-  border-color: rgb(203, 213, 225);
+  border-color: rgb(148, 163, 184);
   color: rgb(15, 23, 42);
 }
 
@@ -211,7 +223,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .dark .btn-ghost,
 :is(.dark .btn-ghost) {
   background-color: rgb(30, 41, 59);
-  border-color: rgb(51, 65, 85);
+  border-color: #334155;
   color: rgb(226, 232, 240);
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
@@ -219,7 +231,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .dark .btn-ghost:hover,
 :is(.dark .btn-ghost:hover) {
   background-color: rgb(51, 65, 85);
-  border-color: rgb(71, 85, 105);
+  border-color: rgb(100, 116, 139);
   color: #ffffff;
 }
 
@@ -236,7 +248,7 @@ input[type="number"]::-webkit-outer-spin-button {
   white-space: nowrap;
   background-color: #0f172a;
   color: #ffffff;
-  border: 1px solid transparent;
+  border: 1px solid #0f172a;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
@@ -254,17 +266,19 @@ input[type="number"]::-webkit-outer-spin-button {
 :is(.dark .btn-primary) {
   background-color: #f8fafc;
   color: #0f172a;
+  border-color: #f8fafc;
 }
 
 .dark .btn-primary:hover,
 :is(.dark .btn-primary:hover) {
   background-color: #e2e8f0;
+  border-color: #e2e8f0;
 }
 
 .input {
   width: 100%;
   border-radius: 0.75rem;
-  border: 1px solid rgb(203, 213, 225);
+  border: 1px solid #cbd5e1;
   background-color: #ffffff;
   padding: 0.5rem 0.875rem;
   font-size: 0.875rem;
@@ -280,7 +294,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .dark .input,
 :is(.dark .input) {
-  border-color: rgb(51, 65, 85);
+  border-color: #334155;
   background-color: rgb(30, 41, 59);
   color: rgb(241, 245, 249);
 }
