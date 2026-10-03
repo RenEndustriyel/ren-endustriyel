@@ -14,9 +14,47 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.70";
+export const LATEST_VERSION = "2.4.71";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.4.71",
+    date: "3 Ekim 2026",
+    title: "1:1 Pusulam Müşteri ve Tedarikçi Detay Ekranı Entegrasyonu",
+    badge: "Pusulam Cari Detay 1:1",
+    items: [
+      {
+        type: "yeni",
+        title: "Pusulam Birebir Üst Eylem Menüsü",
+        description:
+          "Müşteri ve Tedarikçi detayına girildiğinde sol tarafta '← Müşteriler' / '← Tedarikçiler' geri butonu, sağ tarafta 'Düzenle', 'Ekstre', 'Fatura/Satış' (veya 'Fatura/Alış'), 'İade Al' (veya 'İade Et'), 'Müşteriden Alım' (veya 'Tedarikçiye Satış'), 'Tahsilat Al' (veya 'Ödeme Yap') ve 'Borç / Alacak Kaydı' butonları birebir Pusulam dizilimiyle yerleştirildi.",
+      },
+      {
+        type: "yeni",
+        title: "Pusulam Birebir Cari Başlık Kartı & Güncel Bakiye",
+        description:
+          "Cari unvanı, avatar kutusu, 'MÜŞTERİ DETAYI' / 'TEDARİKÇİ DETAYI' rozeti, adres ve konum pini, vergi/TCKN no ve 'Hatırlatma açık · 7 gün önce' durum uyarısı ile sağ tarafta büyük punto 'GÜNCEL BAKİYE', 'Hesap kapalı' / 'Borçlu' / 'Alacaklı' durumları ve açık belge toplamı entegre edildi.",
+      },
+      {
+        type: "yeni",
+        title: "4 Renkli Metrik Kart Bloğu",
+        description:
+          "Yeşil gradyan 'Toplam Satış / Toplam Alış', Mavi gradyan 'Tahsilat / Ödeme', Turuncu gradyan 'Çek / Senet' ve Nane Yeşili 'Kartlı Satış / Kartlı Alış' blokları canlı verilerle hesaplanıp sunuldu.",
+      },
+      {
+        type: "yeni",
+        title: "Pusulam 7 Sekmeli Navigasyon Sistemi",
+        description:
+          "Özet (Son Hareketler & 'Henüz hareket yok' görünümü), Satışlar/Alışlar, Tahsilatlar/Ödemeler, Çek & Senet, Teklifler, Belgeler ve Kart/Nakit sekmeleri eksiksiz aktif hale getirildi.",
+      },
+      {
+        type: "yeni",
+        title: "Hızlı Borç / Alacak Dekontu Kaydı ve Belge Önizleme",
+        description:
+          "Cari için anında manuel borç veya alacak dekontu işleyebilen modal eklendi. Ayrıca listedeki tüm belgelere tıklandığında kalem dökümlü yazdırma ve PDF önizleme modali doğrudan açılır hale getirildi.",
+      },
+    ],
+  },
   {
     version: "2.4.70",
     date: "3 Ekim 2026",
