@@ -14,9 +14,29 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.72";
+export const LATEST_VERSION = "2.4.73";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.4.73",
+    date: "3 Ekim 2026",
+    title: "Hızlı Satış Termal Fiş Yazdırma & Kapat Butonu Kontrast İyileştirmesi",
+    badge: "Hızlı Satış & Fiş Düzeltmesi",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Fiş Önizleme Kapat Butonu Okunabilirlik Düzeltmesi",
+        description:
+          "Fiş / Fatura Önizleme penceresindeki sol 'Kapat' butonunun beyaz zemin üzerinde beyaz yazıyla görünmez olması giderildi. Tema tasarım sistemine tam uyumlu, belirgin ikonlu ve yüksek kontrastlı buton haline getirildi.",
+      },
+      {
+        type: "duzeltme",
+        title: "Hızlı Satış Fiş ve Z Raporu Yazdırma İzolasyonu",
+        description:
+          "Hızlı Satış ekranında 'Yazdır' veya 'Fiş' tıklandığında tüm POS ekranının koyu renkli iki sayfa halinde yazıcıya gitmesi engellendi. İzole iframe mimarisi ile sadece 80mm standart beyaz termal bilgi fişi ve Z raporu temizce yazdırılacak şekilde güncellendi.",
+      },
+    ],
+  },
   {
     version: "2.4.72",
     date: "3 Ekim 2026",

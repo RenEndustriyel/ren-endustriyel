@@ -534,6 +534,238 @@ export function PosPage() {
     toast.success("Bekleyen satış yüklendi");
   };
 
+  // --- THERMAL RECEIPT & Z REPORT PRINTING ---
+  const printReceipt = (receipt: PosSaleRecord) => {
+    const printFrame = document.createElement("iframe");
+    printFrame.style.position = "fixed";
+    printFrame.style.right = "0";
+    printFrame.style.bottom = "0";
+    printFrame.style.width = "0";
+    printFrame.style.height = "0";
+    printFrame.style.border = "0";
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+    if (!frameDoc) {
+      window.print();
+      return;
+    }
+
+    const receiptHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Hızlı Satış Fişi - ${receipt.id}</title>
+          <style>
+            @page {
+              size: 80mm auto;
+              margin: 2mm 3mm;
+            }
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              font-family: 'Courier New', Courier, monospace, -apple-system, BlinkMacSystemFont, sans-serif;
+              font-size: 12px;
+              color: #000000;
+              background: #ffffff;
+              width: 74mm;
+              margin: 0 auto;
+              padding: 4mm 2mm;
+              line-height: 1.35;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .header-title { font-size: 15px; font-weight: 900; margin-bottom: 2px; }
+            .header-sub { font-size: 11px; margin-bottom: 2px; }
+            .dashed-line { border-top: 1px dashed #000000; margin: 5px 0; }
+            .meta-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
+            .table-head { display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; padding-bottom: 2px; }
+            .line-item { margin-bottom: 4px; }
+            .line-title { font-weight: bold; font-size: 12px; word-break: break-word; }
+            .line-details { display: flex; justify-content: space-between; font-size: 11px; padding-left: 2px; }
+            .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: 900; margin: 4px 0; }
+            .footer { text-align: center; font-size: 10px; margin-top: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <div class="header-title">${org?.legal_name || org?.name || "REN ENDÜSTRİYEL"}</div>
+            <div class="header-sub">HIZLI SATIŞ FİŞİ</div>
+            ${org?.phone ? `<div style="font-size:10px;">Tel: ${org.phone}</div>` : ""}
+            ${org?.tax_number ? `<div style="font-size:10px;">${org.tax_office || ""} VKN: ${org.tax_number}</div>` : ""}
+          </div>
+          <div class="dashed-line"></div>
+          <div class="meta-row">
+            <span>Tarih:</span>
+            <span class="bold">${new Date(receipt.date).toLocaleString("tr-TR")}</span>
+          </div>
+          <div class="meta-row">
+            <span>Fiş No:</span>
+            <span>${receipt.id.slice(0, 12).toUpperCase()}</span>
+          </div>
+          <div class="meta-row">
+            <span>Kasiyer:</span>
+            <span>${cashierName}</span>
+          </div>
+          <div class="meta-row">
+            <span>Müşteri:</span>
+            <span class="bold">${receipt.customerName}</span>
+          </div>
+          <div class="dashed-line"></div>
+          <div class="table-head">
+            <span>ÜRÜN BİLGİSİ</span>
+            <span>TUTAR</span>
+          </div>
+          <div class="dashed-line"></div>
+          <div style="margin: 4px 0;">
+            ${receipt.lines
+              .map(
+                (l) => `
+              <div class="line-item">
+                <div class="line-title">${l.name}</div>
+                <div class="line-details">
+                  <span>${l.qty} ad × ${formatMoney(l.unitPrice)}</span>
+                  <span class="bold">${formatMoney(l.total)}</span>
+                </div>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+          <div class="dashed-line"></div>
+          <div class="total-row">
+            <span>TOPLAM:</span>
+            <span>${formatMoney(receipt.total)}</span>
+          </div>
+          <div class="meta-row">
+            <span>Ödeme:</span>
+            <span class="bold">${receipt.method}</span>
+          </div>
+          <div class="dashed-line"></div>
+          <div class="footer">
+            <div>Mali Değeri Yoktur - Bilgi Fişidir</div>
+            <div style="margin-top:2px;">Teşekkür Ederiz, Yine Bekleriz.</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    frameDoc.open();
+    frameDoc.write(receiptHtml);
+    frameDoc.close();
+
+    setTimeout(() => {
+      printFrame.contentWindow?.focus();
+      printFrame.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(printFrame)) {
+          document.body.removeChild(printFrame);
+        }
+      }, 3000);
+    }, 250);
+  };
+
+  const printZReport = () => {
+    const hist: PosSaleRecord[] = salesHistoryRaw ? JSON.parse(salesHistoryRaw) : [];
+    const salesCount = hist.length;
+    const totalRevenue = hist.reduce((s, h) => s + (h.isReturn ? -h.total : h.total), 0);
+
+    const printFrame = document.createElement("iframe");
+    printFrame.style.position = "fixed";
+    printFrame.style.right = "0";
+    printFrame.style.bottom = "0";
+    printFrame.style.width = "0";
+    printFrame.style.height = "0";
+    printFrame.style.border = "0";
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+    if (!frameDoc) {
+      window.print();
+      return;
+    }
+
+    const zHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>GÜNLÜK Z RAPORU</title>
+          <style>
+            @page { size: 80mm auto; margin: 3mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+              font-family: 'Courier New', Courier, monospace, -apple-system, BlinkMacSystemFont, sans-serif;
+              font-size: 12px;
+              color: #000000;
+              background: #ffffff;
+              width: 74mm;
+              margin: 0 auto;
+              padding: 4mm 2mm;
+              line-height: 1.35;
+            }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .header-title { font-size: 16px; font-weight: 900; margin-bottom: 2px; }
+            .dashed-line { border-top: 1px dashed #000000; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 12px; }
+            .total-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: 900; margin: 6px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <div class="header-title">${org?.legal_name || org?.name || "REN ENDÜSTRİYEL"}</div>
+            <div>GÜNLÜK KASA Z RAPORU</div>
+          </div>
+          <div class="dashed-line"></div>
+          <div class="row">
+            <span>Tarih / Saat:</span>
+            <span class="bold">${new Date().toLocaleString("tr-TR")}</span>
+          </div>
+          <div class="row">
+            <span>Operatör / Kasiyer:</span>
+            <span>${cashierName}</span>
+          </div>
+          <div class="dashed-line"></div>
+          <div class="row">
+            <span>Toplam Satış Adedi:</span>
+            <span class="bold">${salesCount} ad</span>
+          </div>
+          <div class="total-row">
+            <span>GÜNLÜK CİRO:</span>
+            <span>${formatMoney(totalRevenue)}</span>
+          </div>
+          <div class="row">
+            <span>Kasa Nakit Bakiyesi:</span>
+            <span class="bold">${formatMoney(totalCashBalance)}</span>
+          </div>
+          <div class="dashed-line"></div>
+          <div class="center" style="font-size: 10px; margin-top: 6px;">
+            <div>*** GÜN SONU KAPANIK RAPORU ***</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    frameDoc.open();
+    frameDoc.write(zHtml);
+    frameDoc.close();
+
+    setTimeout(() => {
+      printFrame.contentWindow?.focus();
+      printFrame.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(printFrame)) {
+          document.body.removeChild(printFrame);
+        }
+      }, 3000);
+    }, 250);
+  };
+
   // --- PAYMENT COMPLETION ---
   const handlePayment = async (
     methodType: Method,
@@ -1399,7 +1631,26 @@ export function PosPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={() => {
+                      if (!cart.length) {
+                        toast.error("Sepette ürün yok");
+                        return;
+                      }
+                      setReceiptDoneModal({
+                        id: `FIS-${Date.now().toString().slice(-6)}`,
+                        date: Date.now(),
+                        customerName: selectedCustomer?.name || "Perakende Müşteri",
+                        total: calc.total,
+                        method: "Nakit/Kart",
+                        lines: cart.map((l) => ({
+                          name: l.name,
+                          qty: l.quantity,
+                          unitPrice: l.unit_price,
+                          vat: l.vat_rate,
+                          total: Math.round(l.quantity * l.unit_price * 100) / 100,
+                        })),
+                      });
+                    }}
                     disabled={!cart.length}
                     className="h-9 rounded-xl bg-[#162e3b] hover:bg-[#1f3f50] text-slate-200 border border-[#1e3a47] text-xs font-bold flex items-center justify-center gap-1 transition"
                   >
@@ -1947,7 +2198,7 @@ export function PosPage() {
             <button
               type="button"
               onClick={() => {
-                window.print();
+                printZReport();
                 toast.success("Z Raporu yazdırıldı");
               }}
               className="w-full h-11 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-lg flex items-center justify-center gap-2"
@@ -1961,53 +2212,56 @@ export function PosPage() {
       {/* G. Fiş / Fatura Yazdır Modal */}
       {receiptDoneModal && (
         <Dialog open={!!receiptDoneModal} onOpenChange={() => setReceiptDoneModal(null)}>
-          <DialogContent title="Fiş / Fatura Önizleme" className="sm:max-w-sm p-4 font-mono text-xs">
-            <div className="text-center pb-2 border-b border-dashed border-slate-300">
-              <h3 className="font-bold text-base">{org?.name || "REN ENDÜSTRİYEL"}</h3>
-              <p className="text-[11px] text-slate-500">Hızlı Satış Fişi</p>
-              <p className="text-[10px] text-slate-400">{new Date(receiptDoneModal.date).toLocaleString("tr-TR")}</p>
+          <DialogContent title="Fiş / Fatura Önizleme" className="sm:max-w-sm p-5 font-mono text-xs bg-[#10212b] border-[#1e3a47] text-slate-100">
+            <div className="text-center pb-2.5 border-b border-dashed border-slate-700">
+              <h3 className="font-bold text-base text-white tracking-wide">{org?.legal_name || org?.name || "REN ENDÜSTRİYEL"}</h3>
+              <p className="text-[11px] text-teal-400 font-sans font-medium mt-0.5">Hızlı Satış Fişi</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{new Date(receiptDoneModal.date).toLocaleString("tr-TR")}</p>
             </div>
-            <div className="py-2 space-y-1 divide-y divide-dashed divide-slate-200">
+            <div className="py-2.5 space-y-1.5 divide-y divide-dashed divide-slate-800 max-h-60 overflow-y-auto pr-1">
               {receiptDoneModal.lines.map((l, i) => (
-                <div key={i} className="pt-1 flex justify-between">
-                  <div>
-                    <div>{l.name}</div>
+                <div key={i} className="pt-1.5 flex justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-slate-200 font-medium truncate">{l.name}</div>
                     <div className="text-[10px] text-slate-400">
                       {l.qty} ad × {formatMoney(l.unitPrice)}
                     </div>
                   </div>
-                  <div className="font-bold tabular-nums">{formatMoney(l.total)}</div>
+                  <div className="font-bold tabular-nums text-white shrink-0">{formatMoney(l.total)}</div>
                 </div>
               ))}
             </div>
-            <div className="border-t border-dashed border-slate-300 pt-2 space-y-1">
-              <div className="flex justify-between font-black text-sm">
+            <div className="border-t border-dashed border-slate-700 pt-2.5 space-y-1 font-sans">
+              <div className="flex justify-between font-black text-sm text-white">
                 <span>TOPLAM:</span>
-                <span>{formatMoney(receiptDoneModal.total)}</span>
+                <span className="text-emerald-400 font-mono text-base">{formatMoney(receiptDoneModal.total)}</span>
               </div>
-              <div className="flex justify-between text-[11px] text-slate-500">
+              <div className="flex justify-between text-[11px] text-slate-400">
                 <span>Ödeme:</span>
-                <span>{receiptDoneModal.method}</span>
+                <span className="text-slate-200 font-semibold">{receiptDoneModal.method}</span>
               </div>
-              <div className="flex justify-between text-[11px] text-slate-500">
+              <div className="flex justify-between text-[11px] text-slate-400">
                 <span>Müşteri:</span>
-                <span>{receiptDoneModal.customerName}</span>
+                <span className="text-slate-200 font-semibold truncate max-w-[180px]">{receiptDoneModal.customerName}</span>
               </div>
             </div>
-            <div className="mt-4 flex gap-2 no-print">
+            <div className="mt-4 flex gap-2.5 no-print font-sans">
               <button
                 type="button"
                 onClick={() => setReceiptDoneModal(null)}
-                className="flex-1 py-2 rounded border bg-slate-100 font-bold"
+                className="flex-1 py-2.5 rounded-lg border border-[#1e3a47] bg-[#162e3b] hover:bg-[#1f3f50] text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm"
               >
-                Kapat
+                <X size={15} /> Kapat
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="flex-1 py-2 rounded bg-teal-600 text-white font-bold flex items-center justify-center gap-1"
+                onClick={() => {
+                  printReceipt(receiptDoneModal);
+                  toast.success("Fiş yazıcıya gönderildi");
+                }}
+                className="flex-1 py-2.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm"
               >
-                <Printer size={14} /> Yazdır
+                <Printer size={15} /> Fiş Yazdır
               </button>
             </div>
           </DialogContent>
