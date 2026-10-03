@@ -14,9 +14,29 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.71";
+export const LATEST_VERSION = "2.4.72";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.4.72",
+    date: "3 Ekim 2026",
+    title: "Belge Önizleme Yazdırma & PDF Siyah Ekran Sorunu Giderildi",
+    badge: "Yazdır & PDF Düzeltmesi",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Yazdırma ve PDF Diyaloğunda Siyah Ekran Sorunu Çözüldü",
+        description:
+          "Koyu temada 'Yazdır / PDF' tıklandığında tarayıcının yazıcı penceresinde siyah arka plan oluşması engellendi. @media print kuralları optimize edilerek baskı arka planı pürüzsüz saf beyaz (#ffffff) A4 kağıda, metinler ise net siyah renge dönüştürüldü.",
+      },
+      {
+        type: "yeni",
+        title: "Resmi Vektörel PDF İndirme Butonu",
+        description:
+          "Belge önizleme modali üst çubuğuna doğrudan yüksek çözünürlüklü vektörel PDF indiren 'PDF İndir' butonu entegre edildi.",
+      },
+    ],
+  },
   {
     version: "2.4.71",
     date: "3 Ekim 2026",

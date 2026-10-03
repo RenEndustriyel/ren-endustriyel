@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Dialog as D } from "radix-ui";
-import { Printer, Mail, Copy, X, MessageCircle, Check } from "lucide-react";
+import { Printer, Mail, Copy, X, MessageCircle, Check, Download, Loader2 } from "lucide-react";
 import { formatNumber, formatQty, formatDate, formatMoney } from "@/lib/format";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import type { Tables } from "@/lib/supabase/client";
@@ -379,14 +379,44 @@ export function DocumentPrintModal({
     return generateRealisticRenLines(subtotal, grandTotal, isPurchase);
   }, [doc, dbLines.data, contactName, isPurchase, subtotal, grandTotal]);
 
+  const [isPdfGenerating, setIsPdfGenerating] = React.useState(false);
+
+  const handleDownloadPdf = async () => {
+    setIsPdfGenerating(true);
+    try {
+      const { shareDocumentPdf } = await import("@/lib/pdf/share");
+      const docForPdf: any = {
+        ...doc,
+        lines: finalLines.map((l) => ({
+          id: l.id,
+          document_id: doc.id,
+          product_name: l.description || l.product_name,
+          description: l.description || l.product_name,
+          quantity: Number(l.quantity || 1),
+          unit_price: Number(l.unit_price || 0),
+          vat_rate: Number(l.vat_rate ?? 20),
+          total: Number(l.total_amount ?? l.total ?? 0),
+          unit_name: "Adet",
+        })),
+      };
+      await shareDocumentPdf(org as any, docForPdf, "download");
+    } catch (err: any) {
+      toast.error("PDF indirilemedi: " + (err?.message || "Bilinmeyen hata"));
+    } finally {
+      setIsPdfGenerating(false);
+    }
+  };
+
   const handlePrint = () => {
     if (onPrintPdf) {
       onPrintPdf();
-    } else if (onDownloadPdf) {
-      onDownloadPdf();
-    } else {
-      window.print();
+      return;
     }
+    if (onDownloadPdf) {
+      onDownloadPdf();
+      return;
+    }
+    window.print();
   };
 
   const handleWhatsApp = () => {
@@ -421,9 +451,9 @@ export function DocumentPrintModal({
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>
       <D.Portal>
-        <D.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs data-[state=open]:animate-in data-[state=open]:fade-in print:hidden" />
+        <D.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs data-[state=open]:animate-in data-[state=open]:fade-in print:hidden print:opacity-0 print:invisible" />
         <D.Content
-          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-4xl max-h-[92dvh] flex flex-col rounded-2xl bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37] shadow-2xl focus:outline-none overflow-hidden print:static print:max-h-none print:w-full print:border-none print:shadow-none print:bg-transparent"
+          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-4xl max-h-[92dvh] flex flex-col rounded-2xl bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37] shadow-2xl focus:outline-none overflow-hidden print:static print:max-h-none print:w-full print:border-none print:shadow-none print:bg-white print:text-black print:overflow-visible print:p-0 print:m-0"
         >
           <D.Title className="sr-only">Belge Önizleme — {docNumber}</D.Title>
           <D.Description className="sr-only">Alış ve satış belge detay önizlemesi</D.Description>
@@ -434,19 +464,142 @@ export function DocumentPrintModal({
                 @media print {
                   @page {
                     size: A4 portrait;
-                    margin: 10mm;
+                    margin: 8mm 10mm;
                   }
-                  body {
+
+                  /* 1. Tüm belgeyi ve gövdeyi PÜRÜZSÜZ SAF BEYAZ kağıda zorla */
+                  html, html.dark, body, body.dark {
                     background: #ffffff !important;
+                    background-color: #ffffff !important;
                     color: #000000 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
                   }
+
+                  /* 2. Radix portal dışındaki tüm sayfa içeriğini gizle */
                   body > *:not([data-radix-portal]) {
                     display: none !important;
                   }
-                  .print-hide {
+
+                  /* 3. Radix overlay, modal aksiyon çubuğu ve butonları baskıda tamamen gizle */
+                  [data-radix-dialog-overlay],
+                  .print-hide,
+                  .print\\:hidden {
                     display: none !important;
+                    opacity: 0 !important;
+                    visibility: hidden !important;
+                  }
+
+                  /* 4. Radix dialog içeriğini statik, tam sayfa ve beyaz yap */
+                  [data-radix-dialog-content],
+                  [role="dialog"] {
+                    position: static !important;
+                    top: auto !important;
+                    left: auto !important;
+                    right: auto !important;
+                    bottom: auto !important;
+                    transform: none !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    max-height: none !important;
+                    height: auto !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    background: #ffffff !important;
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    overflow: visible !important;
+                  }
+
+                  /* 5. Belge kağıdı ana taşıyıcısı */
+                  .print-document-sheet {
+                    background: #ffffff !important;
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    overflow: visible !important;
+                  }
+
+                  /* 6. Belge içindeki tüm metinleri siyah yap */
+                  .print-document-sheet,
+                  .print-document-sheet * {
+                    box-shadow: none !important;
+                    text-shadow: none !important;
+                  }
+
+                  .print-document-sheet h1,
+                  .print-document-sheet h2,
+                  .print-document-sheet h3,
+                  .print-document-sheet h4,
+                  .print-document-sheet strong,
+                  .print-document-sheet b {
+                    color: #000000 !important;
+                  }
+
+                  .print-document-sheet p,
+                  .print-document-sheet span,
+                  .print-document-sheet div,
+                  .print-document-sheet td {
+                    color: #1e293b !important;
+                  }
+
+                  .print-document-sheet .text-slate-400,
+                  .print-document-sheet .text-slate-500,
+                  .print-document-sheet .text-muted {
+                    color: #475569 !important;
+                  }
+
+                  /* 7. Koyu renk arka planları beyaz veya açık griye çevir */
+                  .print-document-sheet [class*="bg-[#"],
+                  .print-document-sheet [class*="dark:bg-"] {
+                    background-color: transparent !important;
+                  }
+
+                  /* Cari kutusu */
+                  .print-customer-box {
+                    background-color: #f8fafc !important;
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 8px !important;
+                    padding: 12px 16px !important;
+                  }
+
+                  /* 8. Tablo tasarımı */
+                  .print-document-sheet table {
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                  }
+
+                  .print-document-sheet thead tr {
+                    border-bottom: 2px solid #94a3b8 !important;
+                  }
+
+                  .print-document-sheet thead th {
+                    background-color: #f1f5f9 !important;
+                    color: #0f172a !important;
+                    font-weight: 700 !important;
+                    padding: 8px 6px !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                  }
+
+                  .print-document-sheet tbody tr {
+                    border-bottom: 1px solid #e2e8f0 !important;
+                  }
+
+                  .print-document-sheet tbody td {
+                    padding: 8px 6px !important;
+                    color: #0f172a !important;
+                  }
+
+                  .print-document-sheet [class*="border-"] {
+                    border-color: #cbd5e1 !important;
                   }
                 }
               `,
@@ -494,12 +647,24 @@ export function DocumentPrintModal({
                 <span className="hidden sm:inline">{copied ? "Kopyalandı" : "Kopyala"}</span>
               </button>
 
+              {/* PDF İndir */}
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isPdfGenerating}
+                className="inline-flex items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-cyan-400 dark:bg-[#142530] dark:hover:bg-[#1a3140] dark:border dark:border-[#1e3544] transition shadow-xs disabled:opacity-50"
+                title="Resmi PDF Olarak İndir"
+              >
+                {isPdfGenerating ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                <span className="hidden sm:inline">{isPdfGenerating ? "İndiriliyor..." : "PDF İndir"}</span>
+              </button>
+
               {/* Yazdır / PDF */}
               <button
                 type="button"
                 onClick={handlePrint}
                 className="inline-flex items-center gap-1.5 rounded-xl px-3 sm:px-3.5 py-1.5 text-xs font-bold bg-[#00b49c] hover:bg-[#009e89] text-white transition shadow-xs active:scale-95"
-                title="Yazdır veya PDF Kaydet"
+                title="Yazıcıya Gönder veya PDF Olarak Kaydet"
               >
                 <Printer size={14} />
                 <span>Yazdır / PDF</span>
@@ -515,8 +680,8 @@ export function DocumentPrintModal({
             </div>
           </div>
 
-          {/* 2. Belge Sayfası Gövdesi (Tema Renk Uyumuna Göre) */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-9 bg-white dark:bg-[#111e26] text-slate-900 dark:text-slate-100 font-sans thin-scroll">
+          {/* 2. Belge Sayfası Gövdesi (Pusulam Birebir Renk & Baskıda Saf Beyaz Kağıt) */}
+          <div className="print-document-sheet flex-1 overflow-y-auto p-5 sm:p-9 bg-white dark:bg-[#111e26] text-slate-900 dark:text-slate-100 font-sans thin-scroll print:p-0 print:overflow-visible print:bg-white print:text-black">
             {/* Üst Alan: Sol Firma Bilgileri, Sağ Belge Başlığı & Tarih */}
             <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
               {/* Sol: Firma Bilgileri */}
@@ -556,7 +721,7 @@ export function DocumentPrintModal({
             </div>
 
             {/* Cari Bilgi Kutusu (Tedarikçi / Müşteri) */}
-            <div className="my-6 rounded-xl border border-slate-200 dark:border-[#1e3544] bg-slate-50/60 dark:bg-[#142530]/50 p-3.5 sm:p-4">
+            <div className="print-customer-box my-6 rounded-xl border border-slate-200 dark:border-[#1e3544] bg-slate-50/60 dark:bg-[#142530]/50 p-3.5 sm:p-4 print:bg-slate-50 print:border-slate-300 print:text-black">
               <div className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
                 {isPurchase ? "TEDARİKÇİ" : "MÜŞTERİ"}
               </div>
