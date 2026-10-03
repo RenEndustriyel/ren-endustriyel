@@ -796,7 +796,10 @@ export function ProductDetail({ id }: { id: string }) {
       {/* 7. MODALS */}
       {/* Düzenle Modalı */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent title="Ürünü düzenle" className="sm:max-w-3xl">
+        <DialogContent
+          title="Ürünü düzenle"
+          className="w-[96vw] max-w-6xl xl:max-w-7xl max-h-[92vh] overflow-y-auto"
+        >
           {editOpen && (
             <ProductForm
               product={p}

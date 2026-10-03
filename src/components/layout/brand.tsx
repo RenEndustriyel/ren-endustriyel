@@ -8,7 +8,7 @@ export function BrandMark({ size = 36, className }: { size?: number; className?:
       alt="Ren Endüstriyel"
       width={size}
       height={size}
-      className={cn("shrink-0 select-none", className)}
+      className={cn("shrink-0 select-none object-contain", className)}
     />
   );
 }

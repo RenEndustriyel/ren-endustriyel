@@ -31,8 +31,8 @@ export function MobileMenuSheet({ open, onOpenChange }: { open: boolean; onOpenC
           <div className="flex h-16 items-center gap-3 border-b border-white/[0.06] px-4">
             <BrandMark size={36} />
             <div className="min-w-0 flex-1 leading-tight">
-              <div className="truncate text-[15px] font-bold text-white">{org?.name}</div>
-              <div className="text-[11px] text-sidebar-muted">Ön Muhasebe</div>
+              <div className="truncate text-base font-bold text-white">{org?.name}</div>
+              <div className="text-xs text-sidebar-muted">Ön Muhasebe</div>
             </div>
             <D.Close className="rounded-md p-1.5 text-sidebar-muted hover:text-white" aria-label="Kapat">
               <X className="size-5" />
@@ -46,12 +46,12 @@ export function MobileMenuSheet({ open, onOpenChange }: { open: boolean; onOpenC
           <div className="shrink-0 border-t border-white/[0.06] p-3 pb-safe space-y-2">
             <InstallButton
               variant="menuItem"
-              className="flex w-full items-center justify-between rounded-lg bg-primary/15 px-3 py-2.5 text-xs font-semibold text-white hover:bg-primary/25 active:bg-primary/30 transition-colors"
+              className="flex w-full items-center justify-between rounded-lg bg-primary/15 px-3 py-2.5 text-sm font-semibold text-white hover:bg-primary/25 active:bg-primary/30 transition-colors"
             />
             <button
               type="button"
               onClick={handleOpenChangelog}
-              className="flex w-full items-center justify-between rounded-lg bg-white/[0.04] px-3 py-2.5 text-xs font-medium text-sidebar-fg hover:bg-white/[0.08] active:bg-white/[0.1] transition-colors"
+              className="flex w-full items-center justify-between rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-sidebar-fg hover:bg-white/[0.08] active:bg-white/[0.1] transition-colors"
             >
               <div className="flex items-center gap-2.5">
                 <div className="flex size-6 items-center justify-center rounded-md bg-amber-400/15 text-amber-400">

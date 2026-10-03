@@ -17,6 +17,8 @@ import { useOrg } from "@/providers/org-provider";
 import { isoDate, formatMoney } from "@/lib/format";
 import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { SmartPricingModal } from "@/components/pricing/smart-pricing-modal";
 
 type Product = Row<"products">;
 type AltUnit = { id: string; unit_id: string; factor: number; barcode: string; sale_price: number | null; _new?: boolean };
@@ -61,6 +63,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
     filter: (q) => q.eq("product_id", product!.id),
   });
   const [altUnits, setAltUnits] = React.useState<AltUnit[] | null>(null);
+  const [smartPricingOpen, setSmartPricingOpen] = React.useState(false);
   const alt: AltUnit[] =
     altUnits ??
     (existingUnits.data ?? []).map((u) => ({ id: u.id, unit_id: u.unit_id, factor: Number(u.factor), barcode: u.barcode ?? "", sale_price: u.sale_price === null ? null : Number(u.sale_price) }));
@@ -357,29 +360,29 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
   const baseUnit = unitName(form.watch("unit_id"));
 
   return (
-    <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
+    <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 w-full" noValidate>
       <Controller
         control={form.control}
         name="type"
         render={({ field }) => (
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 lg:col-span-4">
             <Segmented value={field.value} onChange={field.onChange} options={[{ value: "product", label: "Ürün (stoklu)" }, { value: "service", label: "Hizmet" }]} />
           </div>
         )}
       />
-      <Field label="Ad *" htmlFor="name" error={form.formState.errors.name?.message} className="sm:col-span-2">
+      <Field label="Ad *" htmlFor="name" error={form.formState.errors.name?.message} className="sm:col-span-2 lg:col-span-2">
         <Input id="name" autoFocus {...form.register("name")} />
       </Field>
-      <Field label="Stok kodu" htmlFor="code">
+      <Field label="Stok kodu" htmlFor="code" className="sm:col-span-1 lg:col-span-1">
         <Input id="code" {...form.register("code")} />
       </Field>
-      <Field label="Barkod" htmlFor="barcode">
+      <Field label="Barkod" htmlFor="barcode" className="sm:col-span-1 lg:col-span-1">
         <div className="flex gap-2">
           <Input id="barcode" inputMode="numeric" {...form.register("barcode")} />
           <ScanButton onDetected={(c) => form.setValue("barcode", c, { shouldDirty: true })} />
         </div>
       </Field>
-      <Field label="Kategori">
+      <Field label="Kategori" className="sm:col-span-1 lg:col-span-2">
         <Controller
           control={form.control}
           name="category_id"
@@ -400,7 +403,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           )}
         />
       </Field>
-      <Field label="Ana birim" htmlFor="unit_id">
+      <Field label="Ana birim" htmlFor="unit_id" className="sm:col-span-1 lg:col-span-2">
         <NativeSelect id="unit_id" {...form.register("unit_id")}>
           {units.data?.map((u) => (
             <option key={u.id} value={u.id}>
@@ -411,7 +414,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
       </Field>
 
       {/* Fiyatlandırma & Kâr Marjı (Sade, Tek KDV ve Senkronize) */}
-      <div className="rounded-2xl border border-border bg-surface-2/40 p-4 sm:col-span-2">
+      <div className="rounded-2xl border border-border bg-surface-2/40 p-4 sm:col-span-2 lg:col-span-4">
         {/* Üst Kontrol Barı: Başlık, Tek KDV Oranı, Ayrı Alış/Satış KDV Dahil Switchleri ve Para Birimi */}
         <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
           <div className="flex items-center gap-2.5">
@@ -425,6 +428,17 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Akıllı Piyasa Fiyatlandırma Butonu */}
+            <button
+              type="button"
+              onClick={() => setSmartPricingOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#00b49c] hover:bg-[#009e89] text-white shadow-xs transition active:scale-95 cursor-pointer"
+              title="Canlı Piyasa ve Fırsat Kârı Motoru"
+            >
+              <Sparkles size={13} strokeWidth={2.2} />
+              <span>Akıllı Piyasa Fiyatı</span>
+            </button>
+
             {/* Tek KDV Oranı Seçimi */}
             <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-surface p-1 shadow-2xs">
               <span className="px-1 text-[11px] font-bold text-muted">KDV:</span>
@@ -640,8 +654,8 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
       </div>
 
       {type === "product" && (
-        <div className="grid gap-3 rounded-xl border border-border p-3 sm:col-span-2 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+        <div className="grid gap-3 rounded-xl border border-border p-3 sm:col-span-2 lg:col-span-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-4">
             <Controller control={form.control} name="track_stock" render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />} />
             Stok takibi yap
           </label>
@@ -672,7 +686,7 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
         </div>
       )}
 
-      <div className="rounded-xl border border-border p-3 sm:col-span-2">
+      <div className="rounded-xl border border-border p-3 sm:col-span-2 lg:col-span-4">
         <div className="mb-2 flex items-center justify-between">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted">Alternatif birimler</div>
           <Button
@@ -707,15 +721,15 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
         </div>
       </div>
 
-      <Field label="Notlar" htmlFor="notes" className="sm:col-span-2">
+      <Field label="Notlar" htmlFor="notes" className="sm:col-span-2 lg:col-span-4">
         <Textarea id="notes" rows={2} {...form.register("notes")} />
       </Field>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm sm:col-span-2 lg:col-span-4">
         <Controller control={form.control} name="is_active" render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />} />
         Aktif (satışta kullanılabilir)
       </label>
 
-      <div className="flex justify-end gap-2 sm:col-span-2">
+      <div className="flex justify-end gap-2 sm:col-span-2 lg:col-span-4">
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>
             Vazgeç
@@ -725,6 +739,22 @@ export function ProductForm({ product, onSaved, onCancel, defaultName }: { produ
           Kaydet
         </Button>
       </div>
+
+      {/* Akıllı Satış Fiyatlandırma Modalı */}
+      <SmartPricingModal
+        open={smartPricingOpen}
+        onOpenChange={setSmartPricingOpen}
+        initialPurchasePrice={purchasePriceWatch}
+        initialBarcode={form.watch("barcode")}
+        initialProductName={form.watch("name")}
+        initialVatRate={Number(form.watch("vat_rate")) || 20}
+        productId={product?.id}
+        onApplyPrice={(recommendedPrice, isVatInc) => {
+          form.setValue("sale_price", recommendedPrice);
+          handleSaleVatToggle(isVatInc);
+          toast.success(`Akıllı tavsiye satış fiyatı uygulandı: ${formatMoney(recommendedPrice, currency)}`);
+        }}
+      />
     </form>
   );
 }

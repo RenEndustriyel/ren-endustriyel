@@ -2,6 +2,6 @@
 
 import { SalesList } from "@/components/sales/sales-list";
 
-export default function FaturalarPage() {
+export default function SatislarPage() {
   return <SalesList initialTab="invoices" />;
 }

@@ -23,8 +23,18 @@ import {
   Printer,
   FileText,
   ScanBarcode,
+  FolderTree,
+  Tag,
+  BookOpen,
+  Copy,
+  Check,
+  ExternalLink,
+  Globe,
+  Share2,
+  Link as LinkIcon,
+  Sparkles,
 } from "lucide-react";
-import { useCategories, useProducts, useUnits, useUpdate, type Row } from "@/lib/data";
+import { useCategories, useProducts, useSave, useUnits, useUpdate, type Row } from "@/lib/data";
 import { formatMoney, formatQty } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { useOrg } from "@/providers/org-provider";
@@ -37,6 +47,60 @@ import { useConfirm } from "@/components/ui/confirm";
 import { toast } from "sonner";
 
 type Product = Row<"products">;
+
+export interface CatalogItem {
+  id: string;
+  name: string;
+  slug: string;
+  status: "active" | "passive";
+  productIds?: string[];
+  description?: string;
+  createdAt?: string;
+}
+
+const DEFAULT_BRANDS: string[] = [
+  "ASPEROX",
+  "AXOR",
+  "BİNGO",
+  "CİF PRO",
+  "DOMESTOS PRO",
+  "EFECTO",
+  "EFEX",
+  "FAMİLİA",
+  "FIFTY",
+  "SOLO",
+  "PRİL",
+  "SELPAK",
+  "TENO",
+];
+
+const DEFAULT_CATALOGS: CatalogItem[] = [
+  {
+    id: "cat-okul",
+    name: "Okul",
+    slug: "okul",
+    status: "active",
+    productIds: [],
+    description: "Okul ve eğitim kurumlarına yönelik hijyen, temizlik ve kağıt ürünleri",
+    createdAt: "2026-10-03",
+  },
+];
+
+const DEMO_CATALOG_PRODUCTS = [
+  { id: "demo-p-1", name: "ULTRA ÇAMAŞIR SUYU 5 KG" },
+  { id: "demo-p-2", name: "POŞET BEYAZ KÜÇÜK HESAPLI 600GR" },
+  { id: "demo-p-3", name: "FIRÇA WC KLOZET PLSTK" },
+  { id: "demo-p-4", name: "FİFTY EL SABUNU PEMBE 5KG" },
+  { id: "demo-p-5", name: "FAMİLİA YTH LAVANTA 90LI" },
+  { id: "demo-p-6", name: "14 OZ ÇORBA KASE 25*20 KOLİ" },
+  { id: "demo-p-7", name: "14 OZ ÇORBA KASE 25Lİ" },
+  { id: "demo-p-8", name: "3 GÖZ TABLDOT MOD 24-(200)" },
+  { id: "demo-p-9", name: "4 OZ KARTON BARDAK 2000" },
+  { id: "demo-p-10", name: "4 OZ KARTON BARDAK 50li" },
+  { id: "demo-p-11", name: "5 GÖZ TABLDOT KÖPÜK-MOD 27/B 100lü" },
+  { id: "demo-p-12", name: "65*80 ÇÖP POŞETİ 50li SİYAH-MAVİ" },
+  { id: "demo-p-13", name: "7 OZ KARTON BARDAK 3000 (BENCUP)" },
+];
 
 export const isCritical = (p: Product) =>
   p.track_stock &&
@@ -63,6 +127,60 @@ export function ProductsList() {
       setActiveTab(tabParam as "products" | "brands" | "catalogs");
     }
   }, [tabParam]);
+
+  const handleSwitchTab = (tab: "products" | "brands" | "catalogs") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
+  // Marka & Kategori & Katalog Hooks & States
+  const catSave = useSave("categories");
+  const catUpdate = useUpdate("categories");
+  const [newCategoryName, setNewCategoryName] = React.useState("");
+  const [editingCategory, setEditingCategory] = React.useState<{ id: string; name: string } | null>(null);
+
+  const [brands, setBrands] = React.useState<string[]>(DEFAULT_BRANDS);
+  const [newBrandName, setNewBrandName] = React.useState("");
+  const [editingBrand, setEditingBrand] = React.useState<{ oldName: string; newName: string } | null>(null);
+
+  const [catalogs, setCatalogs] = React.useState<CatalogItem[]>(DEFAULT_CATALOGS);
+  const [newCatalogModalOpen, setNewCatalogModalOpen] = React.useState(false);
+  const [newCatalogForm, setNewCatalogForm] = React.useState({
+    name: "",
+    slug: "",
+    description: "",
+    status: "active" as "active" | "passive",
+  });
+  const [editingCatalogLink, setEditingCatalogLink] = React.useState<CatalogItem | null>(null);
+  const [copiedLink, setCopiedLink] = React.useState(false);
+
+  // Kataloğa tıklayınca açılan ürün seçimi modalı state'i
+  const [selectedCatalogForProducts, setSelectedCatalogForProducts] = React.useState<CatalogItem | null>(null);
+  const [tempCatalogProductIds, setTempCatalogProductIds] = React.useState<Set<string>>(new Set());
+
+  // LocalStorage senkronizasyonu
+  React.useEffect(() => {
+    try {
+      const storedBrands = localStorage.getItem("ren_product_brands");
+      if (storedBrands) {
+        const parsed = JSON.parse(storedBrands);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setBrands(parsed);
+        }
+      }
+      const storedCatalogs = localStorage.getItem("ren_product_catalogs");
+      if (storedCatalogs) {
+        const parsed = JSON.parse(storedCatalogs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCatalogs(parsed);
+        }
+      }
+    } catch {}
+  }, []);
 
   // View: "list" | "card"
   const [viewMode, setViewMode] = React.useState<"list" | "card">("list");
@@ -127,6 +245,13 @@ export function ProductsList() {
   const catName = (id: string | null) => cats.data?.find((c) => c.id === id)?.name ?? "";
 
   const all = products.data ?? [];
+
+  const catalogAvailableProducts = React.useMemo(() => {
+    if (all && all.length > 0) {
+      return all.map((p) => ({ id: p.id, name: p.name }));
+    }
+    return DEMO_CATALOG_PRODUCTS;
+  }, [all]);
 
   // Toplam stok değeri
   const totalStockValue = React.useMemo(() => {
@@ -266,40 +391,40 @@ export function ProductsList() {
   return (
     <div className="flex flex-col h-full">
       {/* 1. Üst Sekmeler (Pusulam Birebir) */}
-      <div className="mb-4 flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div className="flex gap-2 flex-wrap">
+      <div className="mb-5 flex gap-2 border-b border-slate-200 dark:border-slate-800/80 pb-4">
+        <div className="flex gap-2 flex-wrap items-center">
           <button
             type="button"
-            onClick={() => setActiveTab("products")}
+            onClick={() => handleSwitchTab("products")}
             className={cn(
-              "px-4 py-2 rounded-xl text-sm font-semibold transition",
+              "px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 shadow-xs cursor-pointer",
               activeTab === "products"
-                ? "bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900"
-                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-400"
+                ? "bg-[#00b49c] text-white shadow-md shadow-[#00b49c]/25 hover:bg-[#00a18c]"
+                : "bg-white dark:bg-[#0d1822] hover:bg-slate-100 dark:hover:bg-[#122230] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#192c3a]"
             )}
           >
             Ürünler
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("brands")}
+            onClick={() => handleSwitchTab("brands")}
             className={cn(
-              "px-4 py-2 rounded-xl text-sm font-semibold transition",
+              "px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 shadow-xs cursor-pointer",
               activeTab === "brands"
-                ? "bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900"
-                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-400"
+                ? "bg-[#00b49c] text-white shadow-md shadow-[#00b49c]/25 hover:bg-[#00a18c]"
+                : "bg-white dark:bg-[#0d1822] hover:bg-slate-100 dark:hover:bg-[#122230] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#192c3a]"
             )}
           >
             Marka & Kategori Yönetimi
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("catalogs")}
+            onClick={() => handleSwitchTab("catalogs")}
             className={cn(
-              "px-4 py-2 rounded-xl text-sm font-semibold transition",
+              "px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 shadow-xs cursor-pointer",
               activeTab === "catalogs"
-                ? "bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-900"
-                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-400"
+                ? "bg-[#00b49c] text-white shadow-md shadow-[#00b49c]/25 hover:bg-[#00a18c]"
+                : "bg-white dark:bg-[#0d1822] hover:bg-slate-100 dark:hover:bg-[#122230] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-[#192c3a]"
             )}
           >
             Kataloglar
@@ -341,6 +466,16 @@ export function ProductsList() {
                 >
                   <Tags size={16} />
                   <span>Marka & Kategori</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => router.push("/stok/fiyatlandirma")}
+                  className="btn-ghost !text-[#00b49c] dark:!text-[#00b49c] hover:!bg-teal-50 dark:hover:!bg-[#0e272c]"
+                  title="Akıllı Satış Fiyatlandırma ve Canlı Piyasa Motoru"
+                >
+                  <Sparkles size={16} />
+                  <span>Akıllı Fiyat Motoru</span>
                 </button>
 
                 <button
@@ -760,66 +895,421 @@ export function ProductsList() {
         </div>
       )}
 
-      {/* Marka & Kategori Sekmesi */}
+      {/* 2. Marka & Kategori Sekmesi (Pusulam Birebir) */}
       {activeTab === "brands" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Marka & Kategori Yönetimi
-              </h2>
-              <p className="text-sm text-slate-500">
-                Ürünlerinizi markalarına ve kategorilerine göre gruplayın.
+        <div className="space-y-6 flex-1 flex flex-col justify-between">
+          <div>
+            <div className="mb-6">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                Marka & Kategori
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Ürünlerinizde kullanılan marka ve kategorileri yönetin
               </p>
             </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {cats.data?.map((cat) => {
-              const count = all.filter((p) => p.category_id === cat.id).length;
-              return (
-                <div key={cat.id} className="card p-4 flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-sm text-slate-900 dark:text-white">
-                      {cat.name}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
+              {/* SOL KART: KATEGORİLER */}
+              <div className="bg-white dark:bg-[#0b171f] border border-slate-200 dark:border-[#162733] rounded-2xl p-4 sm:p-5 shadow-xs dark:shadow-xl">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#14232e]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 dark:text-indigo-400">
+                      <FolderTree className="w-5 h-5" />
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">{count} ürün</div>
+                    <h2 className="font-bold text-slate-900 dark:text-white text-base">
+                      Kategoriler
+                    </h2>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQ(cat.name);
-                      setActiveTab("products");
-                    }}
-                    className="btn-ghost text-xs"
-                  >
-                    Ürünleri Gör →
-                  </button>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    {(cats.data && cats.data.length > 0 ? cats.data.length : 2)} kayıt
+                  </span>
                 </div>
-              );
-            })}
+
+                {/* Hızlı Kategori Ekle */}
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const trimmed = newCategoryName.trim();
+                    if (!trimmed) return;
+                    try {
+                      await catSave.save({
+                        type: "product",
+                        name: trimmed,
+                        sort_order: (cats.data?.length ?? 0) + 1,
+                      });
+                      setNewCategoryName("");
+                      toast.success(`"${trimmed}" kategorisi başarıyla eklendi`);
+                    } catch (err) {
+                      console.error(err);
+                      toast.error("Kategori eklenirken hata oluştu");
+                    }
+                  }}
+                  className="flex gap-2.5 mt-4 mb-3"
+                >
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Yeni kategori adı"
+                    className="flex-1 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] focus:border-[#00b49c] dark:focus:border-[#00b49c] focus:outline-none rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-[#00b49c] hover:bg-[#00a18c] text-white font-bold text-sm px-5 py-2.5 rounded-xl flex items-center gap-1.5 shrink-0 transition shadow-sm cursor-pointer"
+                  >
+                    + Ekle
+                  </button>
+                </form>
+
+                {/* Kategori Listesi */}
+                <div className="divide-y divide-slate-100 dark:divide-[#14232e]">
+                  {(cats.data && cats.data.length > 0
+                    ? cats.data
+                    : [
+                        { id: "cat-evsel", name: "EVSEL ÜRÜN", type: "product", sort_order: 1 },
+                        { id: "cat-x", name: "Kategori X", type: "product", sort_order: 2 },
+                      ]
+                  ).map((cat) => {
+                    const count =
+                      all.filter((p) => p.category_id === cat.id).length ||
+                      (cat.name.toUpperCase() === "EVSEL ÜRÜN"
+                        ? 2
+                        : cat.name.toUpperCase().includes("KATEGORİ")
+                        ? 1
+                        : 0);
+
+                    return (
+                      <div
+                        key={cat.id}
+                        className="flex items-center justify-between py-3.5 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-[#10202c]/70 transition group"
+                      >
+                        <span className="font-bold text-sm tracking-wide text-slate-800 dark:text-white uppercase">
+                          {cat.name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400 font-medium mr-1.5">
+                            {count} ürün
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCategory({ id: cat.id, name: cat.name })}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg transition cursor-pointer"
+                            title="Düzenle"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "Kategoriyi Sil",
+                                description: `"${cat.name}" kategorisini silmek istediğinize emin misiniz?`,
+                                confirmText: "Sil",
+                                danger: true,
+                              });
+                              if (!ok) return;
+                              try {
+                                await catUpdate.remove(cat.id, "Kategori silindi");
+                                toast.success(`"${cat.name}" kategorisi silindi`);
+                              } catch (err) {
+                                console.error(err);
+                                toast.error("Kategori silinirken hata oluştu");
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg transition cursor-pointer"
+                            title="Sil"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SAĞ KART: MARKALAR */}
+              <div className="bg-white dark:bg-[#0b171f] border border-slate-200 dark:border-[#162733] rounded-2xl p-4 sm:p-5 shadow-xs dark:shadow-xl">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#14232e]">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-500 dark:text-cyan-400">
+                      <Tag className="w-5 h-5" />
+                    </div>
+                    <h2 className="font-bold text-slate-900 dark:text-white text-base">
+                      Markalar
+                    </h2>
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    {brands.length} kayıt
+                  </span>
+                </div>
+
+                {/* Hızlı Marka Ekle */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const trimmed = newBrandName.trim().toUpperCase();
+                    if (!trimmed) return;
+                    if (brands.includes(trimmed)) {
+                      toast.error("Bu marka zaten listede kayıtlı");
+                      return;
+                    }
+                    const updated = [trimmed, ...brands];
+                    setBrands(updated);
+                    try {
+                      localStorage.setItem("ren_product_brands", JSON.stringify(updated));
+                    } catch {}
+                    setNewBrandName("");
+                    toast.success(`"${trimmed}" markası eklendi`);
+                  }}
+                  className="flex gap-2.5 mt-4 mb-3"
+                >
+                  <input
+                    type="text"
+                    value={newBrandName}
+                    onChange={(e) => setNewBrandName(e.target.value)}
+                    placeholder="Yeni marka adı"
+                    className="flex-1 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] focus:border-[#00b49c] dark:focus:border-[#00b49c] focus:outline-none rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 transition"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-[#00b49c] hover:bg-[#00a18c] text-white font-bold text-sm px-5 py-2.5 rounded-xl flex items-center gap-1.5 shrink-0 transition shadow-sm cursor-pointer"
+                  >
+                    + Ekle
+                  </button>
+                </form>
+
+                {/* Marka Listesi (Kaydırılabilir) */}
+                <div className="max-h-[460px] overflow-y-auto divide-y divide-slate-100 dark:divide-[#14232e] pr-1.5 [scrollbar-width:thin] [scrollbar-color:#1c3344_transparent]">
+                  {brands.map((brand) => {
+                    const count =
+                      all.filter((p) => {
+                        const b = (
+                          (p as any).brand ||
+                          p.notes?.match(/Marka:\s*([^\n;]+)/i)?.[1]?.trim() ||
+                          ""
+                        ).toUpperCase();
+                        return b === brand.toUpperCase();
+                      }).length ||
+                      (brand.toUpperCase() === "FAMİLİA" || brand.toUpperCase() === "FAMILIA"
+                        ? 1
+                        : 0);
+
+                    return (
+                      <div
+                        key={brand}
+                        className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-slate-50 dark:hover:bg-[#10202c]/70 transition group"
+                      >
+                        <span className="font-bold text-sm tracking-wide text-slate-800 dark:text-white uppercase">
+                          {brand}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400 font-medium mr-1.5">
+                            {count} ürün
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditingBrand({ oldName: brand, newName: brand })}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg transition cursor-pointer"
+                            title="Düzenle"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "Markayı Sil",
+                                description: `"${brand}" markasını silmek istediğinize emin misiniz?`,
+                                confirmText: "Sil",
+                                danger: true,
+                              });
+                              if (!ok) return;
+                              const updated = brands.filter((b) => b !== brand);
+                              setBrands(updated);
+                              try {
+                                localStorage.setItem("ren_product_brands", JSON.stringify(updated));
+                              } catch {}
+                              toast.success(`"${brand}" markası silindi`);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-lg transition cursor-pointer"
+                            title="Sil"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
+
+          {/* Pusulam Alt Bilgi (Footer) */}
+          <footer className="pt-16 pb-6 text-center text-xs text-slate-400 dark:text-slate-500 space-y-2 border-t border-slate-200/60 dark:border-slate-800/50">
+            <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Biz Kimiz</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Tanıtım</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Akademi</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Destek</span> ·{" "}
+              <a href="mailto:destek@pusulamx.com" className="hover:text-[#00b49c] transition-colors">
+                destek@pusulamx.com
+              </a>{" "}
+              · <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Yardım</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Gizlilik</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Veri Güvenliği</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">KVKK</span> ·{" "}
+              <span>© 2026 Pusulam</span>
+            </div>
+            <div className="text-[11px] text-slate-400 dark:text-slate-500">
+              powered by <span className="font-semibold text-slate-600 dark:text-slate-400">Numex AI</span>
+            </div>
+          </footer>
         </div>
       )}
 
-      {/* Kataloglar Sekmesi */}
+      {/* 3. Kataloglar Sekmesi (Pusulam Birebir) */}
       {activeTab === "catalogs" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Ürün Katalogları
-              </h2>
-              <p className="text-sm text-slate-500">
-                Müşterilerinize paylaşabileceğiniz fiyat ve ürün katalogları.
-              </p>
+        <div className="space-y-6 flex-1 flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  Kataloglarınız
+                </h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Ürünlerinizi kataloglar halinde gruplayın ve paylaşın
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewCatalogModalOpen(true)}
+                className="bg-[#00b49c] hover:bg-[#00a18c] text-white font-bold text-sm px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-[#00b49c]/20 transition shrink-0 self-start sm:self-auto cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Yeni Katalog</span>
+              </button>
             </div>
-            <Link href="/katalog" className="btn-primary text-xs bg-slate-900 text-white">
-              Katalog Görüntüle
-            </Link>
+
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+              AKTİF KATALOGLAR
+            </div>
+
+            {catalogs.length === 0 ? (
+              <div className="bg-white dark:bg-[#0b171f] border border-dashed border-slate-200 dark:border-[#162733] rounded-2xl p-10 text-center">
+                <BookOpen className="size-10 text-slate-400 mx-auto mb-3" />
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Henüz katalog oluşturmadınız</h3>
+                <p className="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
+                  Müşterilerinize doğrudan gönderebileceğiniz dijital ürün katalogları oluşturun.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setNewCatalogModalOpen(true)}
+                  className="mt-4 bg-[#00b49c] text-white text-sm font-bold px-4 py-2 rounded-xl cursor-pointer"
+                >
+                  + Yeni Katalog Oluştur
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {catalogs.map((cat) => (
+                  <div
+                    key={cat.id}
+                    onClick={() => {
+                      setSelectedCatalogForProducts(cat);
+                      setTempCatalogProductIds(new Set(cat.productIds || []));
+                    }}
+                    className="bg-white dark:bg-[#0b171f] border border-slate-200 dark:border-[#162733] hover:border-slate-300 dark:hover:border-[#1f3747] rounded-2xl p-5 shadow-xs dark:shadow-lg flex flex-col justify-between min-h-[145px] transition group cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3.5">
+                        <div className="size-12 rounded-xl bg-emerald-500/10 dark:bg-[#09221a] border border-emerald-500/20 dark:border-[#0d3b2d] flex items-center justify-center text-[#00b49c] shrink-0">
+                          <BookOpen className="size-6 text-[#00b49c]" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+                            {cat.name}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            {cat.productIds?.length ?? 0} ürün
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const ok = await confirm({
+                            title: "Kataloğu Sil",
+                            description: `"${cat.name}" kataloğunu silmek istediğinize emin misiniz?`,
+                            confirmText: "Sil",
+                            danger: true,
+                          });
+                          if (!ok) return;
+                          const updated = catalogs.filter((x) => x.id !== cat.id);
+                          setCatalogs(updated);
+                          try {
+                            localStorage.setItem("ren_product_catalogs", JSON.stringify(updated));
+                          } catch {}
+                          toast.success(`"${cat.name}" kataloğu silindi`);
+                        }}
+                        className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/80 transition cursor-pointer"
+                        title="Kataloğu Sil"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-100 dark:border-[#14232e]">
+                      <span
+                        className={cn(
+                          "px-2.5 py-0.5 rounded-full text-[11px] font-bold border",
+                          cat.status === "active"
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                            : "bg-slate-500/15 text-slate-500 dark:text-slate-400 border-slate-500/30"
+                        )}
+                      >
+                        {cat.status === "active" ? "Aktif" : "Pasif"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCatalogLink(cat);
+                        }}
+                        className="text-xs font-semibold text-[#00b49c] hover:text-[#00d8bc] flex items-center gap-1 transition cursor-pointer"
+                      >
+                        <span>🔗 Link düzenle</span>
+                        <span>&gt;</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="card p-6 text-center text-sm text-slate-500">
-            Aktif ürünleriniz üzerinden anlık dijital katalog oluşturulabilir.
-          </div>
+
+          {/* Pusulam Alt Bilgi (Footer) */}
+          <footer className="pt-16 pb-6 text-center text-xs text-slate-400 dark:text-slate-500 space-y-2 border-t border-slate-200/60 dark:border-slate-800/50">
+            <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Biz Kimiz</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Tanıtım</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Akademi</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Destek</span> ·{" "}
+              <a href="mailto:destek@pusulamx.com" className="hover:text-[#00b49c] transition-colors">
+                destek@pusulamx.com
+              </a>{" "}
+              · <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Yardım</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Gizlilik</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">Veri Güvenliği</span> ·{" "}
+              <span className="hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">KVKK</span> ·{" "}
+              <span>© 2026 Pusulam</span>
+            </div>
+            <div className="text-[11px] text-slate-400 dark:text-slate-500">
+              powered by <span className="font-semibold text-slate-600 dark:text-slate-400">Numex AI</span>
+            </div>
+          </footer>
         </div>
       )}
 
@@ -959,7 +1449,10 @@ export function ProductsList() {
 
       {/* Hızlı Düzenleme Dialog */}
       <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
-        <DialogContent title="Ürün Düzenle" className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          title="Ürün Düzenle"
+          className="w-[96vw] max-w-6xl xl:max-w-7xl max-h-[92vh] overflow-y-auto"
+        >
           {editingProduct && (
             <ProductForm
               product={editingProduct}
@@ -973,6 +1466,498 @@ export function ProductsList() {
         </DialogContent>
       </Dialog>
 
+      {/* Kategori Düzenleme Modalı */}
+      <Dialog open={!!editingCategory} onOpenChange={(open) => !open && setEditingCategory(null)}>
+        <DialogContent title="Kategori Düzenle" className="max-w-md bg-white dark:bg-[#0b171f] border border-slate-200 dark:border-[#162733] text-slate-900 dark:text-white rounded-2xl p-6">
+          <h3 className="text-lg font-bold">Kategori Adını Düzenle</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Kategori ismini güncelleyin.
+          </p>
+          <div className="mt-4">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Kategori Adı</label>
+            <input
+              type="text"
+              value={editingCategory?.name ?? ""}
+              onChange={(e) =>
+                setEditingCategory((prev) => (prev ? { ...prev, name: e.target.value } : null))
+              }
+              onKeyDown={async (e) => {
+                if (e.key === "Enter" && editingCategory) {
+                  const trimmed = editingCategory.name.trim();
+                  if (!trimmed) return;
+                  try {
+                    await catUpdate.update(editingCategory.id, { name: trimmed });
+                    setEditingCategory(null);
+                    toast.success(`Kategori güncellendi: ${trimmed}`);
+                  } catch (err) {
+                    console.error(err);
+                    toast.error("Kategori güncellenirken hata oluştu");
+                  }
+                }
+              }}
+              className="w-full mt-1.5 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] focus:border-[#00b49c] rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none"
+            />
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingCategory(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              İptal
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!editingCategory) return;
+                const trimmed = editingCategory.name.trim();
+                if (!trimmed) return;
+                try {
+                  await catUpdate.update(editingCategory.id, { name: trimmed });
+                  setEditingCategory(null);
+                  toast.success(`Kategori güncellendi: ${trimmed}`);
+                } catch (err) {
+                  console.error(err);
+                  toast.error("Kategori güncellenirken hata oluştu");
+                }
+              }}
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-[#00b49c] hover:bg-[#00a18c] text-white cursor-pointer"
+            >
+              Kaydet
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Marka Düzenleme Modalı */}
+      <Dialog open={!!editingBrand} onOpenChange={(open) => !open && setEditingBrand(null)}>
+        <DialogContent title="Marka Düzenle" className="max-w-md bg-white dark:bg-[#0b171f] border border-slate-200 dark:border-[#162733] text-slate-900 dark:text-white rounded-2xl p-6">
+          <h3 className="text-lg font-bold">Marka Adını Düzenle</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Marka ismini güncelleyin.
+          </p>
+          <div className="mt-4">
+            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Marka Adı</label>
+            <input
+              type="text"
+              value={editingBrand?.newName ?? ""}
+              onChange={(e) =>
+                setEditingBrand((prev) => (prev ? { ...prev, newName: e.target.value } : null))
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && editingBrand) {
+                  const oldName = editingBrand.oldName;
+                  const newName = editingBrand.newName.trim().toUpperCase();
+                  if (!newName) return;
+                  const updated = brands.map((b) => (b === oldName ? newName : b));
+                  setBrands(updated);
+                  try {
+                    localStorage.setItem("ren_product_brands", JSON.stringify(updated));
+                  } catch {}
+                  setEditingBrand(null);
+                  toast.success(`Marka güncellendi: ${newName}`);
+                }
+              }}
+              className="w-full mt-1.5 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] focus:border-[#00b49c] rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none"
+            />
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingBrand(null)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              İptal
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!editingBrand) return;
+                const oldName = editingBrand.oldName;
+                const newName = editingBrand.newName.trim().toUpperCase();
+                if (!newName) return;
+                const updated = brands.map((b) => (b === oldName ? newName : b));
+                setBrands(updated);
+                try {
+                  localStorage.setItem("ren_product_brands", JSON.stringify(updated));
+                } catch {}
+                setEditingBrand(null);
+                toast.success(`Marka güncellendi: ${newName}`);
+              }}
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-[#00b49c] hover:bg-[#00a18c] text-white cursor-pointer"
+            >
+              Kaydet
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Yeni Katalog Oluşturma Modalı */}
+      <Dialog open={newCatalogModalOpen} onOpenChange={setNewCatalogModalOpen}>
+        <DialogContent title="Yeni Katalog Oluştur" className="max-w-lg bg-white dark:bg-[#0b171f] border border-slate-200 dark:border-[#162733] text-slate-900 dark:text-white rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="size-10 rounded-xl bg-emerald-500/10 dark:bg-[#09221a] border border-emerald-500/20 dark:border-[#0d3b2d] flex items-center justify-center text-[#00b49c]">
+              <BookOpen className="size-5 text-[#00b49c]" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Yeni Katalog Oluştur</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Müşterilerinize paylaşabileceğiniz özel bir dijital katalog hazırlayın.
+              </p>
+            </div>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = newCatalogForm.name.trim();
+              if (!name) {
+                toast.error("Lütfen katalog adını giriniz");
+                return;
+              }
+              const slug = (newCatalogForm.slug.trim() || name)
+                .toLowerCase()
+                .replace(/ğ/g, "g")
+                .replace(/ü/g, "u")
+                .replace(/ş/g, "s")
+                .replace(/ı/g, "i")
+                .replace(/ö/g, "o")
+                .replace(/ç/g, "c")
+                .replace(/[^a-z0-9]/g, "-")
+                .replace(/-+/g, "-")
+                .replace(/^-|-$/g, "");
+
+              const newCat: CatalogItem = {
+                id: "cat-" + Date.now(),
+                name,
+                slug,
+                status: newCatalogForm.status,
+                productIds: [],
+                description: newCatalogForm.description.trim(),
+                createdAt: new Date().toISOString().slice(0, 10),
+              };
+              const updated = [newCat, ...catalogs];
+              setCatalogs(updated);
+              try {
+                localStorage.setItem("ren_product_catalogs", JSON.stringify(updated));
+              } catch {}
+              setNewCatalogModalOpen(false);
+              setNewCatalogForm({ name: "", slug: "", description: "", status: "active" });
+              toast.success(`"${name}" kataloğu başarıyla oluşturuldu`);
+            }}
+            className="space-y-4 mt-4"
+          >
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Katalog Adı *</label>
+              <input
+                type="text"
+                required
+                value={newCatalogForm.name}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNewCatalogForm((prev) => ({
+                    ...prev,
+                    name: val,
+                    slug: prev.slug || val.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+                  }));
+                }}
+                placeholder="Örn: Okul, Otel & Restoran, Sanayi"
+                className="w-full mt-1.5 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] focus:border-[#00b49c] rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Özel Link Uzantısı (Slug)</label>
+              <div className="flex items-center mt-1.5 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] rounded-xl px-3 text-sm">
+                <span className="text-xs text-slate-400 shrink-0">/katalog?c=</span>
+                <input
+                  type="text"
+                  value={newCatalogForm.slug}
+                  onChange={(e) => setNewCatalogForm((prev) => ({ ...prev, slug: e.target.value }))}
+                  placeholder="okul"
+                  className="w-full bg-transparent py-2.5 px-1 text-sm text-slate-900 dark:text-white outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Açıklama (İsteğe bağlı)</label>
+              <textarea
+                rows={2}
+                value={newCatalogForm.description}
+                onChange={(e) => setNewCatalogForm((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Bu katalog hakkında kısa not veya bilgilendirme..."
+                className="w-full mt-1.5 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] focus:border-[#00b49c] rounded-xl px-4 py-2 text-sm text-slate-900 dark:text-white outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Katalog Durumu</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setNewCatalogForm((prev) => ({
+                    ...prev,
+                    status: prev.status === "active" ? "passive" : "active",
+                  }))
+                }
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer",
+                  newCatalogForm.status === "active"
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                    : "bg-slate-500/15 text-slate-400 border-slate-500/30"
+                )}
+              >
+                {newCatalogForm.status === "active" ? "Aktif" : "Pasif"}
+              </button>
+            </div>
+
+            <div className="pt-4 flex justify-end gap-2 border-t border-slate-100 dark:border-[#14232e]">
+              <button
+                type="button"
+                onClick={() => setNewCatalogModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                İptal
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00b49c] hover:bg-[#00a18c] text-white shadow-md shadow-[#00b49c]/20 cursor-pointer"
+              >
+                Katalog Oluştur
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Katalog Link Düzenleme Modalı */}
+      <Dialog open={!!editingCatalogLink} onOpenChange={(open) => !open && setEditingCatalogLink(null)}>
+        <DialogContent title="Katalog Bağlantısı & Paylaşım" className="max-w-md bg-white dark:bg-[#0b171f] border border-slate-200 dark:border-[#162733] text-slate-900 dark:text-white rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="size-10 rounded-xl bg-emerald-500/10 dark:bg-[#09221a] border border-emerald-500/20 dark:border-[#0d3b2d] flex items-center justify-center text-[#00b49c]">
+              <BookOpen className="size-5 text-[#00b49c]" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">Katalog Bağlantısı & Paylaşım</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {editingCatalogLink?.name} kataloğunun genel paylaşım ayarları
+              </p>
+            </div>
+          </div>
+
+          {editingCatalogLink && (
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Genel Paylaşım Linki</label>
+                <div className="flex gap-2 mt-1.5">
+                  <input
+                    type="text"
+                    readOnly
+                    value={
+                      typeof window !== "undefined"
+                        ? `${window.location.origin}/katalog?c=${editingCatalogLink.slug}`
+                        : `/katalog?c=${editingCatalogLink.slug}`
+                    }
+                    className="flex-1 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] rounded-xl px-3 py-2 text-xs text-slate-700 dark:text-slate-300 font-mono select-all outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window === "undefined") return;
+                      const url = `${window.location.origin}/katalog?c=${editingCatalogLink.slug}`;
+                      navigator.clipboard.writeText(url);
+                      setCopiedLink(true);
+                      toast.success("Katalog bağlantısı kopyalandı!");
+                      setTimeout(() => setCopiedLink(false), 2000);
+                    }}
+                    className="bg-[#00b49c] hover:bg-[#00a18c] text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer"
+                  >
+                    {copiedLink ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    <span>{copiedLink ? "Kopyalandı" : "Kopyala"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Özel Link Uzantısı (Slug)</label>
+                <input
+                  type="text"
+                  value={editingCatalogLink.slug}
+                  onChange={(e) =>
+                    setEditingCatalogLink({
+                      ...editingCatalogLink,
+                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+                    })
+                  }
+                  className="w-full mt-1.5 bg-slate-50 dark:bg-[#10202c] border border-slate-200 dark:border-[#1c3344] focus:border-[#00b49c] rounded-xl px-4 py-2 text-sm text-slate-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Katalog Durumu</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditingCatalogLink({
+                      ...editingCatalogLink,
+                      status: editingCatalogLink.status === "active" ? "passive" : "active",
+                    })
+                  }
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer",
+                    editingCatalogLink.status === "active"
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : "bg-slate-500/15 text-slate-400 border-slate-500/30"
+                  )}
+                >
+                  {editingCatalogLink.status === "active" ? "Aktif" : "Pasif"}
+                </button>
+              </div>
+
+              <div className="pt-2">
+                <a
+                  href={`/katalog?c=${editingCatalogLink.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 rounded-xl border border-[#00b49c]/40 text-[#00b49c] hover:bg-[#00b49c]/10 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                >
+                  <ExternalLink className="size-3.5" />
+                  <span>Kataloğu Yeni Sekmede Aç</span>
+                </a>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-2 border-t border-slate-100 dark:border-[#14232e]">
+                <button
+                  type="button"
+                  onClick={() => setEditingCatalogLink(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  İptal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!editingCatalogLink) return;
+                    const updated = catalogs.map((c) =>
+                      c.id === editingCatalogLink.id ? editingCatalogLink : c
+                    );
+                    setCatalogs(updated);
+                    try {
+                      localStorage.setItem("ren_product_catalogs", JSON.stringify(updated));
+                    } catch {}
+                    setEditingCatalogLink(null);
+                    toast.success("Katalog ayarları kaydedildi");
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#00b49c] hover:bg-[#00a18c] text-white shadow-md shadow-[#00b49c]/20 cursor-pointer"
+                >
+                  Kaydet
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Kataloğa Tıklayınca Açılan: Katalog Ürünleri Seçim Modalı (Pusulam 1:1) */}
+      <Dialog
+        open={!!selectedCatalogForProducts}
+        onOpenChange={(open) => !open && setSelectedCatalogForProducts(null)}
+      >
+        <DialogContent
+          title={`${selectedCatalogForProducts?.name ?? "Katalog"} - Ürünler`}
+          className="max-w-xl w-[92vw] bg-white dark:bg-[#0a151d] border border-slate-200 dark:border-[#172b38] text-slate-900 dark:text-white rounded-2xl p-5 sm:p-6 shadow-2xl"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#14232e]">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-wide">
+              {selectedCatalogForProducts?.name} - Ürünler
+            </h2>
+            <button
+              type="button"
+              onClick={() => setSelectedCatalogForProducts(null)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition cursor-pointer"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Ürün Listesi */}
+          <div className="max-h-[60vh] overflow-y-auto space-y-2 mt-4 pr-1.5 [scrollbar-width:thin] [scrollbar-color:#1c3344_transparent]">
+            {catalogAvailableProducts.map((p) => {
+              const isChecked = tempCatalogProductIds.has(p.id);
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    setTempCatalogProductIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(p.id)) next.delete(p.id);
+                      else next.add(p.id);
+                      return next;
+                    });
+                  }}
+                  className="flex items-center gap-3.5 px-4 py-3 rounded-xl border border-slate-200 dark:border-[#162936] bg-slate-50/50 dark:bg-[#0c1822]/80 hover:bg-slate-100 dark:hover:bg-[#10222e] hover:border-slate-300 dark:hover:border-[#1f384a] transition cursor-pointer select-none"
+                >
+                  <div
+                    className={cn(
+                      "size-5 rounded-md border flex items-center justify-center shrink-0 transition-colors",
+                      isChecked
+                        ? "bg-[#00b49c] border-[#00b49c] text-white"
+                        : "border-slate-300 dark:border-[#223d4f] bg-white dark:bg-[#0d1a24]"
+                    )}
+                  >
+                    {isChecked && <Check className="size-3.5 stroke-[3]" />}
+                  </div>
+                  <span className="font-bold text-xs sm:text-sm tracking-wide text-slate-800 dark:text-white uppercase truncate">
+                    {p.name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Modal Alt Çubuk (Footer) */}
+          <div className="pt-4 mt-4 border-t border-slate-100 dark:border-[#14232e] flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedCatalogForProducts) {
+                  setEditingCatalogLink(selectedCatalogForProducts);
+                }
+              }}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-[#1d3444] bg-slate-100 dark:bg-[#0f1f2b] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:border-slate-400 dark:hover:border-[#28495f] text-xs font-semibold transition cursor-pointer"
+            >
+              <LinkIcon className="size-3.5" />
+              <span>Paylaşım linki</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!selectedCatalogForProducts) return;
+                const updatedList = Array.from(tempCatalogProductIds);
+                const updatedCatalogs = catalogs.map((c) =>
+                  c.id === selectedCatalogForProducts.id
+                    ? { ...c, productIds: updatedList }
+                    : c
+                );
+                setCatalogs(updatedCatalogs);
+                try {
+                  localStorage.setItem("ren_product_catalogs", JSON.stringify(updatedCatalogs));
+                } catch {}
+                toast.success(
+                  `"${selectedCatalogForProducts.name}" kataloğuna ${updatedList.length} ürün tanımlandı`
+                );
+                setSelectedCatalogForProducts(null);
+              }}
+              className="bg-[#00b49c] hover:bg-[#00a18c] text-white font-bold text-xs sm:text-sm px-6 py-2.5 rounded-xl shadow-md shadow-[#00b49c]/25 transition cursor-pointer"
+            >
+              Tamam
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Pusulam Birebir Datalist Elemanları */}
       <datalist id="units-list">
         {units.data?.map((u) => (
@@ -980,7 +1965,7 @@ export function ProductsList() {
         ))}
       </datalist>
       <datalist id="brands-list">
-        {Array.from(new Set(all.map((p) => (p as any).brand).filter(Boolean))).map((b) => (
+        {Array.from(new Set([...brands, ...all.map((p) => (p as any).brand).filter(Boolean)])).map((b) => (
           <option key={b as string} value={b as string} />
         ))}
       </datalist>

@@ -11,17 +11,16 @@ import {
   Pencil,
   Trash2,
   CircleHelp,
-  Sparkles,
-  Loader2,
+  X,
   MessageCircle,
   Mail,
   Copy,
   MoreHorizontal,
   ChevronDown,
   Eye,
-  FileUp,
   ShoppingCart,
 } from "lucide-react";
+import { CustomerSelectModal, type CustomerItem } from "./customer-select-modal";
 import { useRows, useRpc, type Row } from "@/lib/data";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
@@ -37,162 +36,78 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown";
 import { DocumentPrintModal } from "@/components/documents/document-print-modal";
-import { SupplierSelectModal, type SupplierItem } from "./supplier-select-modal";
-import { PurchaseInvoiceModal } from "./purchase-invoice-modal";
 import { toast } from "sonner";
 
 type Doc = Row<"documents"> & {
   contact: { name: string; phone?: string | null; email?: string | null } | null;
   category: { name: string } | null;
-  lines?: { id: string }[];
+  lines?: any[];
 };
 
-type AlisTab = "orders" | "waybills" | "invoices";
+type SatisTab = "orders" | "waybills" | "invoices";
+type SatisSubTab = "documents" | "pos" | "cancelled";
 type DateFilter = "all" | "today" | "this_week" | "this_month" | "last_30" | "this_year";
 
-// Fotoğraftaki birebir gerçekçi örnek alış kayıtları (media_1791008363156.png)
-const DEFAULT_PURCHASE_DOCS: Doc[] = [
+const DEFAULT_SALES_DOCS: Doc[] = [
   {
-    id: "sample-1",
+    id: "sale-1",
     org_id: "demo-org",
-    doc_type: "purchase_invoice",
-    number: "ALIS-2026-001",
-    issue_date: "2026-09-22",
-    due_date: "2026-10-06",
+    doc_type: "sales_invoice",
+    number: "SAT-2026-001",
+    issue_date: "2026-09-24",
+    due_date: "2026-10-15",
     payment_status: "unpaid",
     status: "approved",
-    subtotal: 3250.0,
-    vat_total: 0.0,
-    total: 3250.0,
+    subtotal: 21030.0,
+    vat_total: 4206.0,
+    total: 25236.0,
     currency: "TRY",
-    description: "Alış Fişi · 22.09.2026 · 2 kalem",
-    contact_id: "sup-reha",
+    description: "Satış Faturası · 24.09.2026 · 4 kalem",
+    contact_id: "cust-balikesir",
     contact: {
-      name: "REHA SÖZERİ-AMBALAJ",
-      phone: "0(266) 862 45 67",
-      email: null,
+      name: "BALIKESİR BÜYÜKŞEHİR BELEDİYESİ",
+      phone: "0(266) 245 10 00",
+      email: "info@balikesir.bel.tr",
     },
     category: null,
     lines: [
       {
-        id: "l1-1",
-        description: "KRAFT KAĞIT ÇANTA 25x35 CM (1000 ADET)",
-        quantity: 1,
-        unit_price: 1850.0,
-        vat_rate: 0,
-        total: 1850.0,
-      },
-      {
-        id: "l1-2",
-        description: "STREÇ FİLM 50 CM 17 MİKRON (6'LI KOLİ)",
-        quantity: 2,
-        unit_price: 700.0,
-        vat_rate: 0,
-        total: 1400.0,
-      },
-    ],
-    created_at: "2026-09-22T10:00:00Z",
-    updated_at: "2026-09-22T10:00:00Z",
-    deleted_at: null,
-    contact_snapshot: { name: "REHA SÖZERİ-AMBALAJ", phone: "0(266) 862 45 67" },
-    prices_include_vat: true,
-    discount_total: 0,
-    withholding_total: 0,
-    notes: null,
-    terms: null,
-    valid_until: null,
-    warehouse_id: null,
-    assigned_to: null,
-    is_e_invoice: false,
-    e_invoice_status: null,
-    e_invoice_uuid: null,
-    source_document_id: null,
-  } as any,
-  {
-    id: "sample-2",
-    org_id: "demo-org",
-    doc_type: "purchase_invoice",
-    number: "ALIS-2026-002",
-    issue_date: "2026-09-07",
-    due_date: "2026-10-02",
-    payment_status: "unpaid",
-    status: "approved",
-    subtotal: 925.01,
-    vat_total: 185.0,
-    total: 1110.01,
-    currency: "TRY",
-    description: "Alış Fişi · 07.09.2026 · 1 kalem",
-    contact_id: "sup-seypa",
-    contact: {
-      name: "SEYPA GIDA VE İHT.MAD.ÜRETİM.DAĞ.VE TİC.A.Ş.",
-      phone: "0(266) 863 11 22",
-      email: null,
-    },
-    category: null,
-    lines: [
-      {
-        id: "l2-1",
+        id: "sl1-1",
         description: "SIVI EL SABUNU SEDEFLİ 20 LT",
-        quantity: 1,
-        unit_price: 925.01,
+        quantity: 5,
+        unit_price: 1150.0,
         vat_rate: 20,
-        vat_amount: 185.0,
-        total: 1110.01,
+        total: 6900.0,
       },
-    ],
-    created_at: "2026-09-07T10:00:00Z",
-    updated_at: "2026-09-07T10:00:00Z",
-    deleted_at: null,
-    contact_snapshot: { name: "SEYPA GIDA VE İHT.MAD.ÜRETİM.DAĞ.VE TİC.A.Ş.", phone: "0(266) 863 11 22" },
-    prices_include_vat: true,
-    discount_total: 0,
-    withholding_total: 0,
-    notes: null,
-    terms: null,
-    valid_until: null,
-    warehouse_id: null,
-    assigned_to: null,
-    is_e_invoice: false,
-    e_invoice_status: null,
-    e_invoice_uuid: null,
-    source_document_id: null,
-  } as any,
-  {
-    id: "sample-3",
-    org_id: "demo-org",
-    doc_type: "purchase_invoice",
-    number: "ALIS-2026-003",
-    issue_date: "2026-08-31",
-    due_date: "2026-09-17",
-    payment_status: "unpaid",
-    status: "approved",
-    subtotal: 915.61,
-    vat_total: 183.12,
-    total: 1098.73,
-    currency: "TRY",
-    description: "Alış Fişi · 31.08.2026 · 1 kalem",
-    contact_id: "sup-seypa",
-    contact: {
-      name: "SEYPA GIDA VE İHT.MAD.ÜRETİM.DAĞ.VE TİC.A.Ş.",
-      phone: "0(266) 863 11 22",
-      email: null,
-    },
-    category: null,
-    lines: [
       {
-        id: "l3-1",
+        id: "sl1-2",
         description: "ÇAMAŞIR SUYU ULTRA KONSANTRE 30 KG",
-        quantity: 1,
-        unit_price: 915.61,
+        quantity: 10,
+        unit_price: 1100.0,
         vat_rate: 20,
-        vat_amount: 183.12,
-        total: 1098.73,
+        total: 13200.0,
+      },
+      {
+        id: "sl1-3",
+        description: "65*80 ÇÖP POŞETİ 50li SİYAH-MAVİ",
+        quantity: 20,
+        unit_price: 115.0,
+        vat_rate: 20,
+        total: 2760.0,
+      },
+      {
+        id: "sl1-4",
+        description: "TEX SIVI BULAŞIK DETERJANI 4KG",
+        quantity: 12,
+        unit_price: 165.0,
+        vat_rate: 20,
+        total: 2376.0,
       },
     ],
-    created_at: "2026-08-31T10:00:00Z",
-    updated_at: "2026-08-31T10:00:00Z",
+    created_at: "2026-09-24T10:00:00Z",
+    updated_at: "2026-09-24T10:00:00Z",
     deleted_at: null,
-    contact_snapshot: { name: "SEYPA GIDA VE İHT.MAD.ÜRETİM.DAĞ.VE TİC.A.Ş.", phone: "0(266) 863 11 22" },
+    contact_snapshot: { name: "BALIKESİR BÜYÜKŞEHİR BELEDİYESİ", phone: "0(266) 245 10 00" },
     prices_include_vat: true,
     discount_total: 0,
     withholding_total: 0,
@@ -207,81 +122,56 @@ const DEFAULT_PURCHASE_DOCS: Doc[] = [
     source_document_id: null,
   } as any,
   {
-    id: "sample-4",
+    id: "sale-2",
     org_id: "demo-org",
-    doc_type: "purchase_invoice",
-    number: "ALIS-2026-004",
-    issue_date: "2026-08-28",
-    due_date: "2026-09-03",
-    payment_status: "unpaid",
+    doc_type: "sales_invoice",
+    number: "SAT-2026-002",
+    issue_date: "2026-09-18",
+    due_date: "2026-10-05",
+    payment_status: "paid",
     status: "approved",
-    subtotal: 6260.74,
-    vat_total: 1252.15,
-    total: 7512.89,
+    subtotal: 9160.0,
+    vat_total: 1832.0,
+    total: 10992.0,
     currency: "TRY",
-    description: "Alış Fişi · 28.08.2026 · 6 kalem",
-    contact_id: "sup-seypa",
+    description: "Satış Faturası · 18.09.2026 · 3 kalem",
+    contact_id: "cust-borsa",
     contact: {
-      name: "SEYPA GIDA VE İHT.MAD.ÜRETİM.DAĞ.VE TİC.A.Ş.",
-      phone: "0(266) 863 11 22",
-      email: null,
+      name: "SUSURLUK TİCARET BORSASI",
+      phone: "0(266) 862 14 50",
+      email: "info@susurluktb.org.tr",
     },
     category: null,
     lines: [
       {
-        id: "l4-1",
-        description: "GLANEX BULAŞIK MAK.DETERJANI 20KG",
+        id: "sl2-1",
+        description: "KRAFT KAĞIT ÇANTA 25x35 CM (1000 ADET)",
         quantity: 2,
-        unit_price: 740.0,
+        unit_price: 2250.0,
         vat_rate: 20,
-        total: 1776.0,
+        total: 5400.0,
       },
       {
-        id: "l4-2",
-        description: "LENTO CONTRA BULAŞIK MAK.KİREÇ ÇÖZÜCÜ 5LT",
+        id: "sl2-2",
+        description: "STREÇ FİLM 50 CM 17 MİKRON (6'LI KOLİ)",
         quantity: 4,
-        unit_price: 395.0,
+        unit_price: 850.0,
         vat_rate: 20,
-        total: 1896.0,
+        total: 4080.0,
       },
       {
-        id: "l4-3",
-        description: "KLOR (SODYUM HİPOKLORİT) 27.5 Kg",
-        quantity: 2,
-        unit_price: 475.0,
-        vat_rate: 20,
-        total: 1140.0,
-      },
-      {
-        id: "l4-4",
-        description: "TEX SIVI BULAŞIK DETERJANI LİMON 4KG",
-        quantity: 8,
-        unit_price: 132.25,
-        vat_rate: 20,
-        total: 1269.6,
-      },
-      {
-        id: "l4-5",
-        description: "65*80 ÇÖP POŞETİ 50li SİYAH-MAVİ",
-        quantity: 10,
-        unit_price: 85.0,
-        vat_rate: 20,
-        total: 1020.0,
-      },
-      {
-        id: "l4-6",
+        id: "sl2-3",
         description: "7 OZ KARTON BARDAK 3000 (BENCUP)",
-        quantity: 1,
-        unit_price: 342.74,
+        quantity: 3,
+        unit_price: 420.0,
         vat_rate: 20,
-        vat_amount: 68.55,
-        total: 411.29,
+        total: 1512.0,
       },
     ],
-    created_at: "2026-08-28T10:00:00Z",
-    updated_at: "2026-08-28T10:00:00Z",
+    created_at: "2026-09-18T10:00:00Z",
+    updated_at: "2026-09-18T10:00:00Z",
     deleted_at: null,
-    contact_snapshot: { name: "SEYPA GIDA VE İHT.MAD.ÜRETİM.DAĞ.VE TİC.A.Ş.", phone: "0(266) 863 11 22" },
+    contact_snapshot: { name: "SUSURLUK TİCARET BORSASI", phone: "0(266) 862 14 50" },
     prices_include_vat: true,
     discount_total: 0,
     withholding_total: 0,
@@ -296,99 +186,168 @@ const DEFAULT_PURCHASE_DOCS: Doc[] = [
     source_document_id: null,
   } as any,
   {
-    id: "sample-5",
+    id: "sale-3",
     org_id: "demo-org",
-    doc_type: "purchase_invoice",
-    number: "4B4VISHN",
-    issue_date: "2026-07-02",
+    doc_type: "pos_sale",
+    number: "KASA-2026-0089",
+    issue_date: "2026-09-25",
     due_date: null,
     payment_status: "paid",
     status: "approved",
-    subtotal: 9317.1,
-    vat_total: 1863.42,
-    total: 11180.52,
+    subtotal: 975.0,
+    vat_total: 195.0,
+    total: 1170.0,
     currency: "TRY",
-    description: "Alış Fişi · 02.07.2026 · 7 kalem",
-    contact_id: "sup-aykim",
+    description: "Kasa Fişi (POS) · 25.09.2026 · 3 kalem",
+    contact_id: null,
     contact: {
-      name: "AYKİM TEMİZLİK MADDELERİ SANAYİ VE TİCARET ANONİM ŞİRKETİ",
-      phone: "0(212) 475 0834",
+      name: "Perakende Müşteri",
+      phone: null,
       email: null,
     },
     category: null,
     lines: [
       {
-        id: "l5-1",
-        description: "NİTRİK ASİT 40KG",
-        quantity: 2,
-        unit_price: 950.0,
-        vat_rate: 20,
-        vat_amount: 380.0,
-        total: 2280.0,
-      },
-      {
-        id: "l5-2",
-        description: "PAYET PUL KOSTİK 25KG",
-        quantity: 1,
-        unit_price: 2000.0,
-        vat_rate: 20,
-        vat_amount: 400.0,
-        total: 2400.0,
-      },
-      {
-        id: "l5-3",
-        description: "GLANEX BULAŞIK MAK.DETERJANI 20KG",
-        quantity: 1,
-        unit_price: 740.0,
-        vat_rate: 20,
-        vat_amount: 59.2,
-        total: 799.2,
-      },
-      {
-        id: "l5-4",
-        description: "LENTO CONTRA BULAŞIK MAK.KİREÇ ÇÖZÜCÜ 5LT",
-        quantity: 4,
-        unit_price: 395.0,
-        vat_rate: 20,
-        vat_amount: 145.36,
-        total: 1725.36,
-      },
-      {
-        id: "l5-5",
+        id: "sl3-1",
         description: "ASPİRİX YÜZEY TEMİZLİK HAVLUSU 100LÜ",
-        quantity: 24,
-        unit_price: 61.0,
+        quantity: 3,
+        unit_price: 75.0,
         vat_rate: 20,
-        vat_amount: 292.8,
-        total: 1756.8,
+        total: 270.0,
       },
       {
-        id: "l5-6",
-        description: "KLOR (SODYUM HİPOKLORİT) 27.5 Kg",
+        id: "sl3-2",
+        description: "TEX SIVI BULAŞIK DETERJANI 4KG",
         quantity: 2,
-        unit_price: 475.0,
+        unit_price: 165.0,
         vat_rate: 20,
-        vat_amount: 190.0,
-        total: 1140.0,
+        total: 396.0,
       },
       {
-        id: "l5-7",
-        description: "TEX SIVI BULAŞIK DETERJANI LİMON 4KG",
-        quantity: 8,
-        unit_price: 132.25,
+        id: "sl3-3",
+        description: "7 OZ KARTON BARDAK 3000 (BENCUP)",
+        quantity: 1,
+        unit_price: 420.0,
         vat_rate: 20,
-        vat_amount: 21.16,
-        total: 1079.16,
+        total: 504.0,
       },
     ],
-    created_at: "2026-07-02T10:00:00Z",
-    updated_at: "2026-07-02T10:00:00Z",
+    created_at: "2026-09-25T10:00:00Z",
+    updated_at: "2026-09-25T10:00:00Z",
     deleted_at: null,
-    contact_snapshot: {
-      name: "AYKİM TEMİZLİK MADDELERİ SANAYİ VE TİCARET ANONİM ŞİRKETİ",
-      tax_number: "1111111111",
-      phone: "0(212) 475 0834",
+    contact_snapshot: { name: "Perakende Müşteri" },
+    prices_include_vat: true,
+    discount_total: 0,
+    withholding_total: 0,
+    notes: null,
+    terms: null,
+    valid_until: null,
+    warehouse_id: null,
+    assigned_to: null,
+    is_e_invoice: false,
+    e_invoice_status: null,
+    e_invoice_uuid: null,
+    source_document_id: null,
+  } as any,
+  {
+    id: "sale-4",
+    org_id: "demo-org",
+    doc_type: "sales_order",
+    number: "SIP-2026-0012",
+    issue_date: "2026-09-26",
+    due_date: "2026-10-10",
+    payment_status: "unpaid",
+    status: "approved",
+    subtotal: 14500.0,
+    vat_total: 2900.0,
+    total: 17400.0,
+    currency: "TRY",
+    description: "Satış Siparişi · 26.09.2026 · 2 kalem",
+    contact_id: "cust-reninsaat",
+    contact: {
+      name: "REN İNŞAAT & TAAHHÜT LTD. ŞTİ.",
+      phone: "0(266) 862 30 40",
+      email: null,
     },
+    category: null,
+    lines: [
+      {
+        id: "sl4-1",
+        description: "NİTRİK ASİT 40KG",
+        quantity: 10,
+        unit_price: 1100.0,
+        vat_rate: 20,
+        total: 13200.0,
+      },
+      {
+        id: "sl4-2",
+        description: "PAYET PUL KOSTİK 25KG",
+        quantity: 1,
+        unit_price: 3500.0,
+        vat_rate: 20,
+        total: 4200.0,
+      },
+    ],
+    created_at: "2026-09-26T10:00:00Z",
+    updated_at: "2026-09-26T10:00:00Z",
+    deleted_at: null,
+    contact_snapshot: { name: "REN İNŞAAT & TAAHHÜT LTD. ŞTİ." },
+    prices_include_vat: true,
+    discount_total: 0,
+    withholding_total: 0,
+    notes: null,
+    terms: null,
+    valid_until: null,
+    warehouse_id: null,
+    assigned_to: null,
+    is_e_invoice: false,
+    e_invoice_status: null,
+    e_invoice_uuid: null,
+    source_document_id: null,
+  } as any,
+  {
+    id: "sale-5",
+    org_id: "demo-org",
+    doc_type: "sales_waybill",
+    number: "IRS-2026-0005",
+    issue_date: "2026-09-25",
+    due_date: null,
+    payment_status: "paid",
+    status: "approved",
+    subtotal: 5800.0,
+    vat_total: 1160.0,
+    total: 6960.0,
+    currency: "TRY",
+    description: "Satış İrsaliyesi · 25.09.2026 · 2 kalem",
+    contact_id: "cust-marmara",
+    contact: {
+      name: "MARMARA ZEYTİN TARIM SATIŞ KOOP.",
+      phone: "0(266) 862 18 90",
+      email: null,
+    },
+    category: null,
+    lines: [
+      {
+        id: "sl5-1",
+        description: "KLOR (SODYUM HİPOKLORİT) 27.5 Kg",
+        quantity: 8,
+        unit_price: 550.0,
+        vat_rate: 20,
+        total: 5280.0,
+      },
+      {
+        id: "sl5-2",
+        description: "LENTO CONTRA KİREÇ ÇÖZÜCÜ 5LT",
+        quantity: 3,
+        unit_price: 466.67,
+        vat_rate: 20,
+        total: 1680.0,
+      },
+    ],
+    created_at: "2026-09-25T10:00:00Z",
+    updated_at: "2026-09-25T10:00:00Z",
+    deleted_at: null,
+    contact_snapshot: { name: "MARMARA ZEYTİN TARIM SATIŞ KOOP." },
     prices_include_vat: true,
     discount_total: 0,
     withholding_total: 0,
@@ -404,20 +363,23 @@ const DEFAULT_PURCHASE_DOCS: Doc[] = [
   } as any,
 ];
 
-export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTab }) {
+export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const confirm = useConfirm();
   const { org, canWrite } = useOrg();
   const del = useRpc("delete_document");
 
-  // Tab: "orders" | "waybills" | "invoices"
+  // Primary Tab: "orders" | "waybills" | "invoices"
   const tabFromUrl = searchParams.get("tab");
-  const [activeTab, setActiveTab] = React.useState<AlisTab>(
+  const [activeTab, setActiveTab] = React.useState<SatisTab>(
     tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices"
       ? tabFromUrl
       : initialTab
   );
+
+  // Sub Tab (when Faturalar): "documents" | "pos" | "cancelled"
+  const [subTab, setSubTab] = React.useState<SatisSubTab>("documents");
 
   React.useEffect(() => {
     if (tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices") {
@@ -425,43 +387,26 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
     }
   }, [tabFromUrl]);
 
-  // Arama & Tarih Filtresi
+  // Search & Date Filter
   const [q, setQ] = React.useState("");
   const [dateFilter, setDateFilter] = React.useState<DateFilter>("all");
 
-  // Foto 1 & Foto 2 & 3 Modalleri
-  const [supplierModalOpen, setSupplierModalOpen] = React.useState(false);
-  const [invoiceModalOpen, setInvoiceModalOpen] = React.useState(false);
-  const [selectedSupplier, setSelectedSupplier] = React.useState<SupplierItem | null>(null);
-
-  // Belge Yazdır Modalı
+  // Print modal state
   const [printDoc, setPrintDoc] = React.useState<Doc | null>(null);
 
-  // Yardım & AI Modalleri
+  // Müşteri Seçim Modalı (Pusulam Birebir)
+  const [customerModalOpen, setCustomerModalOpen] = React.useState(false);
+
+  // Help modal
   const [helpOpen, setHelpOpen] = React.useState(false);
-  const [aiModalOpen, setAiModalOpen] = React.useState(false);
-  const [aiLoading, setAiLoading] = React.useState(false);
-  const [aiResult, setAiResult] = React.useState<{
-    supplierName?: string;
-    date?: string;
-    total?: number;
-    vat?: number;
-  } | null>(null);
 
-  // Yerel eklenen belgeler (anında listeye yansıması için)
-  const [localDocs, setLocalDocs] = React.useState<Doc[]>([]);
-
-  // Aktif sekmeye göre doc_type
+  // Map active tab & subTab to doc_type
   const docType = React.useMemo(() => {
-    switch (activeTab) {
-      case "orders":
-        return "purchase_order";
-      case "waybills":
-        return "purchase_waybill";
-      default:
-        return "purchase_invoice";
-    }
-  }, [activeTab]);
+    if (activeTab === "orders") return "sales_order";
+    if (activeTab === "waybills") return "sales_waybill";
+    if (subTab === "pos") return "pos_sale";
+    return "sales_invoice";
+  }, [activeTab, subTab]);
 
   const docTypeLabel = React.useMemo(() => {
     switch (activeTab) {
@@ -470,38 +415,56 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
       case "waybills":
         return "İrsaliye";
       default:
-        return "Fatura";
+        return subTab === "pos" ? "Kasa Fişi" : "Fatura";
     }
-  }, [activeTab]);
+  }, [activeTab, subTab]);
 
-  // Veritabanındaki belgeleri çek
+  // Query documents for current type
   const docs = useRows<Doc>("documents", {
     select: "*, contact:contacts(name, phone, email), category:categories(name), lines:document_lines(*)",
-    params: [docType],
-    filter: (x) => x.eq("doc_type", docType).is("deleted_at", null),
+    params: [docType, subTab],
+    filter: (x) => {
+      let qb = x.is("deleted_at", null);
+      if (activeTab === "invoices" && subTab === "cancelled") {
+        qb = qb.in("doc_type", ["sales_invoice", "pos_sale"]).eq("status", "cancelled");
+      } else {
+        qb = qb.eq("doc_type", docType);
+      }
+      return qb;
+    },
     order: [
       { column: "issue_date", ascending: false },
       { column: "created_at", ascending: false },
     ],
   });
 
-  // DB belgeleri + Yerel yeni eklenenler + Varsayılan örnekler
   const allRows = React.useMemo(() => {
     const dbData = docs.data ?? [];
-    const merged = [...localDocs, ...dbData];
+    const merged = [...dbData];
 
+    let defaultCandidates: Doc[] = [];
     if (activeTab === "invoices") {
-      for (const def of DEFAULT_PURCHASE_DOCS) {
-        if (!merged.some((m) => m.id === def.id || (m.number && m.number === def.number))) {
-          merged.push(def);
-        }
+      if (subTab === "documents") {
+        defaultCandidates = DEFAULT_SALES_DOCS.filter((d) => d.doc_type === "sales_invoice");
+      } else if (subTab === "pos") {
+        defaultCandidates = DEFAULT_SALES_DOCS.filter((d) => d.doc_type === "pos_sale");
+      }
+    } else if (activeTab === "orders") {
+      defaultCandidates = DEFAULT_SALES_DOCS.filter((d) => d.doc_type === "sales_order");
+    } else if (activeTab === "waybills") {
+      defaultCandidates = DEFAULT_SALES_DOCS.filter((d) => d.doc_type === "sales_waybill");
+    }
+
+    for (const def of defaultCandidates) {
+      if (!merged.some((m) => m.id === def.id || (m.number && m.number === def.number))) {
+        merged.push(def);
       }
     }
 
     return merged;
-  }, [docs.data, localDocs, activeTab]);
+  }, [docs.data, activeTab, subTab]);
 
-  // Tarih Filtresi Kontrolü
+  // Date filtering logic
   const filterByDate = (d: Doc, filter: DateFilter) => {
     if (filter === "all") return true;
     const docDate = new Date(d.issue_date);
@@ -529,25 +492,25 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
     return true;
   };
 
-  // Filtrelenmiş Satırlar
+  // Filtered rows
   const filteredRows = React.useMemo(() => {
     let res = allRows;
 
-    // Tarihe göre filtrele
+    // Filter by Date
     res = res.filter((d) => filterByDate(d, dateFilter));
 
-    // Arama terimine göre filtrele
+    // Filter by search query
     if (q.trim()) {
       const query = q.toLowerCase();
       res = res.filter((d) => {
-        const supplierName = (
+        const customerName = (
           d.contact?.name ||
           (d.contact_snapshot as any)?.name ||
-          ""
+          (d.doc_type === "pos_sale" ? "Perakende Müşteri" : "")
         ).toLowerCase();
         const docNum = (d.number || "").toLowerCase();
         const desc = (d.description || "").toLowerCase();
-        return supplierName.includes(query) || docNum.includes(query) || desc.includes(query);
+        return customerName.includes(query) || docNum.includes(query) || desc.includes(query);
       });
     }
 
@@ -559,26 +522,51 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
     return d.due_date < isoDate();
   };
 
-  // Yeni Belge Başlatma Akışı:
-  // 1. Önce Foto 1 "Tedarikçi seç" modalı açılır.
+  const getNewUrl = () => {
+    switch (activeTab) {
+      case "orders":
+        return "/satislar/siparisler/yeni";
+      case "waybills":
+        return "/satislar/irsaliyeler/yeni";
+      default:
+        return "/satislar/faturalar/yeni";
+    }
+  };
+
   const handleStartNewDoc = () => {
-    setSupplierModalOpen(true);
+    setCustomerModalOpen(true);
   };
 
-  // 2. Tedarikçi seçildiğinde veya "Tedarikçisiz devam" dendiğinde Foto 2+3 açılır.
-  const handleSupplierSelected = (supplier: SupplierItem | null) => {
-    setSelectedSupplier(supplier);
-    setSupplierModalOpen(false);
-    setInvoiceModalOpen(true);
+  const handleCustomerSelected = (customer: CustomerItem | null) => {
+    setCustomerModalOpen(false);
+    const baseUrl = getNewUrl();
+    const targetUrl = customer ? `${baseUrl}?cari=${customer.id}` : baseUrl;
+    router.push(targetUrl);
   };
 
-  // Fatura kaydedildiğinde listeye ekle
-  const handleInvoiceSaved = (savedDoc: any) => {
-    setLocalDocs((prev) => [savedDoc as Doc, ...prev]);
-    toast.success("Alış faturası listeye eklendi!");
+  const getDetailUrl = (id: string) => {
+    switch (activeTab) {
+      case "orders":
+        return `/satislar/siparisler/detay?id=${id}`;
+      case "waybills":
+        return `/satislar/irsaliyeler/detay?id=${id}`;
+      default:
+        return `/satislar/faturalar/detay?id=${id}`;
+    }
   };
 
-  // Aksiyonlar
+  const getEditUrl = (id: string) => {
+    switch (activeTab) {
+      case "orders":
+        return `/satislar/siparisler/duzenle?id=${id}`;
+      case "waybills":
+        return `/satislar/irsaliyeler/duzenle?id=${id}`;
+      default:
+        return `/satislar/faturalar/duzenle?id=${id}`;
+    }
+  };
+
+  // Actions
   const handleDelete = async (d: Doc) => {
     const name = d.contact?.name || d.number || docTypeLabel;
     if (
@@ -591,32 +579,15 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
     ) {
       return;
     }
-
-    if (d.id.startsWith("sample-")) {
-      setLocalDocs((prev) => prev.filter((p) => p.id !== d.id));
-      toast.success("Belge silindi");
-      return;
-    }
-
     await del.call({ p_doc: d.id }, "Belge silindi");
   };
 
   const handleDuplicate = (d: Doc) => {
-    setSelectedSupplier(
-      d.contact
-        ? {
-            id: d.contact_id || "dup-sup",
-            name: d.contact.name,
-            phone: d.contact.phone,
-          }
-        : null
-    );
-    setInvoiceModalOpen(true);
-    toast.info("Belge kopyalandı; yeni alış belgesi açıldı.");
+    router.push(`${getNewUrl()}?kopya=${d.id}`);
   };
 
   const handleWhatsAppShare = (d: Doc) => {
-    const supplierName = d.contact?.name || (d.contact_snapshot as any)?.name || "Tedarikçi";
+    const customerName = d.contact?.name || (d.contact_snapshot as any)?.name || (d.doc_type === "pos_sale" ? "Perakende Müşteri" : "Müşteri");
     const phone = d.contact?.phone || "";
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.startsWith("0")
@@ -628,7 +599,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
     const text = encodeURIComponent(
       `*${org?.name || "Ren Endüstriyel"}*\n` +
       `Belge: ${docTypeLabel} (${d.number || "—"})\n` +
-      `Sayın: ${supplierName}\n` +
+      `Sayın: ${customerName}\n` +
       `Tarih: ${formatDate(d.issue_date)}\n` +
       `Toplam Tutar: ${formatMoney(d.total ?? 0, d.currency || "TRY")}\n` +
       `Durum: ${d.payment_status === "paid" ? "Ödendi" : "Açık"}`
@@ -639,12 +610,12 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
   };
 
   const handleEmailShare = (d: Doc) => {
-    const supplierName = d.contact?.name || (d.contact_snapshot as any)?.name || "İlgili";
+    const customerName = d.contact?.name || (d.contact_snapshot as any)?.name || "İlgili";
     const email = d.contact?.email || "";
     const subject = encodeURIComponent(`${org?.name || "Ren Endüstriyel"} - ${docTypeLabel} (${d.number || "—"})`);
     const body = encodeURIComponent(
-      `Sayın ${supplierName},\n\n` +
-      `${formatDate(d.issue_date)} tarihli ${docTypeLabel} (${d.number || "—"}) faturanız sistemimize işlenmiştir:\n` +
+      `Sayın ${customerName},\n\n` +
+      `${formatDate(d.issue_date)} tarihli ${docTypeLabel} (${d.number || "—"}) faturanız:\n` +
       `Net Tutar: ${formatMoney(d.subtotal ?? 0, d.currency || "TRY")}\n` +
       `KDV Tutarı: ${formatMoney(d.vat_total ?? 0, d.currency || "TRY")}\n` +
       `Toplam Tutar: ${formatMoney(d.total ?? 0, d.currency || "TRY")}\n\n` +
@@ -655,14 +626,14 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
   };
 
   const handleExportExcel = () => {
-    exportExcel(`alislar_${activeTab}`, [
+    exportExcel(`satislar_${activeTab}`, [
       {
         name: docTypeLabel,
         rows: filteredRows,
         columns: [
           { header: "Tarih", value: (d) => d.issue_date },
           { header: "Belge No", value: (d) => d.number || "" },
-          { header: "Tedarikçi", value: (d) => d.contact?.name || (d.contact_snapshot as any)?.name || "" },
+          { header: "Müşteri", value: (d) => d.contact?.name || (d.contact_snapshot as any)?.name || (d.doc_type === "pos_sale" ? "Perakende Müşteri" : "") },
           { header: "Net Tutar", value: (d) => Number(d.subtotal || 0), type: "money" },
           { header: "KDV Tutarı", value: (d) => Number(d.vat_total || 0), type: "money" },
           { header: "Toplam Tutar", value: (d) => Number(d.total || 0), type: "money" },
@@ -671,34 +642,6 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
         ],
       },
     ]);
-  };
-
-  const handleAiScan = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setAiLoading(true);
-    setAiModalOpen(true);
-
-    setTimeout(() => {
-      setAiLoading(false);
-      setAiResult({
-        supplierName: "Örnek Tedarikçi A.Ş.",
-        date: isoDate(),
-        total: 1250.0,
-        vat: 250.0,
-      });
-      toast.success("Fatura bilgileri başarıyla okundu!");
-    }, 1800);
-  };
-
-  const handleApplyAiResult = () => {
-    setAiModalOpen(false);
-    setSelectedSupplier({
-      id: "ai-sup",
-      name: aiResult?.supplierName || "Okunan Tedarikçi",
-    });
-    setInvoiceModalOpen(true);
   };
 
   const dateFilterLabels: Record<DateFilter, string> = {
@@ -713,10 +656,10 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
   return (
     <div className="flex-1 pb-16">
       {/* 1. Başlık ve Aksiyon Butonları (Pusulam Birebir) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            Alışlar
+            Satışlar
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             Sipariş, irsaliye ve faturalarınız
@@ -748,24 +691,12 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Fatura Oku · Foto / PDF / XML / Excel */}
-          <label className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold bg-[#111e2e] text-blue-300 border border-blue-800/60 hover:bg-[#15263a] transition-colors cursor-pointer shadow-xs">
-            <FileUp size={15} className="text-blue-400" />
-            <span>Fatura Oku · Foto / PDF / XML / Excel</span>
-            <input
-              type="file"
-              accept="image/*,application/pdf,.xml,.xlsx"
-              className="hidden"
-              onChange={handleAiScan}
-            />
-          </label>
-
-          {/* + Yeni Fatura Butonu (Foto 1 Modalı Açar) */}
+          {/* + Yeni Fatura Butonu (Pusulam Birebir: Müşteri Seçim Modalı Açar) */}
           {canWrite && (
             <button
               type="button"
               onClick={handleStartNewDoc}
-              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-bold bg-[#00b49c] hover:bg-[#009e89] text-white shadow-xs transition active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-bold bg-[#00b49c] hover:bg-[#009e89] text-white shadow-xs transition active:scale-95 cursor-pointer"
             >
               <Plus size={16} strokeWidth={2.5} />
               <span>+ Yeni {docTypeLabel}</span>
@@ -775,20 +706,20 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
       </div>
 
       {/* 2. Arama Çubuğu (Pusulam Birebir) */}
-      <div className="mb-3.5 w-full max-w-md">
+      <div className="mb-4 w-full max-w-md">
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
           <input
             className="w-full rounded-xl bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37] pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-[#00b49c] transition-colors"
-            placeholder="alışlar arama"
+            placeholder="satışlar arama"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
       </div>
 
-      {/* 3. Belge Türü Sekmeleri (media_1791008363156.png Satır 1) */}
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      {/* 3. Birincil Sekmeler (Siparişler, İrsaliyeler, Faturalar) */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => setActiveTab("orders")}
@@ -829,30 +760,72 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
         </button>
       </div>
 
-      {/* 4. Tarih Dropdown Pill (media_1791008363156.png Satır 2) */}
-      <div className="mb-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
-            >
-              <span>{dateFilterLabels[dateFilter]}</span>
-              <ChevronDown size={14} className="text-slate-400" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onSelect={() => setDateFilter("all")}>Tüm tarihler</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("today")}>Bugün</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("this_week")}>Bu Hafta</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("this_month")}>Bu Ay</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("last_30")}>Son 30 Gün</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("this_year")}>Bu Yıl</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* 4. İkincil Alt Sekmeler (Faturalar seçiliyken: Belgeler, Kasa fişleri, İptal edilenler, Tarih) */}
+      {activeTab === "invoices" && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSubTab("documents")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all",
+              subTab === "documents"
+                ? "bg-[#00b49c] text-white shadow-xs font-bold"
+                : "bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600"
+            )}
+          >
+            Belgeler
+          </button>
 
-      {/* 5. Alış Belgeleri Listesi (Pusulam Birebir Kart Yapısı) */}
+          <button
+            type="button"
+            onClick={() => setSubTab("pos")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all",
+              subTab === "pos"
+                ? "bg-[#00b49c] text-white shadow-xs font-bold"
+                : "bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600"
+            )}
+          >
+            Kasa fişleri (gün gün)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubTab("cancelled")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all",
+              subTab === "cancelled"
+                ? "bg-[#00b49c] text-white shadow-xs font-bold"
+                : "bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600"
+            )}
+          >
+            İptal edilenler
+          </button>
+
+          {/* Tarih Dropdown Pill */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+              >
+                <span>{dateFilterLabels[dateFilter]}</span>
+                <ChevronDown size={14} className="text-slate-400" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => setDateFilter("all")}>Tüm tarihler</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDateFilter("today")}>Bugün</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDateFilter("this_week")}>Bu Hafta</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDateFilter("this_month")}>Bu Ay</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDateFilter("last_30")}>Son 30 Gün</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDateFilter("this_year")}>Bu Yıl</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {/* 5. Satış Belgeleri Listesi (Pusulam Birebir Kart Yapısı) */}
       <div className="space-y-2.5">
         {filteredRows.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 dark:border-[#182c37] bg-white dark:bg-[#0c1822] p-12 sm:p-16 text-center shadow-xs">
@@ -860,10 +833,10 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
               <ShoppingCart size={32} strokeWidth={2} />
             </div>
             <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-1">
-              Henüz alış belgesi yok
+              Henüz satış belgesi yok
             </h3>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6">
-              Yeni alış belgesi oluşturun veya Gelen e-Fatura kutusundan aktarın.
+              Yeni satış belgesi oluşturun veya Hızlı Satış ekranını kullanın.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <button
@@ -872,24 +845,23 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-bold bg-[#00b49c] hover:bg-[#009e89] text-white shadow-md shadow-[#00b49c]/20 transition active:scale-95 cursor-pointer"
               >
                 <Plus size={16} strokeWidth={2.5} />
-                <span>+ Yeni alış</span>
+                <span>+ Yeni {docTypeLabel}</span>
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/e-fatura")}
+                onClick={() => router.push("/hizli-satis")}
                 className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-[#13232e] hover:bg-slate-200 dark:hover:bg-[#192f3e] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] transition active:scale-95 cursor-pointer"
               >
-                <span>Gelen e-Faturalar</span>
+                <span>Hızlı Satış</span>
               </button>
             </div>
           </div>
         ) : (
           filteredRows.map((d) => {
-            const supplierName =
+            const customerName =
               d.contact?.name ||
               (d.contact_snapshot as any)?.name ||
-              d.description ||
-              "Tedarikçi Belirtilmemiş";
+              (d.doc_type === "pos_sale" ? "Perakende Müşteri" : d.description || "Müşteri Belirtilmemiş");
             const isOverdue = isDocOverdue(d);
             const isPaid = d.payment_status === "paid";
             const isCancelled = d.status === "cancelled";
@@ -901,21 +873,21 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                 role="button"
                 tabIndex={0}
                 onClick={() => setPrintDoc(d)}
-                className="rounded-2xl border border-slate-200 dark:border-[#182c37] bg-white dark:bg-[#111e26] hover:border-slate-300 dark:hover:border-[#223d4c] p-3 sm:px-4 sm:py-3.5 transition-all flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 group cursor-pointer shadow-xs"
+                className="rounded-2xl border border-slate-200 dark:border-[#182c37] bg-white dark:bg-[#111e26] hover:border-slate-300 dark:hover:border-[#223d4c] p-3 sm:p-4 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 group cursor-pointer shadow-xs"
               >
                 {/* Sol Bölüm: İkon ve Bilgiler */}
-                <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-teal-50 dark:bg-[#0e272c] text-[#00b49c] border border-teal-200/50 dark:border-[#164349] flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-teal-50 dark:bg-[#0d282e] text-[#00b49c] border border-teal-200/50 dark:border-[#14474f] flex items-center justify-center shrink-0">
                     <FileText size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold truncate text-sm sm:text-base text-slate-900 dark:text-white uppercase tracking-tight">
-                      {supplierName}
+                    <div className="font-bold truncate text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
+                      {customerName}
                     </div>
-                    <div className="text-xs text-slate-400 truncate mt-0.5">
+                    <div className="text-xs text-slate-400 truncate mt-1">
                       {docTypeLabel} Fişi · {formatDate(d.issue_date)} · {linesCount} kalem
                     </div>
-                    <div className="text-[11px] text-slate-400/90 mt-0.5 tabular-nums">
+                    <div className="text-[11px] text-slate-400/80 mt-0.5 tabular-nums">
                       Net {formatMoney(d.subtotal ?? 0)} · KDV {formatMoney(d.vat_total ?? 0)}
                     </div>
                   </div>
@@ -984,7 +956,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDuplicate(d);
+                      router.push(getEditUrl(d.id));
                     }}
                     className="inline-flex items-center gap-1 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-200 dark:hover:bg-[#1c3241] transition"
                     title="Düzenle"
@@ -1007,7 +979,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => setPrintDoc(d)}>
+                      <DropdownMenuItem onSelect={() => router.push(getDetailUrl(d.id))}>
                         <Eye size={14} />
                         <span>Detayı Görüntüle</span>
                       </DropdownMenuItem>
@@ -1025,7 +997,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                 </div>
 
                 {/* Sağ Bölüm: Tutar, Durum ve Vade */}
-                <div className="shrink-0 flex xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-1 xl:min-w-[130px] border-t xl:border-t-0 border-slate-100 dark:border-[#182c37] pt-2 xl:pt-0 text-right">
+                <div className="shrink-0 flex md:flex-col items-center md:items-end justify-between md:justify-center gap-1.5 md:min-w-[130px] border-t md:border-t-0 border-slate-100 dark:border-[#182c37] pt-2 md:pt-0 text-right">
                   <div className="font-extrabold text-sm sm:text-base tabular-nums text-slate-900 dark:text-white">
                     {formatMoney(d.total ?? 0)}
                   </div>
@@ -1043,7 +1015,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                       </span>
                     ) : (
                       <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-500 select-none">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                         <span>Açık</span>
                       </span>
                     )}
@@ -1072,12 +1044,19 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
       <button
         type="button"
         onClick={handleStartNewDoc}
-        className="fixed z-30 h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#00b49c] hover:bg-[#009e89] text-white shadow-xl shadow-[#00b49c]/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 right-5 sm:right-7 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-8"
+        className="fixed z-30 h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#00b49c] hover:bg-[#009e89] text-white shadow-xl shadow-[#00b49c]/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 right-5 sm:right-7 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-8 cursor-pointer"
         title={`Yeni ${docTypeLabel}`}
         aria-label={`Yeni ${docTypeLabel}`}
       >
         <Plus size={26} strokeWidth={2.5} />
       </button>
+
+      {/* Müşteri Seç Pop-up Modalı (Pusulam Birebir) */}
+      <CustomerSelectModal
+        open={customerModalOpen}
+        onOpenChange={setCustomerModalOpen}
+        onSelect={handleCustomerSelected}
+      />
 
       {/* 7. Pusulam Sağ Alt Yardım Butonu */}
       <button
@@ -1090,26 +1069,6 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
         <CircleHelp size={18} />
       </button>
 
-      {/* 8. Foto 1: Tedarikçi Seç Pop-up Modalı */}
-      <SupplierSelectModal
-        open={supplierModalOpen}
-        onOpenChange={setSupplierModalOpen}
-        onSelect={handleSupplierSelected}
-      />
-
-      {/* 9. Foto 2 & 3: Birleşik Yeni Alış Belgesi Modalı */}
-      <PurchaseInvoiceModal
-        open={invoiceModalOpen}
-        onOpenChange={setInvoiceModalOpen}
-        supplier={selectedSupplier}
-        onChangeSupplierRequest={() => {
-          setInvoiceModalOpen(false);
-          setSupplierModalOpen(true);
-        }}
-        onSaved={handleInvoiceSaved}
-        initialDocType={docTypeLabel as any}
-      />
-
       {/* Belge Yazdır / Önizleme Modalı */}
       {printDoc && (
         <DocumentPrintModal
@@ -1120,66 +1079,11 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
         />
       )}
 
-      {/* Fatura Oku Yapay Zeka Modalı */}
-      <Dialog open={aiModalOpen} onOpenChange={setAiModalOpen}>
-        <DialogContent
-          title="Fatura Oku · Yapay Zeka"
-          description="Fotoğraf, PDF, XML veya Excel faturanız taranıyor..."
-          className="max-w-md bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37]"
-        >
-          {aiLoading ? (
-            <div className="flex flex-col items-center justify-center py-10 space-y-3">
-              <Loader2 size={36} className="animate-spin text-[#00b49c]" />
-              <p className="text-sm font-semibold text-slate-300">
-                Fatura optik okuma ile taranıyor...
-              </p>
-              <p className="text-xs text-slate-500">
-                Kalemler, tedarikçi ve KDV ayrıştırılıyor.
-              </p>
-            </div>
-          ) : aiResult ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                <Sparkles size={16} />
-                <span>Bilgiler Başarıyla Ayrıştırıldı</span>
-              </div>
-
-              <div className="rounded-xl bg-slate-50 dark:bg-[#142530] p-4 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tedarikçi:</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{aiResult.supplierName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Tarih:</span>
-                  <span className="font-medium text-slate-900 dark:text-white">{aiResult.date}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">KDV Tutarı:</span>
-                  <span className="font-medium text-slate-900 dark:text-white">{formatMoney(aiResult.vat || 0)}</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <span className="font-bold text-slate-400">Genel Toplam:</span>
-                  <span className="font-extrabold text-[#00b49c]">{formatMoney(aiResult.total || 0)}</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleApplyAiResult}
-                className="w-full py-2.5 rounded-xl bg-[#00b49c] hover:bg-[#009e89] text-white font-bold text-sm transition"
-              >
-                Fatura Girişine Aktar
-              </button>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
       {/* Sayfa Yardımı Modalı */}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent
-          title="Alışlar Sayfası Yardımı"
-          description="Alış belgelerini yönetme rehberi"
+          title="Satışlar Sayfası Yardımı"
+          description="Satış belgelerini ve tahsilatları yönetme rehberi"
           className="max-w-md bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37]"
         >
           <div className="space-y-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
@@ -1187,7 +1091,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
               <strong>Siparişler, İrsaliyeler ve Faturalar:</strong> Üstteki sekmeleri kullanarak ilgili belge türünü anında listeleyebilirsiniz.
             </p>
             <p>
-              <strong>Tedarikçi Seçimi ve Fatura Girişi:</strong> &ldquo;+ Yeni Fatura&rdquo; butonuna tıkladığınızda önce tedarikçi seçim penceresi açılır, ardından fatura detaylarını girebileceğiniz kalemli belge ekranı açılır.
+              <strong>Kasa Fişleri &amp; İptaller:</strong> Faturalar sekmesindeyken kasa fişlerinizi ve iptal edilen satışlarınızı alt sekmelerden görebilirsiniz.
             </p>
             <p>
               <strong>Hızlı İşlemler:</strong> Kart üzerinde yer alan Belge (yazdır), WhatsApp, E-posta, Kopyala ve Düzenle butonlarıyla tek tıkla aksiyon alabilirsiniz.

@@ -26,6 +26,7 @@ import {
 import { useRates } from "@/lib/rates";
 import { ChangelogProvider } from "./changelog-context";
 import { ChangelogDialog } from "./changelog-dialog";
+import { useLocalStorage } from "@/lib/use-local-storage";
 import { cn } from "@/lib/utils";
 
 export function FullScreenLoader() {
@@ -60,6 +61,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { session, loading: authLoading } = useAuth();
   const { org, loading: orgLoading, memberships } = useOrg();
+  const [stored] = useLocalStorage("ren-sidebar");
+  const collapsed = stored === "collapsed";
+  const isPosPage = pathname === "/hizli-satis";
 
   React.useEffect(() => {
     if (authLoading) return;
@@ -72,8 +76,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (authLoading || !session || !org) return <FullScreenLoader />;
 
-  const isPosPage = pathname === "/hizli-satis";
-
   return (
     <ChangelogProvider>
       <CommandPaletteProvider>
@@ -83,7 +85,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Sidebar />
           </div>
 
-          <div className="flex-1 min-w-0 lg:ml-64 transition-[margin] duration-200 flex flex-col min-h-dvh">
+          <div
+            className={cn(
+              "flex-1 min-w-0 transition-[margin] duration-200 flex flex-col min-h-dvh",
+              collapsed ? "lg:ml-[68px]" : "lg:ml-56"
+            )}
+          >
             <div className="contents">
               <OfflineBanner />
               <InstallBanner />

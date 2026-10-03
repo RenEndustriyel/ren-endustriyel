@@ -104,6 +104,7 @@ export const NAV: NavGroup[] = [
     icon: Package,
     items: [
       { title: "Ürün ve Hizmetler", href: "/stok/urunler", icon: Package, keywords: "ürün barkod" },
+      { title: "Akıllı Fiyatlandırma", href: "/stok/fiyatlandirma", icon: Sparkles, keywords: "akıllı fiyat kâr marj piyasa fırsat dinamik maliyet" },
       { title: "Online Katalog", href: "/stok/katalog", icon: Globe, keywords: "katalog online ürünler web" },
       { title: "Depolar", href: "/stok/depolar", icon: Warehouse },
       { title: "Depo Transferleri", href: "/stok/transfer", icon: ArrowLeftRight },

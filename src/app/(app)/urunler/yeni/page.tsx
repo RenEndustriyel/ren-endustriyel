@@ -9,7 +9,7 @@ export default function Page() {
   const router = useRouter();
   const params = useSearchParams();
   return (
-    <div className="mx-auto max-w-4xl pb-10">
+    <div className="mx-auto w-full max-w-6xl xl:max-w-7xl pb-10">
       <PageHeader
         back
         title="Yeni Ürün / Hizmet"

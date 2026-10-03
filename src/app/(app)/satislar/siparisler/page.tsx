@@ -1,7 +1,7 @@
 "use client";
 
-import { DocumentList } from "@/components/documents/document-list";
+import { SalesList } from "@/components/sales/sales-list";
 
-export default function Page() {
-  return <DocumentList type="sales_order" />;
+export default function SiparislerPage() {
+  return <SalesList initialTab="orders" />;
 }
