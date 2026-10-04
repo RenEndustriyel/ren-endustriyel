@@ -20,7 +20,6 @@ import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface FinancialHealthCockpitProps {
-  // Canlı veriler ve varsayılanlar
   salesTotal?: number;
   purchaseTotal?: number;
   collectionTotal?: number;
@@ -28,44 +27,51 @@ interface FinancialHealthCockpitProps {
   stockTotal?: number;
   cashBankTotal?: number;
   receivableTotal?: number;
+  /** Gelecek 30 gün içinde vadesi gelecek tahsilatlar (timeline'dan) */
+  expectedCollectionsNext30Days?: number;
+  /** Gelecek 30 gün içinde vadesi gelecek ödemeler (timeline'dan) */
+  expectedPaymentsNext30Days?: number;
+  /** Stokta miktarı > 0 olan ürün sayısı */
+  productCount?: number;
 }
 
 export function FinancialHealthCockpit({
-  salesTotal = 504200.0,
-  purchaseTotal = 361350.0,
-  collectionTotal = 418900.0,
-  debtTotal = 94150.0,
-  stockTotal = 318400.0,
-  cashBankTotal = 168500.0,
-  receivableTotal = 85300.0,
+  salesTotal = 0,
+  purchaseTotal = 0,
+  collectionTotal = 0,
+  debtTotal = 0,
+  stockTotal = 0,
+  cashBankTotal = 0,
+  receivableTotal = 0,
+  expectedCollectionsNext30Days = 0,
+  expectedPaymentsNext30Days = 0,
+  productCount = 0,
 }: FinancialHealthCockpitProps) {
   // Net Kâr ve Kâr Marjı Hesabı
   const netProfit = salesTotal - purchaseTotal;
   const isProfitable = netProfit >= 0;
   const profitMargin = salesTotal > 0 ? (netProfit / salesTotal) * 100 : 0;
 
-  // Önceki Dönem Karşılaştırmaları (Trend Değerleri)
-  const prevSales = 425500.0;
-  const prevProfit = 98200.0;
-  const prevMargin = 23.1;
-  const salesGrowthPercent = ((salesTotal - prevSales) / prevSales) * 100;
-  const profitGrowthPercent = ((netProfit - prevProfit) / prevProfit) * 100;
+  // Satış büyüme — önceki dönem verisi olmadığından gösterilmez
+  const salesGrowthPercent: number | null = null;
+  const profitGrowthPercent: number | null = null;
 
-  // İleri Yön Projeksiyonu (Gelecek 30 Gün)
-  const expectedCollectionsNext30Days = 115193.58;
-  const expectedPaymentsNext30Days = 59295.4;
+  // İleri Yön Projeksiyonu (Gelecek 30 Gün) — timeline'dan geliyor
   const projectedNetCashSurplus = expectedCollectionsNext30Days - expectedPaymentsNext30Days;
-  const liquidityRatio = expectedPaymentsNext30Days > 0 ? expectedCollectionsNext30Days / expectedPaymentsNext30Days : 2.0;
+  const liquidityRatio = expectedPaymentsNext30Days > 0 ? expectedCollectionsNext30Days / expectedPaymentsNext30Days : 0;
 
-  // Finansal Sağlık Skoru (100 Üzerinden)
+  // Tahsilat başarısı (sadece her iki veri > 0 ise göster)
+  const collectionRate = salesTotal > 0 && collectionTotal > 0 ? (collectionTotal / salesTotal) * 100 : null;
+
+  // Finansal Sağlık Skoru (100 Üzerinrden)
   const healthScore = Math.min(
     100,
     Math.max(
-      30,
+      0,
       Math.round(
-        (isProfitable ? 40 : 10) +
-          Math.min(30, (profitMargin / 35) * 30) +
-          Math.min(30, (liquidityRatio / 2.0) * 30)
+        (isProfitable && salesTotal > 0 ? 40 : salesTotal === 0 ? 0 : 10) +
+          Math.min(30, salesTotal > 0 ? (profitMargin / 35) * 30 : 0) +
+          Math.min(30, liquidityRatio > 0 ? Math.min(liquidityRatio / 2.0, 1) * 30 : 0)
       )
     )
   );
@@ -88,13 +94,20 @@ export function FinancialHealthCockpit({
               <span
                 className={cn(
                   "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider",
-                  isProfitable
+                  isProfitable && salesTotal > 0
                     ? "bg-emerald-500 text-slate-950 shadow-sm"
+                    : salesTotal === 0
+                    ? "bg-slate-600 text-slate-200 shadow-sm"
                     : "bg-rose-500 text-white shadow-sm"
                 )}
               >
-                {isProfitable ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
-                <span>{isProfitable ? "NET KÂRDASINIZ" : "NET ZARARDASINIZ"}</span>
+                {salesTotal === 0 ? (
+                  <span>VERİ YÜKLENİYOR</span>
+                ) : isProfitable ? (
+                  <><CheckCircle2 size={15} /> <span>NET KÂRDASINIZ</span></>
+                ) : (
+                  <><AlertTriangle size={15} /> <span>NET ZARARDASINIZ</span></>
+                )}
               </span>
 
               <span className="text-xs font-bold text-slate-400">
@@ -106,25 +119,34 @@ export function FinancialHealthCockpit({
               <span
                 className={cn(
                   "text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight tabular-nums",
-                  isProfitable ? "text-emerald-400" : "text-rose-400"
+                  salesTotal === 0 ? "text-slate-500" : isProfitable ? "text-emerald-400" : "text-rose-400"
                 )}
               >
-                {isProfitable ? "+" : ""}
-                {formatMoney(netProfit)}
+                {salesTotal === 0 ? (
+                  <span className="text-2xl">Hesaplanıyor…</span>
+                ) : (
+                  <>{isProfitable ? "+" : ""}{formatMoney(netProfit)}</>
+                )}
               </span>
 
-              <span className="text-sm sm:text-base font-extrabold text-slate-300 tabular-nums">
-                (%{profitMargin.toFixed(1)} Net Kâr Marjı)
-              </span>
+              {salesTotal > 0 && (
+                <span className="text-sm sm:text-base font-extrabold text-slate-300 tabular-nums">
+                  (%{profitMargin.toFixed(1)} Net Kâr Marjı)
+                </span>
+              )}
 
-              <span className="inline-flex items-center text-xs font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2 py-0.5 rounded-lg">
-                <ArrowUpRight size={13} />
-                <span>Önceki döneme göre %{profitGrowthPercent.toFixed(1)} artış</span>
-              </span>
+              {salesGrowthPercent !== null && (
+                <span className="inline-flex items-center text-xs font-bold text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2 py-0.5 rounded-lg">
+                  <ArrowUpRight size={13} />
+                  <span>Önceki döneme göre %{Number(salesGrowthPercent).toFixed(1)} artış</span>
+                </span>
+              )}
             </div>
 
             <p className="text-xs sm:text-sm text-slate-300/90 leading-relaxed max-w-3xl pt-1">
-              {isProfitable
+              {salesTotal === 0
+                ? "Henüz bu ay için satış verisi bulunmuyor. Fatura veya hızlı satış kaydettikten sonra burada görünecek."
+                : isProfitable
                 ? "İşletmeniz bu dönem tüm hammadde, alış faturaları, operasyonel giderler ve vergiler düşüldükten sonra güçlü bir net kâr üretmektedir. Ciro / maliyet dengesi kârlı bölgede seyretmektedir."
                 : "Bu dönem maliyet ve operasyonel giderler cironun üzerinde seyretmektedir. Gider kalemlerini optimize etmeniz veya fiyat politikasını gözden geçirmeniz önerilir."}
             </p>
@@ -137,9 +159,11 @@ export function FinancialHealthCockpit({
             </div>
 
             <div className="flex items-baseline justify-center gap-1 my-1">
-              <span className="text-4xl font-black text-emerald-400 tabular-nums">
-                {healthScore}
-              </span>
+              {salesTotal === 0 ? (
+                <span className="text-2xl font-black text-slate-500">—</span>
+              ) : (
+                <span className="text-4xl font-black text-emerald-400 tabular-nums">{healthScore}</span>
+              )}
               <span className="text-slate-500 font-bold text-sm">/ 100</span>
             </div>
 
@@ -153,7 +177,9 @@ export function FinancialHealthCockpit({
 
             <div className="text-[11px] font-bold text-emerald-400 flex items-center justify-center gap-1">
               <TrendingUp size={13} />
-              <span>Çok Güçlü &amp; Yükseliş Trendi</span>
+              <span>
+                {salesTotal === 0 ? "Veri bekleniyor" : healthScore >= 70 ? "Güçlü & Yükseliş" : healthScore >= 40 ? "Orta Düzey" : "Güçlendirme Gerek"}
+              </span>
             </div>
           </div>
         </div>
@@ -178,8 +204,14 @@ export function FinancialHealthCockpit({
           </div>
 
           <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-500 mt-1">
-            <ArrowUpRight size={13} />
-            <span>+%{salesGrowthPercent.toFixed(1)} büyüme</span>
+            {salesGrowthPercent !== null ? (
+              <>
+                <ArrowUpRight size={13} />
+                <span>+%{Number(salesGrowthPercent).toFixed(1)} büyüme</span>
+              </>
+            ) : (
+              <span className="text-slate-500">Bu ay {salesTotal > 0 ? formatMoney(salesTotal) : "—"}</span>
+            )}
           </div>
 
           <div className="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-[#182c37]">
@@ -229,7 +261,7 @@ export function FinancialHealthCockpit({
           </div>
 
           <div className="text-[11px] font-bold text-[#00b49c] mt-1">
-            %83.1 Tahsilat Başarısı
+            {collectionRate !== null ? `%${collectionRate.toFixed(1)} Tahsilat Başarısı` : "Tahsilat görüntülenıyor"}
           </div>
 
           <div className="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-[#182c37] truncate">
@@ -254,7 +286,7 @@ export function FinancialHealthCockpit({
           </div>
 
           <div className="text-[11px] font-bold text-amber-400 mt-1">
-            Nakit Karşılama: 1.8x
+            Nakit Karşılama: {cashBankTotal > 0 && debtTotal > 0 ? `${(cashBankTotal / debtTotal).toFixed(1)}x` : "—"}
           </div>
 
           <div className="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-[#182c37]">
@@ -279,7 +311,7 @@ export function FinancialHealthCockpit({
           </div>
 
           <div className="text-[11px] font-bold text-blue-400 mt-1">
-            Depoda 1.240 Kalem Varlık
+            {productCount > 0 ? `Depoda ${productCount.toLocaleString("tr-TR")} Kalem Varlık` : "Stok verisi hesaplanıyor"}
           </div>
 
           <div className="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-100 dark:border-[#182c37]">
@@ -328,26 +360,26 @@ export function FinancialHealthCockpit({
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Ciro:</span>
                   <span className="font-bold text-slate-800 dark:text-white tabular-nums">
-                    {formatMoney(prevSales)}
+                    Önceki dönem verisi mevcut değil
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Net Kâr:</span>
-                  <span className="font-bold text-emerald-500 tabular-nums">
-                    +{formatMoney(prevProfit)} (%{prevMargin})
+                  <span className="font-bold text-slate-400 tabular-nums">
+                    Karşılaştırma için veri bekleniyor
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Tahsilat Hızı:</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    Ortalama 34 Gün
+                    —
                   </span>
                 </div>
               </div>
             </div>
 
             <div className="pt-3 border-t border-slate-200 dark:border-[#182c37] text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-              Önceki dönem dengeli bir hacme sahipti ancak alacak devir hızı görece yavaştı.
+              Önceki dönem verileri şu an mevcut değil. Geçmiş veriler birikitkce burada karşılaştırma görünecek.
             </div>
           </div>
 
@@ -369,15 +401,17 @@ export function FinancialHealthCockpit({
                   <span className="text-slate-400">Gerçekleşen Ciro:</span>
                   <span className="font-bold text-slate-900 dark:text-white tabular-nums flex items-center gap-1">
                     <span>{formatMoney(salesTotal)}</span>
-                    <span className="text-emerald-400 text-[10px] font-extrabold">
-                      (+%{salesGrowthPercent.toFixed(1)})
-                    </span>
+                    {salesGrowthPercent !== null && (
+                      <span className="text-emerald-400 text-[10px] font-extrabold">
+                        (+%{Number(salesGrowthPercent).toFixed(1)})
+                      </span>
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Net Kâr / Marj:</span>
-                  <span className="font-extrabold text-emerald-400 tabular-nums">
-                    +{formatMoney(netProfit)} (%{profitMargin.toFixed(1)})
+                  <span className="font-extrabold tabular-nums" style={{color: netProfit >= 0 ? '#34d399' : '#f87171'}}>
+                    {netProfit >= 0 ? '+' : ''}{formatMoney(netProfit)} (%{profitMargin.toFixed(1)})
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -390,7 +424,13 @@ export function FinancialHealthCockpit({
             </div>
 
             <div className="pt-3 border-t border-teal-500/20 text-[11px] text-slate-300 leading-relaxed">
-              <strong>Şirket net kârda.</strong> Kâr marjı 5.2 puan iyileşti, stok varlıkları ve nakit giriş hızı belirgin biçimde arttı.
+              {salesTotal > 0 && isProfitable ? (
+                <><strong>Şirket net kârda.</strong> Kâr marjı %{profitMargin.toFixed(1)}, stok ve nakit varlıkları izleniyor.</>
+              ) : salesTotal === 0 ? (
+                "Henüz bu ay satış kaydedilmedi."
+              ) : (
+                <><strong>Zarar uyarısı:</strong> Maliyet, cironun üzerinde. Gider kalemlerini gözden geçirin.</>
+              )}
             </div>
           </div>
 
@@ -411,19 +451,21 @@ export function FinancialHealthCockpit({
                 <div className="flex justify-between">
                   <span className="text-slate-300">Vadesi Gelecek Tahsilat:</span>
                   <span className="font-extrabold text-[#22c39e] tabular-nums">
-                    +{formatMoney(expectedCollectionsNext30Days)}
+                    {expectedCollectionsNext30Days > 0 ? `+${formatMoney(expectedCollectionsNext30Days)}` : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-300">Vadesi Gelecek Ödeme:</span>
                   <span className="font-extrabold text-rose-400 tabular-nums">
-                    -{formatMoney(expectedPaymentsNext30Days)}
+                    {expectedPaymentsNext30Days > 0 ? `-${formatMoney(expectedPaymentsNext30Days)}` : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between pt-1 border-t border-emerald-500/30">
-                  <span className="font-bold text-white">Beklenen Net Nakit Fazlası:</span>
-                  <span className="font-black text-emerald-400 tabular-nums">
-                    +{formatMoney(projectedNetCashSurplus)}
+                  <span className="font-bold text-white">Beklenen Net Nakit Faz.</span>
+                  <span className={cn("font-black tabular-nums", projectedNetCashSurplus >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    {expectedCollectionsNext30Days > 0 || expectedPaymentsNext30Days > 0
+                      ? `${projectedNetCashSurplus >= 0 ? "+" : ""}${formatMoney(projectedNetCashSurplus)}`
+                      : "—"}
                   </span>
                 </div>
               </div>
@@ -431,15 +473,26 @@ export function FinancialHealthCockpit({
 
             {/* İleri Yön Barometresi Kararı */}
             <div className="p-2.5 rounded-xl bg-black/40 border border-emerald-500/30 text-[11px] space-y-1">
-              <div className="flex items-center justify-between font-extrabold text-emerald-400">
-                <span className="flex items-center gap-1">
+              <div className="flex items-center justify-between font-extrabold">
+                <span className="flex items-center gap-1 text-emerald-400">
                   <TrendingUp size={14} />
-                  <span>İBRE: GÜÇLÜ YÜKSELİŞ (BULLISH)</span>
+                  <span>
+                    {liquidityRatio === 0 ? "VİZYÖN: VERİ BEKLENIYOR" :
+                     liquidityRatio >= 1.5 ? "İBRE: GÜÇLÜ YÜKSELİŞ (BULLISH)" :
+                     liquidityRatio >= 1 ? "İBRE: DENGELİ (NOLTR)" :
+                     "İBRE: DİKKAT (BEARISH)"}
+                  </span>
                 </span>
-                <span>{liquidityRatio.toFixed(2)}x Likidite</span>
+                <span className="text-slate-300">
+                  {liquidityRatio > 0 ? `${liquidityRatio.toFixed(2)}x Likidite` : "—"}
+                </span>
               </div>
               <p className="text-slate-300 text-[10.5px] leading-tight">
-                Her 1 TL borca karşılık kasaya girecek 1.94 TL nakit var. Gelecek projeksiyonu yeni hammadde/stok yatırımları için tam güvenli bölgede.
+                {liquidityRatio === 0
+                  ? "Gelecek 30 gün için vadeli işlem bulunmuyor."
+                  : liquidityRatio >= 1
+                  ? `Her 1 TL borca karşılık kasaya girecek ${liquidityRatio.toFixed(2)} TL nakit bekleniyor.`
+                  : "Gelecek dönem ödemeler tahsilattan fazla. Nakit akışını takip edin."}
               </p>
             </div>
           </div>

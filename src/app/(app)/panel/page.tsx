@@ -19,6 +19,7 @@ import { useProducts } from "@/lib/data";
 import { formatMoney } from "@/lib/format";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { FinancialHealthCockpit } from "@/components/dashboard/financial-health-cockpit";
+import { UpcomingFinancesSection } from "@/components/dashboard/upcoming-finances";
 import { QuickActionsFab } from "@/components/dashboard/quick-actions-fab";
 import { cn } from "@/lib/utils";
 
@@ -29,22 +30,41 @@ export default function PanelPage() {
 
   const [chartMode, setChartMode] = React.useState<"gun" | "hafta" | "ay">("gun");
 
-  // Canlı verileri toparla
-  const monthSales = Number(data?.kpi?.month_sales) || 504200.0;
-  const monthExpenses = Number(data?.kpi?.month_expenses) || 361350.0;
-  const cashBank = Number(data?.kpi?.cash_bank) || 168500.0;
-  const receivable = Number(data?.kpi?.receivable) || 85300.0;
-  const payable = Number(data?.kpi?.payable) || 94150.0;
+  // Canlı verileri toparla — fallback 0, asla sahte rakam yok
+  const monthSales = Number(data?.kpi?.month_sales) || 0;
+  const monthExpenses = Number(data?.kpi?.month_expenses) || 0;
+  const cashBank = Number(data?.kpi?.cash_bank) || 0;
+  const receivable = Number(data?.kpi?.receivable) || 0;
+  const payable = Number(data?.kpi?.payable) || 0;
+
+  // Tahsilat: bugünkü + ay içindeki tüm ödeme girişlerinin toplamı
+  const collectionTotal = Number(data?.collections?.total) || 0;
+
+  // Vadesi yaklaşan tahsilat / ödeme (timeline'dan)
+  const timelineIn = React.useMemo(() => {
+    const now = new Date();
+    const d30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return (data?.timeline ?? [])
+      .filter((t) => t.flow === "in" && new Date(t.due_date) <= d30)
+      .reduce((s, t) => s + Number(t.amount), 0);
+  }, [data?.timeline]);
+
+  const timelineOut = React.useMemo(() => {
+    const now = new Date();
+    const d30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return (data?.timeline ?? [])
+      .filter((t) => t.flow === "out" && new Date(t.due_date) <= d30)
+      .reduce((s, t) => s + Number(t.amount), 0);
+  }, [data?.timeline]);
 
   // Depodaki toplam stok maliyet değeri
   const stockInventoryValue = React.useMemo(() => {
     const list = productsQuery.data ?? [];
-    if (!list.length) return 318400.0;
-    const sum = list.reduce(
+    if (!list.length) return 0;
+    return list.reduce(
       (acc, p) => acc + (Number(p.purchase_price || p.avg_cost || 0) * Math.max(Number(p.stock_qty || 0), 0)),
       0
     );
-    return sum > 0 ? sum : 318400.0;
   }, [productsQuery.data]);
 
   // Satış grafiği verileri (Günlük, Haftalık, Aylık)
@@ -57,43 +77,31 @@ export default function PanelPage() {
             name: new Date(d.date).toLocaleDateString("tr-TR", { day: "numeric", month: "short" }),
             satış: Number(d.amount) || 0,
           }))
-        : [
-            { name: "20 Eyl", satış: 18500 },
-            { name: "21 Eyl", satış: 24200 },
-            { name: "22 Eyl", satış: 31000 },
-            { name: "23 Eyl", satış: 19500 },
-            { name: "24 Eyl", satış: 28400 },
-            { name: "25 Eyl", satış: 36000 },
-            { name: "26 Eyl", satış: 42500 },
-            { name: "27 Eyl", satış: 29000 },
-            { name: "28 Eyl", satış: 38200 },
-            { name: "29 Eyl", satış: 45000 },
-            { name: "30 Eyl", satış: 52100 },
-            { name: "1 Eki", satış: 48000 },
-            { name: "2 Eki", satış: 61000 },
-            { name: "3 Eki", satış: 30800 },
-          ];
+        : [];
       return { chartData: pts, chartSubtitle: "Son 14 günün satış trendi (TL)" };
     }
 
     if (chartMode === "hafta") {
-      const pts = [
-        { name: "1. Hafta", satış: 110000 },
-        { name: "2. Hafta", satış: 125000 },
-        { name: "3. Hafta", satış: 134200 },
-        { name: "4. Hafta", satış: 135000 },
-      ];
-      return { chartData: pts, chartSubtitle: "Son 4 haftalık ciro dağılımı (TL)" };
+      // Günlük veriyi haftalara topla
+      if (daily.length > 0) {
+        const weeks: Record<string, number> = {};
+        daily.slice(-28).forEach((d: { date: string; amount: number | string }) => {
+          const dt = new Date(d.date);
+          const wk = Math.ceil(dt.getDate() / 7);
+          const key = `${dt.getMonth() + 1}. Ay ${wk}. Hafta`;
+          weeks[key] = (weeks[key] || 0) + (Number(d.amount) || 0);
+        });
+        const pts = Object.entries(weeks).map(([name, satış]) => ({ name, satış }));
+        return { chartData: pts, chartSubtitle: "Son 4 haftalık ciro dağılımı (TL)" };
+      }
+      return { chartData: [], chartSubtitle: "Son 4 haftalık ciro dağılımı (TL)" };
     }
 
-    const pts = [
-      { name: "Haz", satış: 380000 },
-      { name: "Tem", satış: 410000 },
-      { name: "Ağu", satış: 425500 },
-      { name: "Eyl", satış: 485000 },
-      { name: "Eki", satış: 504200 },
-    ];
-    return { chartData: pts, chartSubtitle: "Aylık ciro büyüme performansı (TL)" };
+    const monthly = (data?.sales_monthly || []).slice(-6).map((d: { month: string; amount: number | string }) => ({
+      name: new Date(d.month + "-01").toLocaleDateString("tr-TR", { month: "short", year: "2-digit" }),
+      satış: Number(d.amount) || 0,
+    }));
+    return { chartData: monthly, chartSubtitle: "Aylık ciro büyüme performansı (TL)" };
   }, [chartMode, data?.sales_daily, data?.sales_monthly]);
 
   return (
@@ -130,11 +138,14 @@ export default function PanelPage() {
       <FinancialHealthCockpit
         salesTotal={monthSales}
         purchaseTotal={monthExpenses}
-        collectionTotal={418900.0}
+        collectionTotal={collectionTotal}
         debtTotal={payable}
         stockTotal={stockInventoryValue}
         cashBankTotal={cashBank}
         receivableTotal={receivable}
+        expectedCollectionsNext30Days={timelineIn}
+        expectedPaymentsNext30Days={timelineOut}
+        productCount={(productsQuery.data ?? []).filter(p => Number(p.stock_qty) > 0).length}
       />
 
       {/* 3. İKİNCİL İSTATİSTİKLER VE GRAFİK BÖLÜMÜ (Kalın 2px Çerçeveli) */}
@@ -246,7 +257,7 @@ export default function PanelPage() {
                   TOPLAM KASA &amp; BANKA
                 </div>
                 <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums mt-0.5">
-                  {formatMoney(cashBank)}
+                  {cashBank > 0 ? formatMoney(cashBank) : <span className="text-slate-400 text-base">Veri yükleniyor…</span>}
                 </div>
                 <div className="text-[10.5px] text-emerald-500 font-bold mt-0.5">
                   Anında Kullanılabilir Likit Fon
@@ -356,7 +367,10 @@ export default function PanelPage() {
         </Link>
       </div>
 
-      {/* 5. QuickActions FAB Butonu */}
+      {/* 5. YAKLAŞAN TAHSİLATLAR VE YAKLAŞAN ÖDEMELER (VADE & NAKİT OPERASYON KOKPİTİ) */}
+      <UpcomingFinancesSection dashboardData={data} />
+
+      {/* 6. QuickActions FAB Butonu */}
       <QuickActionsFab />
     </div>
   );
