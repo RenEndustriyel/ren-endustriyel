@@ -4,19 +4,15 @@ import * as React from "react";
 import {
   Sparkles,
   TrendingUp,
-  AlertTriangle,
-  Flame,
   Check,
   Copy,
-  RefreshCw,
   Barcode,
   Search,
   Store,
   ArrowRight,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
   Percent,
+  Calculator,
+  Info,
 } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -26,12 +22,7 @@ import {
   type SmartPricingInput,
   type SmartPricingResult,
 } from "@/lib/pricing/calculateSmartPrice";
-import {
-  fetchMarketPriceData,
-  PRESET_MARKET_DATABASE,
-  type MarketProductData,
-} from "@/lib/pricing/marketPriceService";
-import { useSave, useUpdate, useProducts, type Row } from "@/lib/data";
+import { useUpdate, useProducts } from "@/lib/data";
 
 interface SmartPricingCardProps {
   initialPurchasePrice?: number;
@@ -44,7 +35,7 @@ interface SmartPricingCardProps {
 }
 
 export function SmartPricingCard({
-  initialPurchasePrice = 120,
+  initialPurchasePrice = 0,
   initialBarcode = "",
   initialProductName = "",
   initialVatRate = 20,
@@ -52,7 +43,6 @@ export function SmartPricingCard({
   onApplyPrice,
   className,
 }: SmartPricingCardProps) {
-  // Girdi durumları
   const [productName, setProductName] = React.useState(initialProductName);
   const [barcode, setBarcode] = React.useState(initialBarcode);
   const [purchasePrice, setPurchasePrice] = React.useState<number>(initialPurchasePrice);
@@ -60,43 +50,12 @@ export function SmartPricingCard({
   const [targetProfitPercent, setTargetProfitPercent] = React.useState<number>(25);
   const [vatRate, setVatRate] = React.useState<number>(initialVatRate);
   const [vatIncludedMode, setVatIncludedMode] = React.useState<boolean>(true);
-
-  // Canlı piyasa verisi durumu
-  const [marketData, setMarketData] = React.useState<MarketProductData | null>(null);
-  const [isScanning, setIsScanning] = React.useState(false);
-  const [showSourcesDetail, setShowSourcesDetail] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [applied, setApplied] = React.useState(false);
 
-  // Ürün güncelleme için
   const updateProduct = useUpdate("products");
-  const productsQuery = useProducts();
 
-  // İlk açılışta veya barkod/ürün adı varsa piyasa verisini tara
-  const runMarketScan = React.useCallback(
-    async (queryName: string, queryBarcode: string, cost: number) => {
-      setIsScanning(true);
-      try {
-        const data = await fetchMarketPriceData(queryName, queryBarcode, cost);
-        setMarketData(data);
-        if (!productName && data.productName) {
-          setProductName(data.productName);
-        }
-      } catch (err) {
-        console.error("Piyasa tarama hatası:", err);
-      } finally {
-        setIsScanning(false);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
-  React.useEffect(() => {
-    runMarketScan(productName, barcode, purchasePrice);
-  }, []);
-
-  // Hesaplama sonucunu dinamik olarak reaktif hesapla
+  // Hesaplama reaktif
   const pricingResult: SmartPricingResult = React.useMemo(() => {
     return calculateSmartPrice({
       purchasePrice,
@@ -104,32 +63,15 @@ export function SmartPricingCard({
       targetProfitPercent,
       vatRate,
       vatIncludedMode,
-      marketMedianPrice: marketData?.medianPrice ?? null,
-      marketMinPrice: marketData?.minPrice ?? null,
-      marketMaxPrice: marketData?.maxPrice ?? null,
     });
-  }, [
-    purchasePrice,
-    overheadPercent,
-    targetProfitPercent,
-    vatRate,
-    vatIncludedMode,
-    marketData,
-  ]);
-
-  // Hızlı hazır ürün seçimi
-  const handleSelectPreset = (item: (typeof PRESET_MARKET_DATABASE)[0]) => {
-    setProductName(item.productName);
-    setBarcode(item.barcode);
-    // Gerçekçi bir alış fiyatı türet (medyanın ~%60'ı)
-    const derivedPurchase = Number((item.medianPrice * 0.58).toFixed(2));
-    setPurchasePrice(derivedPurchase);
-    setMarketData(item);
-    toast.info(`${item.productName} seçildi ve piyasa verileri yüklendi.`);
-  };
+  }, [purchasePrice, overheadPercent, targetProfitPercent, vatRate, vatIncludedMode]);
 
   // Fiyatı onayla ve kaydet
   const handleApplyPrice = async () => {
+    if (!purchasePrice || purchasePrice <= 0) {
+      toast.error("Lütfen önce alış fiyatı giriniz.");
+      return;
+    }
     const finalPrice = pricingResult.recommendedDisplayPrice;
 
     if (onApplyPrice) {
@@ -137,14 +79,11 @@ export function SmartPricingCard({
       setApplied(true);
       setTimeout(() => setApplied(false), 2000);
       toast.success(
-        `Tavsiye satış fiyatı (${formatMoney(finalPrice)} ${
-          vatIncludedMode ? "KDV Dahil" : "KDV Hariç"
-        }) uygulandı!`
+        `${productName || "Ürün"} için ${formatMoney(finalPrice)} ${vatIncludedMode ? "KDV Dahil" : "KDV Hariç"} fiyat uygulandı!`
       );
       return;
     }
 
-    // Eğer productId varsa veritabanında güncelle
     if (productId) {
       try {
         await updateProduct.update(
@@ -159,25 +98,18 @@ export function SmartPricingCard({
         );
         setApplied(true);
         setTimeout(() => setApplied(false), 2000);
-      } catch (err) {
+      } catch {
         toast.error("Fiyat kaydedilirken hata oluştu.");
       }
     } else {
       setApplied(true);
       setTimeout(() => setApplied(false), 2000);
-      toast.success(
-        `Fiyat ${formatMoney(finalPrice)} olarak onaylandı ve belleğe alındı!`
-      );
+      toast.success(`Fiyat ${formatMoney(finalPrice)} olarak hesaplandı!`);
     }
   };
 
-  // Panoya kopyala
   const handleCopy = () => {
-    const text = `${productName || "Ürün"}\nTavsiye Fiyat: ${formatMoney(
-      pricingResult.recommendedDisplayPrice
-    )} (${vatIncludedMode ? "KDV Dahil" : "KDV Hariç"})\nNet Kâr: %${
-      pricingResult.netProfitMarginPercent
-    } (+${formatMoney(pricingResult.netProfitAmount)})`;
+    const text = `${productName || "Ürün"}\nAlış: ${formatMoney(purchasePrice)} TL\nÖnerilen Satış: ${formatMoney(pricingResult.recommendedDisplayPrice)} (${vatIncludedMode ? "KDV Dahil" : "KDV Hariç"})\nNet Kâr: %${pricingResult.netProfitMarginPercent} (+${formatMoney(pricingResult.netProfitAmount)} TL)`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -191,88 +123,51 @@ export function SmartPricingCard({
         className
       )}
     >
-      {/* 1. Üst Başlık & Gradient Şerit */}
+      {/* Üst Başlık */}
       <div className="relative px-5 py-4 bg-gradient-to-r from-emerald-600/10 via-[#00b49c]/10 to-teal-500/5 dark:from-[#00b49c]/20 dark:to-[#0c1820] border-b border-slate-200 dark:border-[#182c37] flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-[#00b49c] text-white flex items-center justify-center shadow-md shadow-[#00b49c]/25 shrink-0">
-            <Sparkles size={20} strokeWidth={2.2} />
+            <Calculator size={20} strokeWidth={2.2} />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white tracking-tight">
-                Akıllı Fiyatlandırma ve Piyasa Motoru
+                Fiyat Hesaplayıcı
               </h3>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40">
-                PRO ENGINE
+                GERÇEK VERİ
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Dükkân gider payı, KDV ve canlı e-ticaret medyanına göre kâr optimizasyonu
+              Alış maliyeti + dükkân gider payı + hedef kâr marjı + KDV
             </p>
           </div>
         </div>
 
-        {/* Hızlı Yenile / Canlı Tarama */}
-        <button
-          type="button"
-          onClick={() => runMarketScan(productName, barcode, purchasePrice)}
-          disabled={isScanning}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-50 dark:hover:bg-[#1a303e] transition active:scale-95 shadow-2xs"
-          title="Canlı Piyasa Fiyatlarını Yeniden Tara"
-        >
-          <RefreshCw size={13} className={cn("text-[#00b49c]", isScanning && "animate-spin")} />
-          <span>{isScanning ? "Taranıyor..." : "Piyasayı Tara"}</span>
-        </button>
+        {/* Bilgi notu */}
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-white dark:bg-[#142530] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-[#1e3544]">
+          <Info size={13} className="text-slate-400" />
+          <span>Yalnızca girdiğiniz gerçek maliyete göre hesaplar</span>
+        </div>
       </div>
 
-      {/* 2. Ana Gövde Grid: Sol Form Girdileri, Sağ Canlı Karar Kartı */}
+      {/* Ana Gövde Grid: Sol Form, Sağ Karar Kartı */}
       <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
-        {/* SOL BÖLÜM (7 Sütun): Parametreler & Piyasa Şeridi */}
+        {/* SOL BÖLÜM (7 Sütun): Parametreler */}
         <div className="lg:col-span-7 space-y-4 sm:space-y-5">
-          {/* Ürün & Barkod Seçim Alanı */}
+          {/* Ürün & Barkod */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-              <span>ÜRÜN / BARKOD</span>
-              {/* Hızlı Örnek Ürünler Dropdown / Pill */}
-              <div className="flex items-center gap-1 text-[11px] font-normal lowercase">
-                <span className="text-slate-400">örnek:</span>
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset(PRESET_MARKET_DATABASE[0])}
-                  className="text-[#00b49c] hover:underline font-semibold"
-                >
-                  Sıvı Sabun
-                </button>
-                <span className="text-slate-400">·</span>
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset(PRESET_MARKET_DATABASE[1])}
-                  className="text-[#00b49c] hover:underline font-semibold"
-                >
-                  Çamaşır Suyu
-                </button>
-                <span className="text-slate-400">·</span>
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset(PRESET_MARKET_DATABASE[2])}
-                  className="text-[#00b49c] hover:underline font-semibold"
-                >
-                  Glanex 20KG
-                </button>
-              </div>
+            <div className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+              ÜRÜN / BARKOD (İsteğe Bağlı)
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
               <div className="sm:col-span-8 relative">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Ürün adı yazın (örn: Sıvı El Sabunu 20 LT)"
+                  placeholder="Ürün adı (referans için)"
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") runMarketScan(productName, barcode, purchasePrice);
-                  }}
                   className="w-full h-10 pl-9 pr-3 rounded-xl bg-slate-50 dark:bg-[#14242e] border border-slate-200 dark:border-[#1c3342] text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-[#00b49c] transition"
                 />
               </div>
@@ -283,22 +178,19 @@ export function SmartPricingCard({
                   placeholder="Barkod (EAN)"
                   value={barcode}
                   onChange={(e) => setBarcode(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") runMarketScan(productName, barcode, purchasePrice);
-                  }}
                   className="w-full h-10 pl-9 pr-3 rounded-xl bg-slate-50 dark:bg-[#14242e] border border-slate-200 dark:border-[#1c3342] text-xs font-mono text-slate-800 dark:text-slate-200 placeholder:text-slate-400 outline-none focus:border-[#00b49c] transition"
                 />
               </div>
             </div>
           </div>
 
-          {/* Temel Parametreler Grid (Alış Fiyatı, Gider Payı, Hedef Kâr, KDV) */}
+          {/* Temel Parametreler Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             {/* 1. Alış Fiyatı (KDV Hariç) */}
             <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#1b3240] bg-slate-50/70 dark:bg-[#13222b] space-y-1.5">
               <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
-                <span className="uppercase tracking-wider">ALIŞ FİYATI</span>
-                <span className="text-[10px] font-semibold text-slate-400">KDV HARİÇ</span>
+                <span className="uppercase tracking-wider">ALIŞ FİYATI *</span>
+                <span className="text-[10px] font-semibold text-slate-400">KDV HARİÇ NET</span>
               </div>
               <div className="relative">
                 <input
@@ -314,12 +206,12 @@ export function SmartPricingCard({
                   ₺
                 </span>
               </div>
-              <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                <span>Fatura net giriş maliyeti</span>
-              </div>
+              <p className="text-[11px] text-slate-400">
+                Faturadaki KDV hariç net giriş maliyeti
+              </p>
             </div>
 
-            {/* 2. Dükkân Gider Payı (Overhead) - Buton Grubu [%12] [%13] [%14] [%15] */}
+            {/* 2. Dükkân Gider Payı */}
             <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#1b3240] bg-slate-50/70 dark:bg-[#13222b] space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
                 <div className="flex items-center gap-1.5">
@@ -330,8 +222,6 @@ export function SmartPricingCard({
                   %{overheadPercent} (+{formatMoney(pricingResult.overheadAmount)})
                 </span>
               </div>
-
-              {/* 4'lü Buton Grubu */}
               <div className="grid grid-cols-4 gap-1.5">
                 {[12, 13, 14, 15].map((val) => {
                   const isActive = overheadPercent === val;
@@ -357,7 +247,7 @@ export function SmartPricingCard({
               </p>
             </div>
 
-            {/* 3. Hedef Kâr Marjı Slider & Input */}
+            {/* 3. Hedef Kâr Marjı */}
             <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#1b3240] bg-slate-50/70 dark:bg-[#13222b] space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
                 <div className="flex items-center gap-1.5">
@@ -368,12 +258,11 @@ export function SmartPricingCard({
                   %{targetProfitPercent}
                 </span>
               </div>
-
               <div className="flex items-center gap-3">
                 <input
                   type="range"
                   min="5"
-                  max="60"
+                  max="100"
                   step="1"
                   value={targetProfitPercent}
                   onChange={(e) => setTargetProfitPercent(parseInt(e.target.value) || 25)}
@@ -383,7 +272,7 @@ export function SmartPricingCard({
                   <input
                     type="number"
                     min="1"
-                    max="150"
+                    max="200"
                     value={targetProfitPercent}
                     onChange={(e) => setTargetProfitPercent(parseInt(e.target.value) || 0)}
                     className="w-full h-8 px-2 pr-6 rounded-lg bg-white dark:bg-[#0e1a22] border border-slate-200 dark:border-[#1e3544] text-xs font-bold text-slate-900 dark:text-white tabular-nums text-center outline-none focus:border-[#00b49c]"
@@ -393,14 +282,14 @@ export function SmartPricingCard({
                   </span>
                 </div>
               </div>
-
               <div className="flex items-center justify-between text-[10px] text-slate-400">
+                <span>Min: %5</span>
                 <span>Varsayılan: %25</span>
-                <span>Standart Brüt Kâr</span>
+                <span>Max: %100</span>
               </div>
             </div>
 
-            {/* 4. KDV Oranı & KDV Modu Toggle */}
+            {/* 4. KDV Oranı & Gösterim */}
             <div className="p-3.5 rounded-xl border border-slate-200 dark:border-[#1b3240] bg-slate-50/70 dark:bg-[#13222b] space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
                 <span className="uppercase tracking-wider">KDV ORANI & GÖSTERİM</span>
@@ -408,11 +297,9 @@ export function SmartPricingCard({
                   %{vatRate} KDV
                 </span>
               </div>
-
               <div className="flex items-center justify-between gap-2">
-                {/* KDV %10 / %20 Butonları */}
                 <div className="flex items-center gap-1.5">
-                  {[10, 20].map((rate) => (
+                  {[0, 10, 20].map((rate) => (
                     <button
                       key={rate}
                       type="button"
@@ -428,8 +315,6 @@ export function SmartPricingCard({
                     </button>
                   ))}
                 </div>
-
-                {/* KDV Modu Toggle Switch */}
                 <button
                   type="button"
                   onClick={() => setVatIncludedMode((prev) => !prev)}
@@ -450,212 +335,143 @@ export function SmartPricingCard({
                   <span>{vatIncludedMode ? "KDV Dahil" : "KDV Hariç"}</span>
                 </button>
               </div>
-
               <p className="text-[10px] text-slate-400">
                 {vatIncludedMode
-                  ? "Arayüzdeki tüm tavsiye ve liste fiyatları KDV dahil gösterilir."
-                  : "Arayüzdeki fiyatlar KDV hariç net matrah olarak gösterilir."}
+                  ? "Tavsiye fiyat KDV dahil olarak gösterilir."
+                  : "Tavsiye fiyat KDV hariç net matrah olarak gösterilir."}
               </p>
             </div>
           </div>
 
-          {/* 3. Piyasa Karşılaştırma Şeridi (Market Comparison Strip) */}
-          <div className="p-4 rounded-xl border border-slate-200 dark:border-[#1b3240] bg-slate-50/60 dark:bg-[#12202a] space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                  CANLI PİYASA TARAMASI (E-TİCARET & PAZARYERLERİ)
-                </span>
-                {marketData && (
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    ({marketData.updatedAt})
-                  </span>
-                )}
+          {/* Maliyet Özeti Şeridi */}
+          {purchasePrice > 0 && (
+            <div className="p-4 rounded-xl border border-slate-200 dark:border-[#1b3240] bg-slate-50/60 dark:bg-[#12202a] space-y-2.5">
+              <div className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-200 mb-1">
+                MALİYET ANALİZİ
               </div>
-
-              <button
-                type="button"
-                onClick={() => setShowSourcesDetail((prev) => !prev)}
-                className="text-xs font-semibold text-[#00b49c] hover:underline inline-flex items-center gap-1 cursor-pointer"
-              >
-                <span>{showSourcesDetail ? "Detayları Gizle" : "Kaynakları İncele"}</span>
-                {showSourcesDetail ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
-            </div>
-
-            {/* 3 Sütunlu Metrik Şeridi */}
-            <div className="grid grid-cols-3 gap-2.5">
-              {/* En Düşük */}
-              <div className="p-3 rounded-xl bg-white dark:bg-[#0c161d] border border-slate-200 dark:border-[#192c37] text-center">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  EN DÜŞÜK PİYASA
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-xl bg-white dark:bg-[#0c161d] border border-slate-200 dark:border-[#192c37] text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NET ALIŞ</div>
+                  <div className="text-sm font-extrabold text-slate-800 dark:text-slate-200 tabular-nums mt-0.5">
+                    {formatMoney(purchasePrice)}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">KDV Hariç</div>
                 </div>
-                <div className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-200 tabular-nums mt-0.5">
-                  {marketData?.minPrice ? formatMoney(marketData.minPrice) : "—"}
+                <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-[#1a1e0e] border border-amber-200/60 dark:border-[#3a3a1a] text-center">
+                  <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">GİDER PAYI</div>
+                  <div className="text-sm font-extrabold text-amber-700 dark:text-amber-300 tabular-nums mt-0.5">
+                    +{formatMoney(pricingResult.overheadAmount)}
+                  </div>
+                  <div className="text-[10px] text-amber-500 mt-0.5">%{overheadPercent}</div>
                 </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                  {marketData?.sources[0]?.platform || "Akakçe"}
-                </div>
-              </div>
-
-              {/* Medyan / Ortalama */}
-              <div className="p-3 rounded-xl bg-teal-50/70 dark:bg-[#0e242b] border border-teal-200/60 dark:border-[#16474e] text-center shadow-xs">
-                <div className="text-[10px] font-extrabold text-[#00b49c] uppercase tracking-wider flex items-center justify-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#00b49c] animate-pulse" />
-                  <span>PİYASA MEDYANI</span>
-                </div>
-                <div className="text-base sm:text-lg font-black text-[#00b49c] tabular-nums mt-0.5">
-                  {marketData?.medianPrice ? formatMoney(marketData.medianPrice) : "—"}
-                </div>
-                <div className="text-[10px] text-teal-600 dark:text-teal-400 font-medium truncate mt-0.5">
-                  Ağırlıklı Ortalama
-                </div>
-              </div>
-
-              {/* En Yüksek */}
-              <div className="p-3 rounded-xl bg-white dark:bg-[#0c161d] border border-slate-200 dark:border-[#192c37] text-center">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  EN YÜKSEK PİYASA
-                </div>
-                <div className="text-sm sm:text-base font-extrabold text-slate-800 dark:text-slate-200 tabular-nums mt-0.5">
-                  {marketData?.maxPrice ? formatMoney(marketData.maxPrice) : "—"}
-                </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                  {marketData?.sources[marketData.sources.length - 1]?.platform || "Trendyol"}
+                <div className="p-3 rounded-xl bg-rose-50/70 dark:bg-[#1a0e0e] border border-rose-200/60 dark:border-[#3a1a1a] text-center">
+                  <div className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">BAŞABAŞ</div>
+                  <div className="text-sm font-extrabold text-rose-700 dark:text-rose-300 tabular-nums mt-0.5">
+                    {formatMoney(pricingResult.breakevenDisplay)}
+                  </div>
+                  <div className="text-[10px] text-rose-500 mt-0.5">{vatIncludedMode ? "KDV Dahil" : "KDV Hariç"}</div>
                 </div>
               </div>
             </div>
-
-            {/* Platform Detay Tablosu (Açılır/Kapanır) */}
-            {showSourcesDetail && marketData?.sources && (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-[#1a303e] bg-white dark:bg-[#0e181f] p-2 mt-2 animate-in fade-in duration-200">
-                <table className="w-full text-xs text-left">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-[#182c37] text-[10px] font-bold text-slate-400 uppercase">
-                      <th className="py-1.5 px-2">PLATFORM</th>
-                      <th className="py-1.5 px-2">SATICI</th>
-                      <th className="py-1.5 px-2 text-right">FİYAT</th>
-                      <th className="py-1.5 px-2 text-center">DURUM</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-[#152733]">
-                    {marketData.sources.map((s, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-[#14232c]/50">
-                        <td className="py-1.5 px-2 font-bold text-slate-700 dark:text-slate-200">
-                          {s.platform}
-                        </td>
-                        <td className="py-1.5 px-2 text-slate-500 dark:text-slate-400">
-                          {s.seller}
-                        </td>
-                        <td className="py-1.5 px-2 font-extrabold text-right tabular-nums text-slate-900 dark:text-white">
-                          {formatMoney(s.price)}
-                        </td>
-                        <td className="py-1.5 px-2 text-center">
-                          <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                            Stokta
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* SAĞ BÖLÜM (5 Sütun): Canlı Karar Kartı (Decision Card) */}
+        {/* SAĞ BÖLÜM (5 Sütun): Karar Kartı */}
         <div className="lg:col-span-5 flex flex-col justify-between rounded-2xl border-2 border-[#00b49c]/40 dark:border-[#00b49c]/50 bg-gradient-to-b from-slate-50 to-white dark:from-[#11222c] dark:to-[#0c171e] p-5 sm:p-6 shadow-xl relative overflow-hidden">
-          {/* Arka plan parlama efekti */}
           <div className="absolute top-0 right-0 w-44 h-44 bg-[#00b49c]/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="space-y-4">
-            {/* Karar Kartı Başlığı & Rozet */}
+            {/* Karar Kartı Başlığı */}
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                AKILLI FİYAT TAVSİYESİ
+                ÖNERİLEN SATIŞ FİYATI
               </span>
               <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-[#00b49c]/15 text-[#00b49c] border border-[#00b49c]/30">
                 {vatIncludedMode ? "KDV DAHİL" : "KDV HARİÇ"}
               </span>
             </div>
 
-            {/* FIRSAT KÂRI VEYA RİSK UYARI ROZETLERİ */}
-            {pricingResult.isOpportunity && (
-              <div className="p-3 rounded-xl bg-amber-500/15 dark:bg-amber-500/20 border border-amber-500/40 text-amber-900 dark:text-amber-200 flex items-start gap-2.5 animate-pulse">
-                <Flame size={18} className="text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <div className="font-extrabold">{pricingResult.opportunityBadge}</div>
-                  <p className="text-[11px] opacity-90 mt-0.5 leading-tight">
-                    Piyasa genelinde ürüne zam geldi! Sistem, sermaye erimesini önleyerek fiyatı piyasa medyanının %6 altına konumlandırdı.
-                  </p>
-                </div>
+            {purchasePrice <= 0 && (
+              <div className="p-3 rounded-xl bg-slate-100 dark:bg-[#13222b] border border-slate-200 dark:border-[#1e3544] text-center text-xs text-slate-500 dark:text-slate-400">
+                Hesaplama için solda alış fiyatı giriniz
               </div>
             )}
 
-            {pricingResult.isAtRisk && (
-              <div className="p-3 rounded-xl bg-rose-500/15 dark:bg-rose-500/20 border border-rose-500/40 text-rose-900 dark:text-rose-200 flex items-start gap-2.5">
-                <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <div className="font-extrabold">{pricingResult.riskWarning}</div>
-                  <p className="text-[11px] opacity-90 mt-0.5 leading-tight">
-                    Piyasa satış fiyatı taban maliyetinizin altına inmiş. Fiyat başabaş maliyet tabanında korundu.
-                  </p>
+            {/* Büyük Tavsiye Fiyatı */}
+            {purchasePrice > 0 && (
+              <div className="py-3 px-4 rounded-xl bg-white dark:bg-[#0c161d] border border-slate-200 dark:border-[#1a303e] shadow-inner text-center space-y-1">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  OPTİMİZE SATIŞ FİYATI
+                </div>
+                <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#00b49c] tabular-nums">
+                  {formatMoney(pricingResult.recommendedDisplayPrice)}
+                </div>
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  Psikolojik yuvarlama (.90 kuruş)
                 </div>
               </div>
             )}
-
-            {/* Büyük Tavsiye Satış Fiyatı */}
-            <div className="py-3 px-4 rounded-xl bg-white dark:bg-[#0c161d] border border-slate-200 dark:border-[#1a303e] shadow-inner text-center space-y-1">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                ÖNERİLEN OPTİMİZE SATIŞ FİYATI
-              </div>
-              <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#00b49c] tabular-nums">
-                {formatMoney(pricingResult.recommendedDisplayPrice)}
-              </div>
-              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                Psikolojik yuvarlama uygulandı (.90 kuruş)
-              </div>
-            </div>
 
             {/* Detaylı Metrik Dökümü */}
-            <div className="space-y-2 pt-1 border-t border-slate-200/80 dark:border-[#1a303e] text-xs">
-              {/* Taban Başabaş Maliyeti */}
-              <div className="flex items-center justify-between py-1">
-                <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <span>Taban Başabaş Maliyeti:</span>
-                  <span className="text-[10px] text-slate-400">(Alış + Gider)</span>
-                </span>
-                <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">
-                  {formatMoney(pricingResult.breakevenDisplay)}
-                </span>
-              </div>
-
-              {/* Standart Maliyet Fiyatı */}
-              <div className="flex items-center justify-between py-1">
-                <span className="text-slate-500 dark:text-slate-400">
-                  Standart Fiyat (%{targetProfitPercent} kâr):
-                </span>
-                <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-300">
-                  {formatMoney(pricingResult.standardDisplay)}
-                </span>
-              </div>
-
-              {/* Net Kâr Marjı ve Tutarı */}
-              <div className="flex items-center justify-between py-1 border-t border-dashed border-slate-200 dark:border-[#1c3342] pt-2">
-                <span className="font-bold text-slate-700 dark:text-slate-300">
-                  Gerçekleşen Net Kâr:
-                </span>
-                <div className="text-right">
-                  <span className="font-extrabold text-emerald-500 tabular-nums text-sm">
-                    %{pricingResult.netProfitMarginPercent} Net Kâr
+            {purchasePrice > 0 && (
+              <div className="space-y-2 pt-1 border-t border-slate-200/80 dark:border-[#1a303e] text-xs">
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <span>Başabaş Maliyeti:</span>
+                    <span className="text-[10px] text-slate-400">(Alış + Gider)</span>
                   </span>
-                  <span className="text-[11px] text-slate-400 block tabular-nums">
-                    (+{formatMoney(pricingResult.netProfitAmount)} / adet)
+                  <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">
+                    {formatMoney(pricingResult.breakevenDisplay)}
                   </span>
                 </div>
+
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Standart Fiyat (%{targetProfitPercent} kâr):
+                  </span>
+                  <span className="font-semibold tabular-nums text-slate-700 dark:text-slate-300">
+                    {formatMoney(pricingResult.standardDisplay)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-1 border-t border-dashed border-slate-200 dark:border-[#1c3342] pt-2">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                    Net Kâr (Gider Sonrası):
+                  </span>
+                  <div className="text-right">
+                    <span className="font-extrabold text-emerald-500 tabular-nums text-sm">
+                      %{pricingResult.netProfitMarginPercent}
+                    </span>
+                    <span className="text-[11px] text-slate-400 block tabular-nums">
+                      (+{formatMoney(pricingResult.netProfitAmount)} / adet)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Brüt Kâr (Gider Öncesi):
+                  </span>
+                  <div className="text-right">
+                    <span className="font-semibold text-teal-600 dark:text-teal-400 tabular-nums">
+                      %{pricingResult.grossProfitMarginPercent}
+                    </span>
+                    <span className="text-[11px] text-slate-400 block tabular-nums">
+                      (+{formatMoney(pricingResult.grossProfitAmount)} / adet)
+                    </span>
+                  </div>
+                </div>
+
+                {vatIncludedMode && (
+                  <div className="flex items-center justify-between py-1 border-t border-slate-100 dark:border-[#1c3342] pt-2">
+                    <span className="text-slate-400 text-[11px]">KDV Hariç karşılığı:</span>
+                    <span className="font-mono text-slate-500 dark:text-slate-400 text-[11px] tabular-nums">
+                      {formatMoney(pricingResult.recommendedPriceExclVat)}
+                    </span>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Alt Aksiyon Butonları */}
@@ -663,8 +479,9 @@ export function SmartPricingCard({
             <button
               type="button"
               onClick={handleApplyPrice}
+              disabled={purchasePrice <= 0}
               className={cn(
-                "w-full py-3 px-4 rounded-xl text-sm font-extrabold text-white transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2",
+                "w-full py-3 px-4 rounded-xl text-sm font-extrabold text-white transition-all shadow-md active:scale-98 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed",
                 applied
                   ? "bg-emerald-600 shadow-emerald-600/30"
                   : "bg-[#00b49c] hover:bg-[#009e89] shadow-[#00b49c]/30 hover:scale-[1.01]"
@@ -687,7 +504,8 @@ export function SmartPricingCard({
             <button
               type="button"
               onClick={handleCopy}
-              className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-white dark:bg-[#14232c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-50 dark:hover:bg-[#192f3c] transition active:scale-98 flex items-center justify-center gap-1.5"
+              disabled={purchasePrice <= 0}
+              className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-white dark:bg-[#14232c] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-50 dark:hover:bg-[#192f3c] transition active:scale-98 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
               <span>{copied ? "Kopyalandı!" : "Fiyat Özetini Kopyala"}</span>
