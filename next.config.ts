@@ -23,19 +23,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Pusulam adresleri; adres çubuğunda Pusulam'daki gibi kalır.
+  // /e-ticaret, /akademi, /muhasebeci-agi kendi sayfalarına sahip (dosya rotaları önceliklidir).
   async rewrites() {
     return [
       { source: "/numex-ai", destination: "/yapay-zeka" },
-      { source: "/stoklar", destination: "/urunler" },
-      { source: "/subeler", destination: "/ayarlar" },
-      { source: "/cek-senet", destination: "/nakit/cekler" },
-      { source: "/banka", destination: "/hesaplar" },
-      { source: "/cari-kampanya", destination: "/cariler" },
-      { source: "/teklifler", destination: "/satislar" },
-      { source: "/e-ticaret", destination: "/ayarlar" },
-      { source: "/ekip", destination: "/ayarlar" },
-      { source: "/akademi", destination: "/ayarlar" },
-      { source: "/muhasebeci-agi", destination: "/ayarlar" },
+      { source: "/subeler", destination: "/stok/depolar" },
+      { source: "/cek-senet", destination: "/nakit/cek-senet" },
+      { source: "/banka", destination: "/nakit/ekstre" },
+      { source: "/cari-kampanya", destination: "/kampanya" },
+      { source: "/teklifler", destination: "/satislar/teklifler" },
+      { source: "/ekip", destination: "/giderler/calisanlar" },
     ];
   },
 };

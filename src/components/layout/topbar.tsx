@@ -4,7 +4,6 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Search,
-  Bell,
   Moon,
   Sun,
   ChevronDown,
@@ -27,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown";
 import { formatLongDate } from "@/lib/format";
+import { NotificationsMenu } from "./notifications-menu";
 
 function getInitials(name: string) {
   return name
@@ -100,7 +100,7 @@ export function Topbar() {
         {/* Masaüstü Başlık */}
         <div className="hidden lg:block min-w-0 flex-1 overflow-hidden">
           <div className="font-semibold flex items-center gap-2 min-w-0">
-            <span className="truncate max-w-[16rem] text-slate-900 dark:text-white font-bold text-sm">
+            <span className="truncate max-w-[16rem]">
               {org?.name || "Ren Endüstriyel"}
             </span>
             <select
@@ -131,7 +131,7 @@ export function Topbar() {
         {/* Arama Butonu Masaüstü */}
         <button
           onClick={palette.open}
-          className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-400 hover:border-slate-400 dark:hover:border-slate-500 transition mr-1"
+          className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-400 hover:border-brand-400 transition mr-1"
         >
           <Search size={15} />
           <span>Ara...</span>
@@ -149,19 +149,8 @@ export function Topbar() {
           <Search size={18} className="text-slate-500" />
         </button>
 
-        {/* Bildirimler */}
-        <div className="relative">
-          <button
-            onClick={() => router.push("/ajanda")}
-            className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-            title="Bildirimler"
-          >
-            <Bell size={18} className="text-slate-600 dark:text-slate-300" />
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
-              3
-            </span>
-          </button>
-        </div>
+        {/* Bildirimler (Pusulam: kritik stok, vadesi geçenler) */}
+        <NotificationsMenu />
 
         {/* Koyu / Açık Mod Geçişi */}
         <button
@@ -176,7 +165,7 @@ export function Topbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-1 sm:gap-2 rounded-xl pl-1 pr-1 sm:pl-1.5 sm:pr-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition outline-none">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center text-xs font-bold">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center text-xs font-bold">
                 {userInitials}
               </div>
               <ChevronDown size={16} className="text-slate-400 hidden sm:block" />

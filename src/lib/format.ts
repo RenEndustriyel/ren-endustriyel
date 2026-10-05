@@ -10,11 +10,11 @@ export function formatNumber(value: number | string | null | undefined): string 
   return moneyFmt.format(Math.abs(n) < 0.005 ? 0 : n); // "-0,00" gösterme
 }
 
-/** 1234.5 -> "1.234,50 ₺" */
+/** 1234.5 -> "1.234,50 TL" (Pusulam gösterimi) */
 export function formatMoney(value: number | string | null | undefined, currency = "TRY"): string {
-  const sym = CURRENCY_SYMBOL[currency] ?? currency;
   const n = formatNumber(value);
-  return currency === "TRY" ? `${n} ${sym}` : `${sym}${n}`;
+  if (currency === "TRY") return `${n} TL`;
+  return `${CURRENCY_SYMBOL[currency] ?? currency}${n}`;
 }
 
 /** Tam ve kuruş kısmını ayrı döndürür (Paraşüt tarzı küçük kuruş gösterimi için) */

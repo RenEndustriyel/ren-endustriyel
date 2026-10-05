@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div
             className={cn(
               "flex-1 min-w-0 transition-[margin] duration-200 flex flex-col min-h-dvh",
-              collapsed ? "lg:ml-[68px]" : "lg:ml-56"
+              collapsed ? "lg:ml-[68px]" : "lg:ml-64"
             )}
           >
             <div className="contents">

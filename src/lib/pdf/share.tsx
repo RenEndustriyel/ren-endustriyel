@@ -34,12 +34,21 @@ async function render(el: React.ReactElement) {
 }
 
 /** Telefonda paylaşım menüsü (WhatsApp vb.), masaüstünde indirme veya yeni sekmede yazdırma/görüntüleme */
-export async function shareOrDownload(blob: Blob, fileName: string, text: string, mode: "share" | "download" | "open" | "print" = "download") {
+export async function shareOrDownload(
+  blob: Blob,
+  fileName: string,
+  text: string,
+  mode: "share" | "download" | "open" | "print" = "download",
+  /** Tıklama anında önceden açılmış sekme (açılır pencere engelleyicisine takılmamak için) */
+  targetWin?: Window | null,
+) {
   const file = new File([blob], fileName, { type: "application/pdf" });
 
   if (mode === "open" || mode === "print") {
     const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
+    let win = targetWin && !targetWin.closed ? targetWin : null;
+    if (win) win.location.href = url;
+    else win = window.open(url, "_blank");
     if (!win) {
       downloadBlob(blob, fileName);
       return;
@@ -237,7 +246,12 @@ export type DocForPdf = Tables<"documents"> & {
   } | null;
 };
 
-export async function shareDocumentPdf(org: Org, doc: DocForPdf, mode: "share" | "download" | "open" | "print" = "open") {
+export async function shareDocumentPdf(
+  org: Org,
+  doc: DocForPdf,
+  mode: "share" | "download" | "open" | "print" = "open",
+  targetWin?: Window | null,
+) {
   const t = toast.loading("PDF hazırlanıyor…");
   try {
     const { DocumentPdf } = await import("./templates");
@@ -355,7 +369,7 @@ export async function shareDocumentPdf(org: Org, doc: DocForPdf, mode: "share" |
       />,
     );
     toast.dismiss(t);
-    await shareOrDownload(blob, `${cfg.label}-${safe(doc.number ?? "taslak")}.pdf`, `${org.name} · ${cfg.label} ${doc.number ?? ""}`, mode);
+    await shareOrDownload(blob, `${cfg.label}-${safe(doc.number ?? "taslak")}.pdf`, `${org.name} · ${cfg.label} ${doc.number ?? ""}`, mode, targetWin);
     if (!doc.is_printed) await supabase.from("documents").update({ is_printed: true }).eq("id", doc.id);
   } catch (e) {
     toast.error("PDF oluşturulamadı: " + (e as Error).message, { id: t });

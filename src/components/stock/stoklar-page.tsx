@@ -1,0 +1,562 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { ChevronRight, Download, Eraser, Info, Pencil, Search, Trash2, Upload, Warehouse, X } from "lucide-react";
+import { toast } from "sonner";
+import { newId, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, useWarehouses, type Row } from "@/lib/data";
+import { exportExcel, readSpreadsheet, toNumber } from "@/lib/excel";
+import { formatMoney, formatQty, isoDate } from "@/lib/format";
+import { useOrg } from "@/providers/org-provider";
+import { useConfirm } from "@/components/ui/confirm";
+import { cn } from "@/lib/utils";
+
+type Tab = "depolar" | "sayim";
+type Product = Row<"products">;
+type WarehouseRow = Row<"warehouses">;
+
+const PAGE = 200;
+const normalize = (s: string) => s.toLocaleLowerCase("tr-TR");
+
+/** Ürünün birim maliyeti: ortalama maliyet, yoksa alış fiyatı (KDV hariç) */
+const unitCost = (p: Product) => {
+  const avg = Number(p.avg_cost) || 0;
+  if (avg > 0) return avg;
+  const buy = Number(p.purchase_price) || 0;
+  return p.purchase_price_includes_vat ? buy / (1 + Number(p.vat_rate) / 100) : buy;
+};
+
+// ---------------------------------------------------------------------------
+// Ortak veri
+// ---------------------------------------------------------------------------
+
+function useStockData() {
+  const products = useProducts();
+  const warehouses = useWarehouses();
+  const units = useUnits();
+  const stocks = useRows<Row<"product_stocks">>("product_stocks", { softDelete: false });
+
+  const tracked = React.useMemo(
+    () => (products.data ?? []).filter((p) => p.is_active && p.type === "product" && p.track_stock),
+    [products.data],
+  );
+  const qty = React.useCallback(
+    (pid: string, wid: string) =>
+      Number(stocks.data?.find((s) => s.product_id === pid && s.warehouse_id === wid)?.quantity ?? 0),
+    [stocks.data],
+  );
+  const unitLabel = React.useCallback(
+    (p: Product) => {
+      const u = units.data?.find((x) => x.id === p.unit_id);
+      return !u || /adet/i.test(u.name) ? "ad" : u.name.toLocaleLowerCase("tr-TR");
+    },
+    [units.data],
+  );
+  return { products, warehouses, stocks, tracked, qty, unitLabel };
+}
+
+// ---------------------------------------------------------------------------
+// Depo penceresi (Pusulam "Yeni Depo")
+// ---------------------------------------------------------------------------
+
+function WarehouseDialog({ initial, onClose }: { initial: WarehouseRow | null; onClose: () => void }) {
+  const save = useSave("warehouses");
+  const update = useUpdate("warehouses");
+  const [name, setName] = React.useState(initial?.name ?? "");
+  const [address, setAddress] = React.useState(initial?.address ?? "");
+  const [busy, setBusy] = React.useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      if (initial) await update.update(initial.id, { name: name.trim(), address: address.trim() || null }, "Depo güncellendi");
+      else await save.save({ name: name.trim(), address: address.trim() || null }, "Depo eklendi");
+      onClose();
+    } catch {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
+      <form
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl animate-scale-in"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+          <h2 className="text-lg font-bold">{initial ? "Depoyu Düzenle" : "Yeni Depo"}</h2>
+          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600" aria-label="Kapat">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          <label className="block space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Depo adı *</span>
+            <input className="input" autoFocus required value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="block space-y-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Adres</span>
+            <input className="input" value={address} onChange={(e) => setAddress(e.target.value)} />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-200 dark:border-slate-800">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Vazgeç
+          </button>
+          <button type="submit" className="btn-primary" disabled={busy || !name.trim()}>
+            Kaydet
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Depolar & Transfer
+// ---------------------------------------------------------------------------
+
+function WarehousesTab() {
+  const { canWrite } = useOrg();
+  const confirm = useConfirm();
+  const { warehouses, tracked, qty, unitLabel } = useStockData();
+  const update = useUpdate("warehouses");
+  const [dialog, setDialog] = React.useState<WarehouseRow | "new" | null>(null);
+  const [expanded, setExpanded] = React.useState<string | null>(null);
+
+  const list = warehouses.data ?? [];
+
+  const remove = async (w: WarehouseRow, totalQty: number) => {
+    if (w.is_default) {
+      toast.error("Varsayılan depo silinemez.");
+      return;
+    }
+    if (totalQty !== 0) {
+      toast.error("İçinde stok bulunan depo silinemez. Önce stokları transfer edin.");
+      return;
+    }
+    if (await confirm({ title: `${w.name} silinsin mi?`, danger: true, confirmText: "Sil" })) {
+      await update.remove(w.id, "Depo silindi");
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 lg:gap-4 mb-5">
+        <div className="min-w-0 lg:min-w-[12rem] lg:shrink-0 lg:max-w-[45%]">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Stoklar / Depolar</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {list.length} depo · {tracked.length} ürün
+          </p>
+        </div>
+        {canWrite && (
+          <div className="flex flex-wrap items-center gap-2 min-w-0 lg:justify-end">
+            <Link href="/stok/transfer" className="btn-ghost">
+              Depolar arası transfer
+            </Link>
+            <button type="button" className="btn-primary" onClick={() => setDialog("new")}>
+              + Yeni Depo
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        {list.map((w) => {
+          const rows = tracked.map((p) => ({ p, q: qty(p.id, w.id) })).filter((r) => r.q !== 0);
+          const totalQty = rows.reduce((s, r) => s + r.q, 0);
+          const value = rows.reduce((s, r) => s + Math.max(r.q, 0) * unitCost(r.p), 0);
+          const open = expanded === w.id;
+          return (
+            <div key={w.id} className={cn("card p-4", open && "md:col-span-2 xl:col-span-3")}>
+              <div className="flex items-start gap-3">
+                <div className="h-11 w-11 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 text-cyan-500 flex items-center justify-center shrink-0">
+                  <Warehouse size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold">{w.name}</div>
+                  <div className="text-xs text-slate-400">{w.address || (w.is_default ? "Merkez" : "—")}</div>
+                </div>
+                {canWrite && (
+                  <>
+                    <button className="text-slate-300 hover:text-brand-500 p-1" title="Düzenle" onClick={() => setDialog(w)}>
+                      <Pencil size={16} />
+                    </button>
+                    <button className="text-slate-300 hover:text-rose-500 p-1" title="Sil" onClick={() => remove(w, totalQty)}>
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div>
+                  <div className="text-[11px] text-slate-400">Toplam Adet</div>
+                  <div className="font-semibold">{formatQty(totalQty)}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] text-slate-400">Stok Değeri</div>
+                  <div className="font-semibold text-brand-500">{formatMoney(value)}</div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-3">
+                <button
+                  type="button"
+                  className="text-brand-500 text-sm font-semibold flex items-center gap-1 hover:gap-2 transition-all"
+                  onClick={() => setExpanded(open ? null : w.id)}
+                >
+                  {open ? "ürünleri gizle" : "ürünleri gör"} <ChevronRight size={16} className={cn("transition", open && "rotate-90")} />
+                </button>
+              </div>
+              {open && (
+                <div className="mt-3 max-h-96 overflow-y-auto rounded-xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                  {rows.length === 0 ? (
+                    <p className="p-4 text-sm text-slate-400 text-center">Bu depoda stok yok.</p>
+                  ) : (
+                    rows
+                      .sort((a, b) => a.p.name.localeCompare(b.p.name, "tr"))
+                      .map(({ p, q }) => (
+                        <Link
+                          key={p.id}
+                          href={`/urunler/${p.id}`}
+                          className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        >
+                          <span className="truncate">{p.name}</span>
+                          <span className={cn("font-semibold shrink-0 tabular-nums", q <= 0 && "text-rose-500")}>
+                            {formatQty(q)} {unitLabel(p)}
+                          </span>
+                        </Link>
+                      ))
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {dialog && <WarehouseDialog initial={dialog === "new" ? null : dialog} onClose={() => setDialog(null)} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stok Sayım & Düzeltme
+// ---------------------------------------------------------------------------
+
+function CountTab() {
+  const { org, canWrite } = useOrg();
+  const confirm = useConfirm();
+  const { warehouses, tracked, qty, unitLabel } = useStockData();
+  const adjust = useRpc("adjust_stock");
+  const [q, setQ] = React.useState("");
+  const [wh, setWh] = React.useState("");
+  const [note, setNote] = React.useState("");
+  const [limit, setLimit] = React.useState(PAGE);
+  const [counts, setCounts] = React.useState<Record<string, number>>({});
+  const [busy, setBusy] = React.useState(false);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const whList = React.useMemo(() => warehouses.data ?? [], [warehouses.data]);
+  const key = (pid: string, wid: string) => `${pid}|${wid}`;
+
+  // Her ürün × depo bir satır (depo filtresi seçiliyse yalnızca o depo)
+  const rows = React.useMemo(() => {
+    const ws = wh ? whList.filter((w) => w.id === wh) : whList;
+    const query = normalize(q.trim());
+    const out: { p: Product; w: WarehouseRow; sys: number }[] = [];
+    for (const p of tracked) {
+      if (query && !normalize(`${p.name} ${p.code ?? ""} ${p.barcode ?? ""}`).includes(query)) continue;
+      for (const w of ws) out.push({ p, w, sys: qty(p.id, w.id) });
+    }
+    return out.sort((a, b) => a.p.name.localeCompare(b.p.name, "tr"));
+  }, [tracked, whList, wh, q, qty]);
+
+  const changed = Object.entries(counts).filter(([k, v]) => {
+    const [pid, wid] = k.split("|");
+    return Number.isFinite(v) && v !== qty(pid, wid);
+  });
+
+  const fillSystem = () => {
+    const next: Record<string, number> = { ...counts };
+    for (const r of rows) next[key(r.p.id, r.w.id)] = r.sys;
+    setCounts(next);
+  };
+
+  const downloadSheet = () =>
+    exportExcel(`stok-sayim-${isoDate()}`, [
+      {
+        name: "Sayım",
+        rows,
+        columns: [
+          { header: "Ürün ID", value: (r) => r.p.id },
+          { header: "Depo ID", value: (r) => r.w.id },
+          { header: "Barkod", value: (r) => r.p.barcode ?? "" },
+          { header: "Ürün", value: (r) => r.p.name },
+          { header: "Depo", value: (r) => r.w.name },
+          { header: "Sistem Stok", value: (r) => r.sys, type: "qty" },
+          { header: "Sayılan Stok", value: () => "" },
+        ],
+      },
+    ]);
+
+  const uploadSheet = async (file: File) => {
+    try {
+      const { rows: data } = await readSpreadsheet(file);
+      const next: Record<string, number> = { ...counts };
+      let n = 0;
+      for (const r of data) {
+        const raw = r["Sayılan Stok"];
+        if (raw === undefined || raw === null || String(raw).trim() === "") continue;
+        const barcode = String(r["Barkod"] ?? "").trim();
+        const pid = String(r["Ürün ID"] ?? "").trim() || tracked.find((p) => barcode && p.barcode === barcode)?.id;
+        const wid = String(r["Depo ID"] ?? "").trim() || whList.find((w) => w.name === r["Depo"])?.id || whList.find((w) => w.is_default)?.id;
+        if (!pid || !wid || !tracked.some((p) => p.id === pid)) continue;
+        next[key(pid, wid)] = toNumber(raw);
+        n++;
+      }
+      setCounts(next);
+      toast.success(n ? `${n} satır sayımı yüklendi — kontrol edip kaydedin` : "Dosyada doldurulmuş 'Sayılan Stok' bulunamadı");
+    } catch (e) {
+      toast.error("Dosya okunamadı: " + (e as Error).message);
+    }
+  };
+
+  const save = async () => {
+    if (!changed.length || !org) return;
+    const ok = await confirm({
+      title: `${changed.length} satırda sayım farkı işlensin mi?`,
+      description: "Sayılan miktarlar stok olarak kaydedilir ve stok hareketi oluşur.",
+      confirmText: "İşle",
+    });
+    if (!ok) return;
+    setBusy(true);
+    let done = 0;
+    try {
+      for (const [k, v] of changed) {
+        const [pid, wid] = k.split("|");
+        await adjust.call({
+          p_org: org.id,
+          p_product: pid,
+          p_warehouse: wid,
+          p_quantity: v,
+          p_mode: "set",
+          p_date: isoDate(),
+          p_note: note.trim() || "Stok sayımı",
+          p_unit_cost: null,
+          p_id: newId(),
+        });
+        done++;
+      }
+      toast.success(`${done} sayım farkı işlendi`);
+      setCounts({});
+    } catch {
+      // Hata gösterildi; işlenmeyen satırlar ekranda kalır
+      setCounts((c) => Object.fromEntries(Object.entries(c).filter(([k]) => !changed.slice(0, done).some(([d]) => d === k))));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 lg:gap-4 mb-5">
+        <div className="min-w-0 lg:min-w-[12rem] lg:shrink-0 lg:max-w-[45%]">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Stok Sayım / Düzeltme</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Listeyi indirin, Sayılan Stok sütununu doldurun, Excel/CSV olarak geri yükleyin
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 min-w-0 lg:justify-end">
+          <button type="button" className="btn-ghost" onClick={downloadSheet}>
+            <Download size={16} /> Sayım Excel İndir
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.csv,.tsv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) uploadSheet(f);
+            }}
+          />
+          <button type="button" className="btn-ghost" onClick={() => fileRef.current?.click()}>
+            <Upload size={16} /> Sayım Excel Yükle
+          </button>
+          {canWrite && changed.length > 0 && (
+            <button type="button" className="btn-primary" onClick={save} disabled={busy}>
+              {busy ? "İşleniyor…" : `Farkları işle (${changed.length})`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 dark:bg-sky-900/20 dark:border-sky-800 px-4 py-3 text-sm text-sky-900 dark:text-sky-100 flex items-start gap-2">
+        <Info size={16} className="shrink-0 mt-0.5" />
+        <div>
+          <b>Ürün ID</b> ve <b>Barkod</b> sütunlarını silmeyin / değiştirmeyin. Sadece <b>Sayılan Stok</b> sütununu doldurun.
+          Excel’de kaydederken <b>.xlsx</b> veya <b>.csv</b> olabilir — ikisi de yüklenir.
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="md:col-span-2 self-end">
+          <div className="relative">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input pl-10"
+              placeholder="ürün / barkod ara"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setLimit(PAGE);
+              }}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block mb-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Depo filtresi</label>
+          <select className="input" value={wh} onChange={(e) => setWh(e.target.value)}>
+            <option value="">Tüm depolar</option>
+            {whList.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button type="button" className="btn-ghost text-sm" onClick={fillSystem}>
+          Sistem stoğunu doldur
+        </button>
+        <button type="button" className="btn-ghost text-sm" onClick={() => setCounts({})}>
+          <Eraser size={15} /> Sayımları temizle
+        </button>
+        <input
+          className="input flex-1 min-w-[200px] !py-2 text-sm"
+          placeholder="Açıklama (opsiyonel) — örn. Aralık sayımı"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800/60 text-left text-slate-400 text-xs">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Ürün</th>
+                <th className="px-4 py-2.5 font-medium">SKU</th>
+                <th className="px-4 py-2.5 font-medium">Depo</th>
+                <th className="px-4 py-2.5 font-medium text-right">Sistem</th>
+                <th className="px-4 py-2.5 font-medium text-right w-28">Sayım</th>
+                <th className="px-4 py-2.5 font-medium text-right">Fark</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {rows.slice(0, limit).map(({ p, w, sys }) => {
+                const k = key(p.id, w.id);
+                const counted = counts[k];
+                const diff = counted === undefined ? null : counted - sys;
+                return (
+                  <tr key={k} className={cn(diff !== null && diff !== 0 && "bg-amber-50/50 dark:bg-amber-900/10")}>
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium">{p.name}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-400 text-xs">{p.barcode || p.code || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-400 text-xs">{w.name}</td>
+                    <td className={cn("px-4 py-2.5 text-right font-semibold", sys < 0 && "text-rose-500")}>
+                      {formatQty(sys)} {unitLabel(p)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <input
+                        type="number"
+                        step="any"
+                        className="input !py-1.5 text-right text-sm w-full"
+                        placeholder="—"
+                        disabled={!canWrite}
+                        value={counted ?? ""}
+                        onChange={(e) =>
+                          setCounts((c) => {
+                            const next = { ...c };
+                            if (e.target.value === "") delete next[k];
+                            else next[k] = Number(e.target.value);
+                            return next;
+                          })
+                        }
+                      />
+                    </td>
+                    <td
+                      className={cn(
+                        "px-4 py-2.5 text-right font-semibold tabular-nums",
+                        diff === null || diff === 0 ? "text-slate-300" : diff > 0 ? "text-emerald-500" : "text-rose-500",
+                      )}
+                    >
+                      {diff === null ? "—" : `${diff > 0 ? "+" : ""}${formatQty(diff)}`}
+                    </td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
+                    Stok takibi yapılan ürün bulunamadı.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {rows.length > limit && (
+          <div className="p-3 text-center border-t border-slate-100 dark:border-slate-800">
+            <button type="button" className="btn-ghost text-sm" onClick={() => setLimit((l) => l + PAGE)}>
+              Daha fazla göster ({rows.length - limit} ürün daha) — ya da yukarıdan arayın
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sayfa
+// ---------------------------------------------------------------------------
+
+export function StoklarPage() {
+  const [tab, setTab] = React.useState<Tab>("depolar");
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "depolar", label: "Depolar & Transfer" },
+    { id: "sayim", label: "Stok Sayım & Düzeltme" },
+  ];
+  return (
+    <div className="flex flex-col h-full">
+      <div className="mb-4 flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div className="flex gap-2 flex-wrap">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-semibold transition",
+                tab === t.id
+                  ? "bg-brand-500 text-white shadow-sm"
+                  : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand-400",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 min-h-0">{tab === "depolar" ? <WarehousesTab /> : <CountTab />}</div>
+    </div>
+  );
+}

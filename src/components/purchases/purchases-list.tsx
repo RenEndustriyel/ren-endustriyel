@@ -2,41 +2,29 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Download,
-  Plus,
-  Search,
-  FileText,
-  Printer,
-  Pencil,
-  Trash2,
-  CircleHelp,
-  Sparkles,
-  Loader2,
-  MessageCircle,
-  Mail,
-  Copy,
-  MoreHorizontal,
-  ChevronDown,
-  Eye,
-  FileUp,
-  ShoppingCart,
-} from "lucide-react";
+import { FileText, Loader2, Search, Sparkles } from "lucide-react";
 import { useRows, useRpc, type Row } from "@/lib/data";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
+import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { useOrg } from "@/providers/org-provider";
-import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown";
 import { DocumentPrintModal } from "@/components/documents/document-print-modal";
+import {
+  DocCard,
+  ExportMenu,
+  HelpFeatures,
+  HelpTrigger,
+  ListHeader,
+  NewDocFab,
+  PeriodSelect,
+  TypeTabs,
+  docText,
+  inPeriod,
+  type Period,
+} from "@/components/documents/pusulam-doc-list";
+import { ProductImport } from "@/components/products/product-import";
 import { SupplierSelectModal, type SupplierItem } from "./supplier-select-modal";
 import { PurchaseInvoiceModal } from "./purchase-invoice-modal";
 import { toast } from "sonner";
@@ -48,7 +36,6 @@ type Doc = Row<"documents"> & {
 };
 
 type AlisTab = "orders" | "waybills" | "invoices";
-type DateFilter = "all" | "today" | "this_week" | "this_month" | "last_30" | "this_year";
 
 // Fotoğraftaki birebir gerçekçi örnek alış kayıtları (media_1791008363156.png)
 const DEFAULT_PURCHASE_DOCS: Doc[] = [
@@ -411,70 +398,45 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
   const { org, canWrite } = useOrg();
   const del = useRpc("delete_document");
 
-  // Tab: "orders" | "waybills" | "invoices"
+  // Sekme: URL'deki ?tab= değeri başlangıç sekmesini belirler
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = React.useState<AlisTab>(
-    tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices"
-      ? tabFromUrl
-      : initialTab
+    tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices" ? tabFromUrl : initialTab,
   );
 
-  React.useEffect(() => {
-    if (tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices") {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl]);
-
-  // Arama & Tarih Filtresi
   const [q, setQ] = React.useState("");
-  const [dateFilter, setDateFilter] = React.useState<DateFilter>("all");
+  const [period, setPeriod] = React.useState<Period>("all");
 
-  // Foto 1 & Foto 2 & 3 Modalleri
+  // Yeni belge akışı: Tedarikçi seç → Yeni Alış Belgesi
   const [supplierModalOpen, setSupplierModalOpen] = React.useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = React.useState(false);
   const [selectedSupplier, setSelectedSupplier] = React.useState<SupplierItem | null>(null);
 
-  // Belge Yazdır Modalı
   const [printDoc, setPrintDoc] = React.useState<Doc | null>(null);
-
-  // Yardım & AI Modalleri
   const [helpOpen, setHelpOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
+
+  // Fatura Oku (yapay zeka) penceresi
   const [aiModalOpen, setAiModalOpen] = React.useState(false);
   const [aiLoading, setAiLoading] = React.useState(false);
-  const [aiResult, setAiResult] = React.useState<{
-    supplierName?: string;
-    date?: string;
-    total?: number;
-    vat?: number;
-  } | null>(null);
+  const [aiResult, setAiResult] = React.useState<{ supplierName?: string; date?: string; total?: number; vat?: number } | null>(null);
 
-  // Yerel eklenen belgeler (anında listeye yansıması için)
-  const [localDocs, setLocalDocs] = React.useState<Doc[]>([]);
-
-  // Aktif sekmeye göre doc_type
-  const docType = React.useMemo(() => {
+  const docType = React.useMemo<DocType>(() => {
     switch (activeTab) {
       case "orders":
         return "purchase_order";
       case "waybills":
-        return "purchase_waybill";
+        // Alış irsaliyeleri veritabanında "purchase_delivery" olarak kaydediliyor
+        return "purchase_delivery";
       default:
         return "purchase_invoice";
     }
   }, [activeTab]);
 
-  const docTypeLabel = React.useMemo(() => {
-    switch (activeTab) {
-      case "orders":
-        return "Sipariş";
-      case "waybills":
-        return "İrsaliye";
-      default:
-        return "Fatura";
-    }
-  }, [activeTab]);
+  const docTypeLabel: "Fatura" | "İrsaliye" | "Sipariş" =
+    activeTab === "orders" ? "Sipariş" : activeTab === "waybills" ? "İrsaliye" : "Fatura";
+  const kindLabel = activeTab === "orders" ? "Sipariş Fişi" : activeTab === "waybills" ? "İrsaliye" : "Alış Fişi";
 
-  // Veritabanındaki belgeleri çek
   const docs = useRows<Doc>("documents", {
     select: "*, contact:contacts(name, phone, email), category:categories(name), lines:document_lines(*)",
     params: [docType],
@@ -485,173 +447,124 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
     ],
   });
 
-  // DB belgeleri + Yerel yeni eklenenler + Varsayılan örnekler
+  // Veritabanı belgeleri + kod içindeki örnekler (yalnız faturalarda)
   const allRows = React.useMemo(() => {
-    const dbData = docs.data ?? [];
-    const merged = [...localDocs, ...dbData];
-
+    const merged = [...(docs.data ?? [])];
     if (activeTab === "invoices") {
       for (const def of DEFAULT_PURCHASE_DOCS) {
-        if (!merged.some((m) => m.id === def.id || (m.number && m.number === def.number))) {
-          merged.push(def);
-        }
+        if (!merged.some((m) => m.id === def.id || (m.number && m.number === def.number))) merged.push(def);
       }
     }
-
     return merged;
-  }, [docs.data, localDocs, activeTab]);
+  }, [docs.data, activeTab]);
 
-  // Tarih Filtresi Kontrolü
-  const filterByDate = (d: Doc, filter: DateFilter) => {
-    if (filter === "all") return true;
-    const docDate = new Date(d.issue_date);
-    const now = new Date();
+  const today = isoDate();
+  const filteredRows = React.useMemo(() => {
+    const query = q.trim().toLocaleLowerCase("tr-TR");
+    return allRows.filter((d) => {
+      if (!inPeriod(d.issue_date, period, today)) return false;
+      if (!query) return true;
+      const text = `${d.contact?.name ?? ""} ${(d.contact_snapshot as { name?: string } | null)?.name ?? ""} ${d.number ?? ""} ${d.description ?? ""}`;
+      return text.toLocaleLowerCase("tr-TR").includes(query);
+    });
+  }, [allRows, q, period, today]);
 
-    if (filter === "today") {
-      return docDate.toDateString() === now.toDateString();
-    }
-    if (filter === "this_week") {
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-      startOfWeek.setHours(0, 0, 0, 0);
-      return docDate >= startOfWeek;
-    }
-    if (filter === "this_month") {
-      return docDate.getFullYear() === now.getFullYear() && docDate.getMonth() === now.getMonth();
-    }
-    if (filter === "last_30") {
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return docDate >= thirtyDaysAgo;
-    }
-    if (filter === "this_year") {
-      return docDate.getFullYear() === now.getFullYear();
-    }
+  const isSample = (d: Doc) => d.id.startsWith("sample-");
+  const guardSample = (d: Doc) => {
+    if (!isSample(d)) return false;
+    toast.info("Bu bir örnek kayıttır, üzerinde işlem yapılamaz.");
     return true;
   };
+  const nameOf = (d: Doc) =>
+    d.contact?.name || (d.contact_snapshot as { name?: string } | null)?.name || d.description || "Tedarikçi belirtilmemiş";
+  const baseOf = (d: Doc) => DOC_TYPES[(d.doc_type as DocType) || docType]?.base ?? DOC_TYPES[docType].base;
 
-  // Filtrelenmiş Satırlar
-  const filteredRows = React.useMemo(() => {
-    let res = allRows;
+  const handleStartNewDoc = () => setSupplierModalOpen(true);
 
-    // Tarihe göre filtrele
-    res = res.filter((d) => filterByDate(d, dateFilter));
-
-    // Arama terimine göre filtrele
-    if (q.trim()) {
-      const query = q.toLowerCase();
-      res = res.filter((d) => {
-        const supplierName = (
-          d.contact?.name ||
-          (d.contact_snapshot as any)?.name ||
-          ""
-        ).toLowerCase();
-        const docNum = (d.number || "").toLowerCase();
-        const desc = (d.description || "").toLowerCase();
-        return supplierName.includes(query) || docNum.includes(query) || desc.includes(query);
-      });
-    }
-
-    return res;
-  }, [allRows, q, dateFilter]);
-
-  const isDocOverdue = (d: Doc) => {
-    if (!d.due_date || d.payment_status === "paid" || d.status === "cancelled") return false;
-    return d.due_date < isoDate();
-  };
-
-  // Yeni Belge Başlatma Akışı:
-  // 1. Önce Foto 1 "Tedarikçi seç" modalı açılır.
-  const handleStartNewDoc = () => {
-    setSupplierModalOpen(true);
-  };
-
-  // 2. Tedarikçi seçildiğinde veya "Tedarikçisiz devam" dendiğinde Foto 2+3 açılır.
   const handleSupplierSelected = (supplier: SupplierItem | null) => {
     setSelectedSupplier(supplier);
     setSupplierModalOpen(false);
     setInvoiceModalOpen(true);
   };
 
-  // Fatura kaydedildiğinde listeye ekle
-  const handleInvoiceSaved = (savedDoc: any) => {
-    setLocalDocs((prev) => [savedDoc as Doc, ...prev]);
-    toast.success("Alış faturası listeye eklendi!");
+  // Kayıttan sonra liste veritabanından yenilenir; kaydedilen belgenin sekmesine geç
+  const handleInvoiceSaved = (saved: { id: string; doc_type: DocType }) => {
+    setActiveTab(saved.doc_type === "purchase_order" ? "orders" : saved.doc_type === "purchase_delivery" ? "waybills" : "invoices");
   };
 
-  // Aksiyonlar
+  const handleOpen = (d: Doc) => {
+    if (isSample(d)) setPrintDoc(d);
+    else router.push(`${baseOf(d)}/detay?id=${d.id}`);
+  };
+
+  const handleEdit = (d: Doc) => {
+    if (guardSample(d)) return;
+    router.push(`${baseOf(d)}/duzenle?id=${d.id}`);
+  };
+
   const handleDelete = async (d: Doc) => {
-    const name = d.contact?.name || d.number || docTypeLabel;
-    if (
-      !(await confirm({
-        title: `${name} silinsin mi?`,
-        description: "Stok hareketleri ve cari bakiye etkileri geri alınır.",
-        danger: true,
-        confirmText: "Sil",
-      }))
-    ) {
-      return;
-    }
-
-    if (d.id.startsWith("sample-")) {
-      setLocalDocs((prev) => prev.filter((p) => p.id !== d.id));
-      toast.success("Belge silindi");
-      return;
-    }
-
-    await del.call({ p_doc: d.id }, "Belge silindi");
+    if (guardSample(d)) return;
+    const ok = await confirm({
+      title: `${nameOf(d)} silinsin mi?`,
+      description: "Stok hareketleri ve cari bakiye etkileri geri alınır.",
+      danger: true,
+      confirmText: "Sil",
+    });
+    if (ok) await del.call({ p_doc: d.id }, "Belge silindi");
   };
 
-  const handleDuplicate = (d: Doc) => {
-    setSelectedSupplier(
-      d.contact
-        ? {
-            id: d.contact_id || "dup-sup",
-            name: d.contact.name,
-            phone: d.contact.phone,
-          }
-        : null
-    );
-    setInvoiceModalOpen(true);
-    toast.info("Belge kopyalandı; yeni alış belgesi açıldı.");
+  // Tedarikçiye iade: iade belgesi kaynak faturanın kalemleriyle açılır
+  const handleReturn = (d: Doc, partial: boolean) => {
+    if (guardSample(d)) return;
+    if (partial) toast.info("İade edilmeyecek kalemleri silin veya miktarlarını düşürün.");
+    router.push(`${DOC_TYPES.purchase_return.base}/yeni?kaynak=${d.id}`);
   };
 
   const handleWhatsAppShare = (d: Doc) => {
-    const supplierName = d.contact?.name || (d.contact_snapshot as any)?.name || "Tedarikçi";
-    const phone = d.contact?.phone || "";
-    const cleanPhone = phone.replace(/[^0-9]/g, "");
-    const formattedPhone = cleanPhone.startsWith("0")
-      ? "9" + cleanPhone
-      : cleanPhone.length === 10
-        ? "90" + cleanPhone
-        : cleanPhone;
-
+    const cleanPhone = (d.contact?.phone || "").replace(/[^0-9]/g, "");
+    const phone = cleanPhone.startsWith("0") ? "9" + cleanPhone : cleanPhone.length === 10 ? "90" + cleanPhone : cleanPhone;
     const text = encodeURIComponent(
       `*${org?.name || "Ren Endüstriyel"}*\n` +
-      `Belge: ${docTypeLabel} (${d.number || "—"})\n` +
-      `Sayın: ${supplierName}\n` +
-      `Tarih: ${formatDate(d.issue_date)}\n` +
-      `Toplam Tutar: ${formatMoney(d.total ?? 0, d.currency || "TRY")}\n` +
-      `Durum: ${d.payment_status === "paid" ? "Ödendi" : "Açık"}`
+        `Belge: ${kindLabel} (${d.number || "—"})\n` +
+        `Sayın: ${nameOf(d)}\n` +
+        `Tarih: ${formatDate(d.issue_date)}\n` +
+        `Toplam Tutar: ${formatMoney(d.total ?? 0, d.currency || "TRY")}\n` +
+        `Durum: ${d.payment_status === "paid" ? "Ödendi" : "Açık"}`,
     );
-
-    const waUrl = formattedPhone ? `https://wa.me/${formattedPhone}?text=${text}` : `https://wa.me/?text=${text}`;
-    window.open(waUrl, "_blank");
+    window.open(phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`, "_blank");
   };
 
   const handleEmailShare = (d: Doc) => {
-    const supplierName = d.contact?.name || (d.contact_snapshot as any)?.name || "İlgili";
-    const email = d.contact?.email || "";
-    const subject = encodeURIComponent(`${org?.name || "Ren Endüstriyel"} - ${docTypeLabel} (${d.number || "—"})`);
+    const subject = encodeURIComponent(`${org?.name || "Ren Endüstriyel"} - ${kindLabel} (${d.number || "—"})`);
     const body = encodeURIComponent(
-      `Sayın ${supplierName},\n\n` +
-      `${formatDate(d.issue_date)} tarihli ${docTypeLabel} (${d.number || "—"}) faturanız sistemimize işlenmiştir:\n` +
-      `Net Tutar: ${formatMoney(d.subtotal ?? 0, d.currency || "TRY")}\n` +
-      `KDV Tutarı: ${formatMoney(d.vat_total ?? 0, d.currency || "TRY")}\n` +
-      `Toplam Tutar: ${formatMoney(d.total ?? 0, d.currency || "TRY")}\n\n` +
-      `Bilgilerinize sunar, iyi çalışmalar dileriz.\n${org?.name || "Ren Endüstriyel"}`
+      `Sayın ${nameOf(d)},\n\n` +
+        `${formatDate(d.issue_date)} tarihli ${kindLabel} (${d.number || "—"}):\n` +
+        `Net Tutar: ${formatMoney(d.subtotal ?? 0, d.currency || "TRY")}\n` +
+        `KDV Tutarı: ${formatMoney(d.vat_total ?? 0, d.currency || "TRY")}\n` +
+        `Toplam Tutar: ${formatMoney(d.total ?? 0, d.currency || "TRY")}\n\n` +
+        `İyi çalışmalar dileriz.\n${org?.name || "Ren Endüstriyel"}`,
     );
+    window.open(`mailto:${d.contact?.email || ""}?subject=${subject}&body=${body}`, "_self");
+  };
 
-    window.open(`mailto:${email}?subject=${subject}&body=${body}`, "_blank");
+  const handleCopy = async (d: Doc) => {
+    const text = docText({
+      title: kindLabel,
+      name: nameOf(d),
+      number: d.number,
+      date: d.issue_date,
+      lines: (d.lines as { description?: string; quantity?: number; unit_price?: number; total_amount?: number }[] | undefined) ?? [],
+      net: Number(d.net_total ?? d.subtotal ?? 0),
+      vat: Number(d.vat_total ?? 0),
+      total: Number(d.total ?? 0),
+      currency: d.currency,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Belge metni panoya kopyalandı");
+    } catch {
+      toast.error("Panoya kopyalanamadı");
+    }
   };
 
   const handleExportExcel = () => {
@@ -662,12 +575,30 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
         columns: [
           { header: "Tarih", value: (d) => d.issue_date },
           { header: "Belge No", value: (d) => d.number || "" },
-          { header: "Tedarikçi", value: (d) => d.contact?.name || (d.contact_snapshot as any)?.name || "" },
+          { header: "Tedarikçi", value: (d) => nameOf(d) },
           { header: "Net Tutar", value: (d) => Number(d.subtotal || 0), type: "money" },
           { header: "KDV Tutarı", value: (d) => Number(d.vat_total || 0), type: "money" },
           { header: "Toplam Tutar", value: (d) => Number(d.total || 0), type: "money" },
-          { header: "Durum", value: (d) => d.payment_status || d.status },
+          { header: "Durum", value: (d) => (d.payment_status === "paid" ? "Ödendi" : "Açık") },
           { header: "Vade", value: (d) => d.due_date || "" },
+        ],
+      },
+    ]);
+  };
+
+  // "Fatura Oku"nun okuduğu örnek Excel düzeni
+  const handleTemplate = () => {
+    exportExcel("alis-fatura-sablonu", [
+      {
+        name: "Alış Faturası",
+        rows: [{}],
+        columns: [
+          { header: "Barkod", value: () => "" },
+          { header: "Ürün Adı", value: () => "" },
+          { header: "Miktar", value: () => "" },
+          { header: "Birim", value: () => "Adet" },
+          { header: "Birim Fiyat", value: () => "" },
+          { header: "KDV %", value: () => "20" },
         ],
       },
     ]);
@@ -675,499 +606,180 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
 
   const handleAiScan = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-
     setAiLoading(true);
+    setAiResult(null);
     setAiModalOpen(true);
-
     setTimeout(() => {
       setAiLoading(false);
-      setAiResult({
-        supplierName: "Örnek Tedarikçi A.Ş.",
-        date: isoDate(),
-        total: 1250.0,
-        vat: 250.0,
-      });
+      setAiResult({ supplierName: "Örnek Tedarikçi A.Ş.", date: isoDate(), total: 1250.0, vat: 250.0 });
       toast.success("Fatura bilgileri başarıyla okundu!");
     }, 1800);
   };
 
   const handleApplyAiResult = () => {
     setAiModalOpen(false);
-    setSelectedSupplier({
-      id: "ai-sup",
-      name: aiResult?.supplierName || "Okunan Tedarikçi",
-    });
+    setSelectedSupplier({ id: "ai-sup", name: aiResult?.supplierName || "Okunan Tedarikçi" });
     setInvoiceModalOpen(true);
   };
 
-  const dateFilterLabels: Record<DateFilter, string> = {
-    all: "Tüm tarihler",
-    today: "Bugün",
-    this_week: "Bu Hafta",
-    this_month: "Bu Ay",
-    last_30: "Son 30 Gün",
-    this_year: "Bu Yıl",
-  };
-
   return (
-    <div className="flex-1 pb-16">
-      {/* 1. Başlık ve Aksiyon Butonları (Pusulam Birebir) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            Alışlar
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Sipariş, irsaliye ve faturalarınız
-          </p>
-        </div>
-
-        {/* Sağ Buton Grubu */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-          {/* İçe / Dışa Aktar */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold bg-white dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-100 dark:hover:bg-[#1b2f3b] transition-colors shadow-xs"
-              >
-                <Download size={15} />
-                <span>İçe / Dışa Aktar</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={handleExportExcel}>
-                <Download size={14} />
-                <span>Excel Olarak İndir (.xlsx)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => toast.info("CSV dışa aktarım hazırlanıyor...")}>
-                <FileText size={14} />
-                <span>CSV Olarak Dışa Aktar</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Fatura Oku · Foto / PDF / XML / Excel */}
-          <label className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold bg-[#111e2e] text-blue-300 border border-blue-800/60 hover:bg-[#15263a] transition-colors cursor-pointer shadow-xs">
-            <FileUp size={15} className="text-blue-400" />
-            <span>Fatura Oku · Foto / PDF / XML / Excel</span>
-            <input
-              type="file"
-              accept="image/*,application/pdf,.xml,.xlsx"
-              className="hidden"
-              onChange={handleAiScan}
+    <div>
+      <ListHeader
+        title="Alışlar"
+        actions={
+          <>
+            <ExportMenu
+              items={[
+                { label: "Excel'den ürün yükle", hint: "Ürünler'deki yükleme ekranı (stok listesi)", onSelect: () => setImportOpen(true), hidden: !canWrite },
+                { label: "Alış Excel şablonu", hint: "Fatura Oku'nun okuduğu örnek dosya", onSelect: handleTemplate },
+                { label: "Excel'e aktar", hint: `Listedeki ${filteredRows.length} belge`, onSelect: handleExportExcel },
+              ]}
             />
-          </label>
+            <label className="btn cursor-pointer border border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/50 shadow-sm">
+              Fatura Oku · Foto / PDF / XML / Excel
+              <input
+                type="file"
+                accept="image/*,application/pdf,.pdf,.xml,text/xml,application/xml,.xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleAiScan}
+              />
+            </label>
+            {canWrite && (
+              <button type="button" className="btn-primary" onClick={handleStartNewDoc}>
+                + Yeni {docTypeLabel}
+              </button>
+            )}
+          </>
+        }
+      />
 
-          {/* + Yeni Fatura Butonu (Foto 1 Modalı Açar) */}
-          {canWrite && (
-            <button
-              type="button"
-              onClick={handleStartNewDoc}
-              className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-bold bg-[#00b49c] hover:bg-[#009e89] text-white shadow-xs transition active:scale-95"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              <span>+ Yeni {docTypeLabel}</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 2. Arama Çubuğu (Pusulam Birebir) */}
-      <div className="mb-3.5 w-full max-w-md">
+      <div className="mb-4 max-w-md">
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
-          <input
-            className="w-full rounded-xl bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37] pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-[#00b49c] transition-colors"
-            placeholder="alışlar arama"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-slate-400" />
+          <input className="input pl-10" placeholder="alışlar arama" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
       </div>
 
-      {/* 3. Belge Türü Sekmeleri (media_1791008363156.png Satır 1) */}
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("orders")}
-          className={cn(
-            "px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all",
-            activeTab === "orders"
-              ? "bg-[#00b49c] text-white shadow-xs font-bold"
-              : "bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600"
-          )}
-        >
-          Siparişler
-        </button>
+      <TypeTabs
+        tabs={[
+          { id: "orders", label: "Siparişler" },
+          { id: "waybills", label: "İrsaliyeler" },
+          { id: "invoices", label: "Faturalar" },
+        ]}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("waybills")}
-          className={cn(
-            "px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all",
-            activeTab === "waybills"
-              ? "bg-[#00b49c] text-white shadow-xs font-bold"
-              : "bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600"
-          )}
-        >
-          İrsaliyeler
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("invoices")}
-          className={cn(
-            "px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all",
-            activeTab === "invoices"
-              ? "bg-[#00b49c] text-white shadow-xs font-bold"
-              : "bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600"
-          )}
-        >
-          Faturalar
-        </button>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <PeriodSelect value={period} onChange={setPeriod} />
       </div>
 
-      {/* 4. Tarih Dropdown Pill (media_1791008363156.png Satır 2) */}
-      <div className="mb-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-[#111e26] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#182c37] hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
-            >
-              <span>{dateFilterLabels[dateFilter]}</span>
-              <ChevronDown size={14} className="text-slate-400" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onSelect={() => setDateFilter("all")}>Tüm tarihler</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("today")}>Bugün</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("this_week")}>Bu Hafta</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("this_month")}>Bu Ay</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("last_30")}>Son 30 Gün</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setDateFilter("this_year")}>Bu Yıl</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {/* 5. Alış Belgeleri Listesi (Pusulam Birebir Kart Yapısı) */}
       <div className="space-y-2.5">
         {filteredRows.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 dark:border-[#182c37] bg-white dark:bg-[#0c1822] p-12 sm:p-16 text-center shadow-xs">
-            <div className="size-16 rounded-2xl bg-emerald-500/10 dark:bg-[#0e1d27] border border-emerald-500/20 dark:border-[#142633] flex items-center justify-center text-[#00b49c] mx-auto mb-4">
-              <ShoppingCart size={32} strokeWidth={2} />
+          <div className="card p-10 text-center">
+            <div className="h-12 w-12 rounded-xl bg-brand-50 dark:bg-brand-900/30 text-brand-500 flex items-center justify-center mx-auto mb-3">
+              <FileText size={22} />
             </div>
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-1">
-              Henüz alış belgesi yok
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6">
-              Yeni alış belgesi oluşturun veya Gelen e-Fatura kutusundan aktarın.
+            <div className="font-semibold">Henüz {docTypeLabel.toLocaleLowerCase("tr-TR")} yok</div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              {q.trim() || period !== "all" ? "Filtreyle eşleşen kayıt bulunamadı." : "Yeni alış belgesi oluşturun veya Gelen e-Fatura kutusundan aktarın."}
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={handleStartNewDoc}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-bold bg-[#00b49c] hover:bg-[#009e89] text-white shadow-md shadow-[#00b49c]/20 transition active:scale-95 cursor-pointer"
-              >
-                <Plus size={16} strokeWidth={2.5} />
-                <span>+ Yeni alış</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/e-fatura")}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-[#13232e] hover:bg-slate-200 dark:hover:bg-[#192f3e] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] transition active:scale-95 cursor-pointer"
-              >
-                <span>Gelen e-Faturalar</span>
-              </button>
-            </div>
           </div>
         ) : (
           filteredRows.map((d) => {
-            const supplierName =
-              d.contact?.name ||
-              (d.contact_snapshot as any)?.name ||
-              d.description ||
-              "Tedarikçi Belirtilmemiş";
-            const isOverdue = isDocOverdue(d);
             const isPaid = d.payment_status === "paid";
             const isCancelled = d.status === "cancelled";
-            const linesCount = d.lines?.length || 1;
-
             return (
-              <div
+              <DocCard
                 key={d.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setPrintDoc(d)}
-                className="rounded-2xl border border-slate-200 dark:border-[#182c37] bg-white dark:bg-[#111e26] hover:border-slate-300 dark:hover:border-[#223d4c] p-3 sm:px-4 sm:py-3.5 transition-all flex flex-col xl:flex-row xl:items-center justify-between gap-3 sm:gap-4 group cursor-pointer shadow-xs"
-              >
-                {/* Sol Bölüm: İkon ve Bilgiler */}
-                <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                  <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-teal-50 dark:bg-[#0e272c] text-[#00b49c] border border-teal-200/50 dark:border-[#164349] flex items-center justify-center shrink-0">
-                    <FileText size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold truncate text-sm sm:text-base text-slate-900 dark:text-white uppercase tracking-tight">
-                      {supplierName}
-                    </div>
-                    <div className="text-xs text-slate-400 truncate mt-0.5">
-                      {docTypeLabel} Fişi · {formatDate(d.issue_date)} · {linesCount} kalem
-                    </div>
-                    <div className="text-[11px] text-slate-400/90 mt-0.5 tabular-nums">
-                      Net {formatMoney(d.subtotal ?? 0)} · KDV {formatMoney(d.vat_total ?? 0)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Orta Bölüm: 6'lı Aksiyon Butonları (Pusulam Birebir) */}
-                <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 shrink-0">
-                  {/* 1. Belge */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPrintDoc(d);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-200 dark:hover:bg-[#1c3241] transition"
-                    title="Belgeyi Yazdır / Görüntüle"
-                  >
-                    <Printer size={13} className="text-slate-500 dark:text-slate-400" />
-                    <span>Belge</span>
-                  </button>
-
-                  {/* 2. WhatsApp */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleWhatsAppShare(d);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-semibold bg-slate-100 dark:bg-[#142530] text-[#10b981] border border-slate-200 dark:border-[#1e3544] hover:bg-emerald-50 dark:hover:bg-[#163a33] transition"
-                    title="WhatsApp ile Paylaş"
-                  >
-                    <MessageCircle size={13} className="text-[#10b981]" />
-                    <span>WhatsApp</span>
-                  </button>
-
-                  {/* 3. E-posta */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEmailShare(d);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-200 dark:hover:bg-[#1c3241] transition"
-                    title="E-posta ile Gönder"
-                  >
-                    <Mail size={13} className="text-slate-500 dark:text-slate-400" />
-                    <span>E-posta</span>
-                  </button>
-
-                  {/* 4. Kopyala */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDuplicate(d);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-200 dark:hover:bg-[#1c3241] transition"
-                    title="Belgeyi Kopyala"
-                  >
-                    <Copy size={13} className="text-slate-500 dark:text-slate-400" />
-                    <span>Kopyala</span>
-                  </button>
-
-                  {/* 5. Düzenle */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDuplicate(d);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-200 dark:hover:bg-[#1c3241] transition"
-                    title="Düzenle"
-                  >
-                    <Pencil size={13} className="text-slate-500 dark:text-slate-400" />
-                    <span>Düzenle</span>
-                  </button>
-
-                  {/* 6. Diğer (Dropdown) */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 sm:px-2.5 py-1 text-xs font-medium bg-slate-100 dark:bg-[#142530] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#1e3544] hover:bg-slate-200 dark:hover:bg-[#1c3241] transition"
-                        title="Diğer Seçenekler"
-                      >
-                        <MoreHorizontal size={13} className="text-slate-500 dark:text-slate-400" />
-                        <span>Diğer</span>
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => setPrintDoc(d)}>
-                        <Eye size={14} />
-                        <span>Detayı Görüntüle</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setPrintDoc(d)}>
-                        <Printer size={14} />
-                        <span>Yazdır / PDF</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => handleDelete(d)} className="text-rose-500 focus:text-rose-500">
-                        <Trash2 size={14} />
-                        <span>Belgeyi Sil</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                {/* Sağ Bölüm: Tutar, Durum ve Vade */}
-                <div className="shrink-0 flex xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-1 xl:min-w-[130px] border-t xl:border-t-0 border-slate-100 dark:border-[#182c37] pt-2 xl:pt-0 text-right">
-                  <div className="font-extrabold text-sm sm:text-base tabular-nums text-slate-900 dark:text-white">
-                    {formatMoney(d.total ?? 0)}
-                  </div>
-
-                  <div className="flex flex-col items-end gap-0.5">
-                    {isPaid ? (
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-500 select-none">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        <span>Ödendi</span>
-                      </span>
-                    ) : isCancelled ? (
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-rose-500 select-none">
-                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                        <span>İptal</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-500 select-none">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                        <span>Açık</span>
-                      </span>
-                    )}
-
-                    {d.due_date && (
-                      <span
-                        className={cn(
-                          "text-[11px] font-medium leading-tight",
-                          isOverdue
-                            ? "text-rose-500 dark:text-rose-400"
-                            : "text-slate-400 dark:text-slate-500"
-                        )}
-                      >
-                        Vade: {formatDate(d.due_date)} {isOverdue && "· gecikti"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+                name={nameOf(d)}
+                kindLabel={kindLabel}
+                date={d.issue_date}
+                linesCount={d.lines?.length || 0}
+                net={Number(d.net_total ?? d.subtotal ?? 0)}
+                vat={Number(d.vat_total ?? 0)}
+                total={Number(d.total ?? 0)}
+                currency={d.currency}
+                status={isCancelled ? "cancelled" : isPaid ? "paid" : "open"}
+                dueDate={d.due_date}
+                overdue={!!d.due_date && !isPaid && !isCancelled && d.due_date < today}
+                whatsappTitle={d.contact?.phone ? `${nameOf(d)} kişisine WhatsApp'tan gönder` : "Carinin telefonu yok — sohbet seçtirilir"}
+                onOpen={() => handleOpen(d)}
+                onPrint={() => setPrintDoc(d)}
+                onWhatsApp={() => handleWhatsAppShare(d)}
+                onEmail={() => handleEmailShare(d)}
+                onCopy={() => handleCopy(d)}
+                onEdit={canWrite ? () => handleEdit(d) : undefined}
+                moreItems={[
+                  { label: "Tedarikçiye iade (kalem seç)", onSelect: () => handleReturn(d, true), hidden: !canWrite || activeTab !== "invoices" },
+                  { label: "Tedarikçiye tam iade", onSelect: () => handleReturn(d, false), hidden: !canWrite || activeTab !== "invoices" },
+                  { label: "Sil", onSelect: () => handleDelete(d), danger: true, hidden: !canWrite },
+                ]}
+              />
             );
           })
         )}
       </div>
 
-      {/* 6. Pusulam Floating Action Button (FAB) */}
-      <button
-        type="button"
-        onClick={handleStartNewDoc}
-        className="fixed z-30 h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#00b49c] hover:bg-[#009e89] text-white shadow-xl shadow-[#00b49c]/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 right-5 sm:right-7 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:bottom-8"
-        title={`Yeni ${docTypeLabel}`}
-        aria-label={`Yeni ${docTypeLabel}`}
-      >
-        <Plus size={26} strokeWidth={2.5} />
-      </button>
+      {canWrite && <NewDocFab label="Yeni alış" onClick={handleStartNewDoc} />}
+      <HelpTrigger title="Alışlar yardımı" onClick={() => setHelpOpen(true)} />
 
-      {/* 7. Pusulam Sağ Alt Yardım Butonu */}
-      <button
-        type="button"
-        onClick={() => setHelpOpen(true)}
-        className="fixed z-20 h-7 w-7 rounded-full text-slate-500 hover:text-slate-300 flex items-center justify-center transition right-2 bottom-2"
-        title="Sayfa Yardımı"
-        aria-label="Sayfa Yardımı"
-      >
-        <CircleHelp size={18} />
-      </button>
+      <SupplierSelectModal open={supplierModalOpen} onOpenChange={setSupplierModalOpen} onSelect={handleSupplierSelected} />
 
-      {/* 8. Foto 1: Tedarikçi Seç Pop-up Modalı */}
-      <SupplierSelectModal
-        open={supplierModalOpen}
-        onOpenChange={setSupplierModalOpen}
-        onSelect={handleSupplierSelected}
-      />
-
-      {/* 9. Foto 2 & 3: Birleşik Yeni Alış Belgesi Modalı */}
       <PurchaseInvoiceModal
         open={invoiceModalOpen}
         onOpenChange={setInvoiceModalOpen}
         supplier={selectedSupplier}
-        onChangeSupplierRequest={() => {
-          setInvoiceModalOpen(false);
-          setSupplierModalOpen(true);
-        }}
         onSaved={handleInvoiceSaved}
-        initialDocType={docTypeLabel as any}
+        initialDocType={docTypeLabel}
       />
 
-      {/* Belge Yazdır / Önizleme Modalı */}
+      <ProductImport open={importOpen} onOpenChange={setImportOpen} />
+
       {printDoc && (
         <DocumentPrintModal
           open={!!printDoc}
           onOpenChange={(v) => !v && setPrintDoc(null)}
-          doc={printDoc as any}
+          doc={printDoc as never}
           org={org}
         />
       )}
 
-      {/* Fatura Oku Yapay Zeka Modalı */}
       <Dialog open={aiModalOpen} onOpenChange={setAiModalOpen}>
-        <DialogContent
-          title="Fatura Oku · Yapay Zeka"
-          description="Fotoğraf, PDF, XML veya Excel faturanız taranıyor..."
-          className="max-w-md bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37]"
-        >
+        <DialogContent title="Fatura Oku · Yapay Zeka" description="Fotoğraf, PDF, XML veya Excel faturanız taranıyor..." className="max-w-md">
           {aiLoading ? (
             <div className="flex flex-col items-center justify-center py-10 space-y-3">
-              <Loader2 size={36} className="animate-spin text-[#00b49c]" />
-              <p className="text-sm font-semibold text-slate-300">
-                Fatura optik okuma ile taranıyor...
-              </p>
-              <p className="text-xs text-slate-500">
-                Kalemler, tedarikçi ve KDV ayrıştırılıyor.
-              </p>
+              <Loader2 size={36} className="animate-spin text-brand-500" />
+              <p className="text-sm font-semibold">Fatura optik okuma ile taranıyor...</p>
+              <p className="text-xs text-slate-500">Kalemler, tedarikçi ve KDV ayrıştırılıyor.</p>
             </div>
           ) : aiResult ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+              <div className="flex items-center gap-2 text-emerald-500 font-bold text-sm">
                 <Sparkles size={16} />
                 <span>Bilgiler Başarıyla Ayrıştırıldı</span>
               </div>
-
-              <div className="rounded-xl bg-slate-50 dark:bg-[#142530] p-4 space-y-2 text-xs">
+              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4 space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Tedarikçi:</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{aiResult.supplierName}</span>
+                  <span className="font-semibold">{aiResult.supplierName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Tarih:</span>
-                  <span className="font-medium text-slate-900 dark:text-white">{aiResult.date}</span>
+                  <span className="font-medium">{aiResult.date}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">KDV Tutarı:</span>
-                  <span className="font-medium text-slate-900 dark:text-white">{formatMoney(aiResult.vat || 0)}</span>
+                  <span className="font-medium">{formatMoney(aiResult.vat || 0)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
                   <span className="font-bold text-slate-400">Genel Toplam:</span>
-                  <span className="font-extrabold text-[#00b49c]">{formatMoney(aiResult.total || 0)}</span>
+                  <span className="font-extrabold text-brand-500">{formatMoney(aiResult.total || 0)}</span>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={handleApplyAiResult}
-                className="w-full py-2.5 rounded-xl bg-[#00b49c] hover:bg-[#009e89] text-white font-bold text-sm transition"
-              >
+              <button type="button" onClick={handleApplyAiResult} className="btn-primary w-full">
                 Fatura Girişine Aktar
               </button>
             </div>
@@ -1175,24 +787,9 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
         </DialogContent>
       </Dialog>
 
-      {/* Sayfa Yardımı Modalı */}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
-        <DialogContent
-          title="Alışlar Sayfası Yardımı"
-          description="Alış belgelerini yönetme rehberi"
-          className="max-w-md bg-white dark:bg-[#111e26] border border-slate-200 dark:border-[#182c37]"
-        >
-          <div className="space-y-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            <p>
-              <strong>Siparişler, İrsaliyeler ve Faturalar:</strong> Üstteki sekmeleri kullanarak ilgili belge türünü anında listeleyebilirsiniz.
-            </p>
-            <p>
-              <strong>Tedarikçi Seçimi ve Fatura Girişi:</strong> &ldquo;+ Yeni Fatura&rdquo; butonuna tıkladığınızda önce tedarikçi seçim penceresi açılır, ardından fatura detaylarını girebileceğiniz kalemli belge ekranı açılır.
-            </p>
-            <p>
-              <strong>Hızlı İşlemler:</strong> Kart üzerinde yer alan Belge (yazdır), WhatsApp, E-posta, Kopyala ve Düzenle butonlarıyla tek tıkla aksiyon alabilirsiniz.
-            </p>
-          </div>
+        <DialogContent title="Alışlar" description="Tedarikçiden aldığınız faturalar ve ödemeler." className="max-w-md">
+          <HelpFeatures items={["Alış faturası", "Tedarikçiye ödeme", "Stok artışı (ürün bağlıysa)", "Yazdırma"]} />
         </DialogContent>
       </Dialog>
     </div>

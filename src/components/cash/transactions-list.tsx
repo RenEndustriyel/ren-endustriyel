@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Download, Plus, Wallet, Wand2, Sparkles, Printer, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,11 +35,19 @@ export function TransactionsList() {
   const qc = useQueryClient();
   const { org, canWrite } = useOrg();
   const accounts = useAccounts();
+  const searchParams = useSearchParams();
+  // Panelden gelen başlangıç filtresi (?donem=bugun&yon=giris)
+  const fromToday = searchParams.get("donem") === "bugun";
   const d = new Date();
-  const [from, setFrom] = React.useState(isoDate(new Date(d.getFullYear(), d.getMonth(), 1)));
+  const [from, setFrom] = React.useState(fromToday ? isoDate() : isoDate(new Date(d.getFullYear(), d.getMonth(), 1)));
   const [to, setTo] = React.useState(isoDate());
-  const [activePreset, setActivePreset] = React.useState<"today" | "yesterday" | "week" | "month" | "year" | "all">("month");
-  const [dir, setDir] = React.useState<"all" | "in" | "out" | "transfer">("all");
+  const [activePreset, setActivePreset] = React.useState<"today" | "yesterday" | "week" | "month" | "year" | "all">(
+    fromToday ? "today" : "month",
+  );
+  const [dir, setDir] = React.useState<"all" | "in" | "out" | "transfer">(() => {
+    const yon = searchParams.get("yon");
+    return yon === "giris" ? "in" : yon === "cikis" ? "out" : "all";
+  });
   const [acc, setAcc] = React.useState("");
   const [q, setQ] = React.useState("");
   const [reconciling, setReconciling] = React.useState(false);

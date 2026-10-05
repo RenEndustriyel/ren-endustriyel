@@ -263,10 +263,14 @@ export function ProductsList() {
     }, 0);
   }, [all]);
 
+  // Panelden gelen kritik stok filtresi (?filtre=kritik)
+  const onlyCritical = searchParams?.get("filtre") === "kritik";
+
   // Arama ve sıralama filtresi
   const filteredAndSorted = React.useMemo(() => {
     const searchLower = q.trim().toLowerCase();
     let res = all.filter((p) => {
+      if (onlyCritical && !isCritical(p)) return false;
       if (!searchLower) return true;
       const nameMatch = p.name?.toLowerCase().includes(searchLower);
       const codeMatch = p.code?.toLowerCase().includes(searchLower);
@@ -303,7 +307,7 @@ export function ProductsList() {
     });
 
     return res;
-  }, [all, q, sortBy, cats.data]);
+  }, [all, q, sortBy, cats.data, onlyCritical]);
 
   // Görünür kayıtlar (Pagination)
   const visibleRows = React.useMemo(() => {
@@ -547,6 +551,19 @@ export function ProductsList() {
             </div>
           )}
 
+          {onlyCritical && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+              <span className="font-semibold">Sadece kritik stoktaki ürünler gösteriliyor.</span>
+              <button
+                type="button"
+                onClick={() => router.replace("/urunler")}
+                className="ml-auto text-xs font-semibold underline hover:no-underline"
+              >
+                Tümünü göster
+              </button>
+            </div>
+          )}
+
           {/* 3. Arama & Görünüm Seçici (Pusulam Birebir) */}
           <div className="mb-4 flex items-center gap-2">
             <div className="flex-1 sm:flex-none sm:w-96 min-w-0">
@@ -554,7 +571,7 @@ export function ProductsList() {
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-slate-400" size={18} />
                 <input
                   className="input pl-10"
-                  placeholder="ürün adı, barkod, marka ara"
+                  placeholder={onlyCritical ? "kritik stoktaki ürünlerde ara" : "ürün adı, barkod, marka ara"}
                   value={q}
                   onChange={(e) => {
                     setQ(e.target.value);

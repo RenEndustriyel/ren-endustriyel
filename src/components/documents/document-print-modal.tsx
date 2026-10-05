@@ -3,10 +3,9 @@
 import * as React from "react";
 import { Dialog as D } from "radix-ui";
 import { Printer, Mail, Copy, X, MessageCircle, Check, Download, Loader2 } from "lucide-react";
-import { formatNumber, formatQty, formatDate, formatMoney } from "@/lib/format";
-import { DOC_TYPES, type DocType } from "@/lib/doc-types";
+import { formatQty, formatDate, formatMoney } from "@/lib/format";
 import type { Tables } from "@/lib/supabase/client";
-import { useRows } from "@/lib/data";
+import { useRows, useUnits } from "@/lib/data";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -136,104 +135,6 @@ const SAMPLE_PERAKENDE_LINES: PreviewLineItem[] = [
   { id: "sl3-3", description: "7 OZ KARTON BARDAK 3000 (BENCUP)", quantity: 1, unit_price: 420.0, vat_rate: 20, total: 504.0 },
 ];
 
-function generateRealisticRenLines(subtotal: number, grandTotal: number, isPurchase: boolean): PreviewLineItem[] {
-  const targetSub = subtotal > 0 ? subtotal : grandTotal > 0 ? grandTotal / 1.2 : 3000;
-
-  if (targetSub <= 1500) {
-    const p1 = Number((targetSub * 0.65).toFixed(2));
-    const p2 = Number((targetSub - p1).toFixed(2));
-    return [
-      {
-        id: "gen-1",
-        description: isPurchase ? "SIVI EL SABUNU SEDEFLİ 20 LT" : "FİFTY EL SABUNU PEMBE 5 KG",
-        quantity: 1,
-        unit_price: p1,
-        vat_rate: 20,
-        total: Number((p1 * 1.2).toFixed(2)),
-      },
-      {
-        id: "gen-2",
-        description: "65*80 ÇÖP POŞETİ 50'Lİ RULO SİYAH",
-        quantity: 2,
-        unit_price: Number((p2 / 2).toFixed(2)),
-        vat_rate: 20,
-        total: Number((p2 * 1.2).toFixed(2)),
-      },
-    ];
-  }
-
-  if (targetSub <= 5000) {
-    const p1 = Number((targetSub * 0.45).toFixed(2));
-    const p2 = Number((targetSub * 0.35).toFixed(2));
-    const p3 = Number((targetSub - p1 - p2).toFixed(2));
-    return [
-      {
-        id: "gen-1",
-        description: isPurchase ? "GLANEX BULAŞIK MAK.DETERJANI 20KG" : "ULTRA ÇAMAŞIR SUYU 30 KG",
-        quantity: 2,
-        unit_price: Number((p1 / 2).toFixed(2)),
-        vat_rate: 20,
-        total: Number((p1 * 1.2).toFixed(2)),
-      },
-      {
-        id: "gen-2",
-        description: "LENTO CONTRA KİREÇ ÇÖZÜCÜ 5LT",
-        quantity: 3,
-        unit_price: Number((p2 / 3).toFixed(2)),
-        vat_rate: 20,
-        total: Number((p2 * 1.2).toFixed(2)),
-      },
-      {
-        id: "gen-3",
-        description: "TEX SIVI BULAŞIK DETERJANI 4KG",
-        quantity: 4,
-        unit_price: Number((p3 / 4).toFixed(2)),
-        vat_rate: 20,
-        total: Number((p3 * 1.2).toFixed(2)),
-      },
-    ];
-  }
-
-  const p1 = Number((targetSub * 0.40).toFixed(2));
-  const p2 = Number((targetSub * 0.30).toFixed(2));
-  const p3 = Number((targetSub * 0.20).toFixed(2));
-  const p4 = Number((targetSub - p1 - p2 - p3).toFixed(2));
-  return [
-    {
-      id: "gen-1",
-      description: "NİTRİK ASİT 40KG",
-      quantity: 4,
-      unit_price: Number((p1 / 4).toFixed(2)),
-      vat_rate: 20,
-      total: Number((p1 * 1.2).toFixed(2)),
-    },
-    {
-      id: "gen-2",
-      description: "PAYET PUL KOSTİK 25KG",
-      quantity: 2,
-      unit_price: Number((p2 / 2).toFixed(2)),
-      vat_rate: 20,
-      total: Number((p2 * 1.2).toFixed(2)),
-    },
-    {
-      id: "gen-3",
-      description: "KLOR (SODYUM HİPOKLORİT) 27.5 KG",
-      quantity: 4,
-      unit_price: Number((p3 / 4).toFixed(2)),
-      vat_rate: 20,
-      total: Number((p3 * 1.2).toFixed(2)),
-    },
-    {
-      id: "gen-4",
-      description: "ASPİRİX YÜZEY TEMİZLİK HAVLUSU 100'LÜ",
-      quantity: 10,
-      unit_price: Number((p4 / 10).toFixed(2)),
-      vat_rate: 20,
-      total: Number((p4 * 1.2).toFixed(2)),
-    },
-  ];
-}
-
 export function DocumentPrintModal({
   open,
   onOpenChange,
@@ -250,8 +151,9 @@ export function DocumentPrintModal({
     params: ["doc_lines_modal", doc?.id || ""],
     filter: (q) => q.eq("document_id", doc?.id || ""),
   });
+  const units = useUnits();
+  const unitName = (id: string) => units.data?.find((u) => u.id === id)?.name ?? null;
 
-  if (!doc) return null;
 
   const isPurchase = doc.doc_type?.startsWith("purchase") || doc.doc_type === "purchase_invoice";
   const snap = ((doc.contact_snapshot as Record<string, string | null>) ?? {}) || {};
@@ -263,160 +165,134 @@ export function DocumentPrintModal({
   const orgTaxNumber = org?.tax_number || "21856457480";
   const orgTaxInfo = `${orgTaxOffice} VKN/TCKN: ${orgTaxNumber}`;
 
+  // Kod içindeki örnek kayıtlar (veritabanında yok)
+  const isSampleDoc = /^(sample|sale)-/.test(doc.id || "");
+
   const contactName =
     doc.contact?.name ||
     snap.name ||
     (doc.description?.includes("·") ? doc.description.split("·")[0].trim() : null) ||
-    (doc.description?.includes("-") ? doc.description.split("-")[0].trim() : null) ||
-    (isPurchase ? "AYKİM TEMİZLİK MADDELERİ SANAYİ VE TİCARET ANONİM ŞİRKETİ" : "BALIKESİR BÜYÜKŞEHİR BELEDİYESİ");
+    (doc.description?.includes(" - ") ? doc.description.split(" - ")[0].trim() : null) ||
+    (doc.doc_type === "pos_sale" ? "Perakende Müşteri" : "Cari seçilmedi");
 
-  const phone = contactPhone || doc.contact?.phone || snap.phone || snap.mobile || "0(212) 475 0834";
-  const taxNumber = snap.tax_number || (contactName.includes("AYKİM") ? "1111111111" : null);
+  const phone = contactPhone || doc.contact?.phone || snap.phone || snap.mobile || "";
+  const taxNumber = snap.tax_number || null;
 
   const docTitle = getDocumentTitle(doc.doc_type);
   const docSubtitle = getDocumentSubtitle(doc.doc_type);
   const invoiceDate = formatDate(doc.issue_date);
-  const docNumber = doc.number || (doc.id === "sample-5" ? "4B4VISHN" : "ALIS-2026-001");
+  const docNumber = doc.number || "Taslak";
 
   // Totaller
-  const rawSubtotal = Number(doc.subtotal || 0);
-  const rawTotal = Number(doc.total || 0);
-  const subtotal = rawSubtotal > 0 ? rawSubtotal : rawTotal > 0 ? rawTotal / 1.2 : 9317.1;
-  const vatTotal = Number(doc.vat_total || 0) > 0 ? Number(doc.vat_total) : rawTotal > 0 ? rawTotal - subtotal : 1863.42;
-  const grandTotal = rawTotal > 0 ? rawTotal : subtotal + vatTotal;
+  // Veritabanındaki gerçek toplamlar (uydurma değer kullanılmaz)
+  const subtotal = Number(doc.net_total ?? doc.subtotal ?? 0) || Number(doc.subtotal || 0);
+  const vatTotal = Number(doc.vat_total || 0);
+  const grandTotal = Number(doc.total || 0);
 
   const isPaid = doc.payment_status === "paid";
   const paymentStatusLabel = isPaid ? "Ödendi" : "Açık Hesap";
 
-  // Kalemler:
+  // Kalemler: yalnızca belgenin gerçek kalemleri. Örnek (kod içi) belgeler için hazır örnek kalemler.
+  const realLines: DocumentLine[] = React.useMemo(() => {
+    const src = (doc.lines && doc.lines.length > 0 ? doc.lines : dbLines.data) ?? [];
+    return (src as DocumentLine[]).filter((l) => l && (l.description || l.product_name));
+  }, [doc.lines, dbLines.data]);
+
   const finalLines: PreviewLineItem[] = React.useMemo(() => {
-    // 1. Eğer doc.lines içinde gerçek ürün açıklaması olan satırlar varsa onları al
-    if (doc.lines && doc.lines.length > 0) {
-      const valid = (doc.lines as any[]).filter(
-        (l) =>
-          l &&
-          (l.description || l.product_name || l.name) &&
-          !["Ürün", "Ürün / Hizmet", "Ürün / Hizmet Satışı", "Endüstriyel Temizlik Malzemeleri", "Kalem"].includes(
-            (l.description || l.product_name || l.name || "").trim()
-          )
-      );
-      if (valid.length > 0) {
-        return valid.map((l, i) => ({
-          id: l.id || `l-${i}`,
-          description: l.description || l.product_name || l.name,
-          quantity: Number(l.quantity) || 1,
-          unit_price: Number(l.unit_price) || 0,
-          vat_rate: Number(l.vat_rate ?? 20),
-          total: Number(
-            l.total_amount ??
-              l.total ??
-              (Number(l.quantity) || 1) * (Number(l.unit_price) || 0) * (1 + Number(l.vat_rate ?? 20) / 100)
-          ),
-        }));
-      }
+    if (realLines.length > 0) {
+      return realLines.map((l, i) => ({
+        id: l.id || `l-${i}`,
+        description: l.description || l.product_name,
+        quantity: Number(l.quantity) || 0,
+        unit_price: Number(l.unit_price) || 0,
+        vat_rate: Number(l.vat_rate ?? 0),
+        vat_amount: Number(l.vat_amount ?? 0),
+        total_amount: Number(l.total_amount ?? 0),
+        total: Number(l.total_amount ?? l.total ?? 0),
+      }));
     }
-
-    // 2. Veritabanından satırlar çekilmişse
-    if (dbLines.data && dbLines.data.length > 0) {
-      const validDb = (dbLines.data as any[]).filter(
-        (l) =>
-          l &&
-          (l.description || l.product_name || l.name) &&
-          !["Ürün", "Ürün / Hizmet", "Ürün / Hizmet Satışı", "Endüstriyel Temizlik Malzemeleri", "Kalem"].includes(
-            (l.description || l.product_name || l.name || "").trim()
-          )
-      );
-      if (validDb.length > 0) {
-        return validDb.map((l, i) => ({
-          id: l.id || `dbl-${i}`,
-          description: l.description || l.product_name || l.name,
-          quantity: Number(l.quantity) || 1,
-          unit_price: Number(l.unit_price) || 0,
-          vat_rate: Number(l.vat_rate ?? 20),
-          total: Number(
-            l.total_amount ??
-              l.total ??
-              (Number(l.quantity) || 1) * (Number(l.unit_price) || 0) * (1 + Number(l.vat_rate ?? 20) / 100)
-          ),
-        }));
-      }
-    }
-
-    // 3. Bilinen örnek veya carilere göre satırlar
-    const cUpper = (contactName || "").toUpperCase();
-    const docId = doc.id || "";
-    const docNum = (doc.number || "").toUpperCase();
-
-    if (docId === "sample-1" || docNum === "ALIS-2026-001" || cUpper.includes("REHA")) {
-      return SAMPLE_REHA_LINES;
-    }
-    if (docId === "sample-2" || docNum === "ALIS-2026-002") {
-      return SAMPLE_SEYPA_1_LINES;
-    }
-    if (docId === "sample-3" || docNum === "ALIS-2026-003") {
-      return SAMPLE_SEYPA_2_LINES;
-    }
-    if (docId === "sample-4" || docNum === "ALIS-2026-004") {
-      return SAMPLE_SEYPA_3_LINES;
-    }
-    if (docId === "sample-5" || docNum === "4B4VISHN" || cUpper.includes("AYKİM")) {
-      return SAMPLE_AYKIM_LINES;
-    }
-    if (docId === "sale-1" || docNum === "SAT-2026-001" || cUpper.includes("BELEDİYE")) {
-      return SAMPLE_BELEDIYE_LINES;
-    }
-    if (docId === "sale-2" || docNum === "SAT-2026-002" || cUpper.includes("BORSA")) {
-      return SAMPLE_BORSA_LINES;
-    }
-    if (docId === "sale-3" || docNum.includes("KASA") || cUpper.includes("PERAKENDE")) {
-      return SAMPLE_PERAKENDE_LINES;
-    }
-    if (cUpper.includes("SEYPA")) {
-      return SAMPLE_SEYPA_3_LINES;
-    }
-
-    // 4. Diğer tüm durumlar için (ASLA "ürün/hizmet" yazmayacak, gerçek kalem kalem ürünler üret)
-    return generateRealisticRenLines(subtotal, grandTotal, isPurchase);
-  }, [doc, dbLines.data, contactName, isPurchase, subtotal, grandTotal]);
+    if (!isSampleDoc) return [];
+    const samples: Record<string, PreviewLineItem[]> = {
+      "sample-1": SAMPLE_REHA_LINES,
+      "sample-2": SAMPLE_SEYPA_1_LINES,
+      "sample-3": SAMPLE_SEYPA_2_LINES,
+      "sample-4": SAMPLE_SEYPA_3_LINES,
+      "sample-5": SAMPLE_AYKIM_LINES,
+      "sale-1": SAMPLE_BELEDIYE_LINES,
+      "sale-2": SAMPLE_BORSA_LINES,
+      "sale-3": SAMPLE_PERAKENDE_LINES,
+    };
+    return samples[doc.id] ?? [];
+  }, [realLines, isSampleDoc, doc.id]);
 
   const [isPdfGenerating, setIsPdfGenerating] = React.useState(false);
+
+  /** PDF şablonunun beklediği kalem alanları (satır tutarı, iskonto, birim dahil) */
+  const buildPdfDoc = () => {
+    const incl = !!doc.prices_include_vat;
+    const lines = finalLines.map((l, i) => {
+      const raw = realLines[i];
+      const qty = Number(l.quantity) || 0;
+      const price = Number(l.unit_price) || 0;
+      const vat = Number(l.vat_rate) || 0;
+      const disc = Number(raw?.discount_rate ?? 0);
+      const base = qty * price * (1 - disc / 100);
+      const net = raw?.net_amount != null ? Number(raw.net_amount) : incl ? base / (1 + vat / 100) : base;
+      const vatAmt = raw?.vat_amount != null ? Number(raw.vat_amount) : net * (vat / 100);
+      return {
+        ...(raw ?? {}),
+        id: l.id,
+        document_id: doc.id,
+        product_name: l.description,
+        description: l.description,
+        quantity: qty,
+        unit_price: price,
+        discount_rate: disc,
+        vat_rate: vat,
+        net_amount: Math.round(net * 100) / 100,
+        vat_amount: Math.round(vatAmt * 100) / 100,
+        total_amount: raw?.total_amount != null ? Number(raw.total_amount) : Math.round((net + vatAmt) * 100) / 100,
+        unit_name: (raw?.unit_id && unitName(raw.unit_id)) || raw?.unit_name || "Adet",
+      };
+    });
+    return { ...doc, lines } as never;
+  };
 
   const handleDownloadPdf = async () => {
     setIsPdfGenerating(true);
     try {
       const { shareDocumentPdf } = await import("@/lib/pdf/share");
-      const docForPdf: any = {
-        ...doc,
-        lines: finalLines.map((l) => ({
-          id: l.id,
-          document_id: doc.id,
-          product_name: l.description || l.product_name,
-          description: l.description || l.product_name,
-          quantity: Number(l.quantity || 1),
-          unit_price: Number(l.unit_price || 0),
-          vat_rate: Number(l.vat_rate ?? 20),
-          total: Number(l.total_amount ?? l.total ?? 0),
-          unit_name: "Adet",
-        })),
-      };
-      await shareDocumentPdf(org as any, docForPdf, "download");
-    } catch (err: any) {
-      toast.error("PDF indirilemedi: " + (err?.message || "Bilinmeyen hata"));
+      await shareDocumentPdf(org as never, buildPdfDoc(), "download");
+    } catch (err) {
+      toast.error("PDF indirilemedi: " + ((err as Error)?.message || "Bilinmeyen hata"));
     } finally {
       setIsPdfGenerating(false);
     }
   };
 
-  const handlePrint = () => {
+  // Yazdır: önce PDF yeni sekmede açılır, yazdırma oradan yapılır (doğrudan yazıcıya gitmez)
+  const handlePrint = async () => {
     if (onPrintPdf) {
       onPrintPdf();
       return;
     }
-    if (onDownloadPdf) {
-      onDownloadPdf();
-      return;
+    // Açılır pencere engelleyicisine takılmamak için sekmeyi tıklama anında aç
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.title = "PDF hazırlanıyor…";
+      win.document.body.innerHTML =
+        '<p style="font-family:system-ui,sans-serif;padding:24px;color:#475569">PDF hazırlanıyor…</p>';
     }
-    window.print();
+    setIsPdfGenerating(true);
+    try {
+      const { shareDocumentPdf } = await import("@/lib/pdf/share");
+      await shareDocumentPdf(org as never, buildPdfDoc(), "open", win);
+    } catch (err) {
+      win?.close();
+      toast.error("PDF açılamadı: " + ((err as Error)?.message || "Bilinmeyen hata"));
+    } finally {
+      setIsPdfGenerating(false);
+    }
   };
 
   const handleWhatsApp = () => {
