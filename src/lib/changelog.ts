@@ -14,9 +14,24 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.73";
+export const LATEST_VERSION = "2.4.75";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.4.75",
+    date: "5 Ekim 2026",
+    title: "Pusulam ile Birebir Panel, Menü, Stoklar ve Alış/Satış Ekranları",
+    badge: "Pusulam Birebir",
+    items: [
+      { type: "yeni", title: "Pusulam Genel Bakış paneli", description: "Ana sayfa Pusulam ile aynı düzene getirildi. Kartlar, grafikler ve modüller tıklanınca ilgili sayfaya gidiyor." },
+      { type: "yeni", title: "Bildirimler menüsü", description: "Sağ üstteki zil artık kritik stok, vadesi geçen ödeme/tahsilat ve çek/senet uyarılarını listeliyor." },
+      { type: "yeni", title: "Stoklar ekranı", description: "Depolar & Transfer ile Stok Sayım & Düzeltme sekmeleri. Sayım Excel ile indirilip yüklenebiliyor." },
+      { type: "yeni", title: "Yeni Alış / Satış belgesi", description: "Önce cari seçiliyor, ardından Pusulam ile aynı belge penceresi açılıyor. KDV dahil fiyatlar, iskonto, yeni ürün ve raf fiyatı doğru kaydediliyor." },
+      { type: "iyilestirme", title: "Sol menü ve Alış/Satış listeleri", description: "Menü, yazı stilleri ve liste kartları Pusulam ile birebir yapıldı." },
+      { type: "duzeltme", title: "Yazdır / PDF", description: "Belge artık önce PDF olarak açılıyor. Toplam tutarda görünen NaN hatası ve örnek verilerin basılması giderildi." },
+      { type: "iyilestirme", title: "Akıllı fiyatlandırma", description: "Sahte piyasa verileri kaldırıldı, gerçek maliyet hesabı kullanılıyor." },
+    ],
+  },
   {
     version: "2.4.73",
     date: "3 Ekim 2026",
