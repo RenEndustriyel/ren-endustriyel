@@ -14,9 +14,22 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.77";
+export const LATEST_VERSION = "2.4.78";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.4.78",
+    date: "6 Ekim 2026",
+    title: "Tüm Belgeler Pusulam Penceresinde, Verileri Gizle ve Belirgin Çerçeveler",
+    badge: "Pusulam Belge Ekranı",
+    items: [
+      { type: "yeni", title: "Teklif, sipariş, irsaliye, fatura ve iadeler Pusulam penceresinde", description: "Yeni belge, cari kartından açılan belge, kayıtlı belgeyi düzenleme, dönüştürme ve kopyalama artık aynı Pusulam ekranında. Kayıtlı belgedeki satır iskontoları, birim çarpanları, depo ve şartlar korunur." },
+      { type: "yeni", title: "Ana sayfada verileri gizle / göster", description: "Müşteri yanındayken tek tuşla tüm tutarlar gizlenir, grafik ve isimler bulanıklaşır." },
+      { type: "iyilestirme", title: "Açık temada belirgin çerçeveler", description: "Uygulama genelinde kutular ve çizgiler daha belirgin." },
+      { type: "iyilestirme", title: "E-Fatura kaldırıldı", description: "E-Fatura / E-Arşiv modülü uygulamadan çıkarıldı; eski bağlantılar Satışlar'a yönlenir. Kayıtlar silinmedi." },
+      { type: "duzeltme", title: "Küçük düzeltmeler", description: "KDV kutusu genişliği, arama kutusu simgesi, ödeme yöntemi adları; otomatik mahsup kayıtları Son Hareketler'i doldurmuyor." },
+    ],
+  },
   {
     version: "2.4.77",
     date: "6 Ekim 2026",
