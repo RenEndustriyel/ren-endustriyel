@@ -479,7 +479,7 @@ function QuickDocForm({
     }),
     [defaultUnitId],
   );
-  const [inclVat, setInclVat] = React.useState(fromBase ? !!base!.prices_include_vat : !initialLine);
+  const [inclVat, setInclVat] = React.useState(fromBase ? !!base!.prices_include_vat : false); // yeni belge her zaman KDV hariç açılır
   const [lines, setLines] = React.useState<Line[]>(() => {
     if (fromBase && base!.lines?.length) {
       return base!.lines.map((l) => ({
