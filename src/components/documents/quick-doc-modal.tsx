@@ -126,16 +126,32 @@ function ProductSuggestions({
   onPick,
   inclVat,
   side,
+  highlight = -1,
+  anchor,
 }: {
   items: Product[];
   onPick: (p: Product) => void;
   inclVat: boolean;
   side: QuickDocSide;
+  /** klavyeyle seçili satır */
+  highlight?: number;
+  /** ürün kutusunun konumu — liste ekrana sabitlenir */
+  anchor?: DOMRect | null;
 }) {
   if (!items.length) return null;
+  const width = anchor ? Math.max(anchor.width, 420) : 0;
+  const style = anchor
+    ? { left: Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8)), top: anchor.bottom + 4, width: Math.min(width, window.innerWidth - 16) }
+    : undefined;
   return (
-    <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl overflow-hidden">
-      {items.map((p) => {
+    <div
+      style={style}
+      className={cn(
+        "z-[80] max-h-72 overflow-y-auto rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-xl",
+        anchor ? "fixed" : "absolute left-0 right-0 top-full mt-1",
+      )}
+    >
+      {items.map((p, i) => {
         const price = side === "purchase" ? Number(p.purchase_price) : Number(p.sale_price);
         const incl = side === "purchase" ? p.purchase_price_includes_vat : p.sale_price_includes_vat;
         return (
@@ -146,10 +162,13 @@ function ProductSuggestions({
               e.preventDefault();
               onPick(p);
             }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition",
+              i === highlight ? "bg-brand-500 text-white" : "hover:bg-slate-50 dark:hover:bg-slate-800",
+            )}
           >
             <span className="flex-1 min-w-0 truncate font-medium">{p.name}</span>
-            <span className="text-xs text-slate-400 shrink-0">stok {formatQty(p.stock_qty)}</span>
+            <span className={cn("text-xs shrink-0", i === highlight ? "text-white/90" : "text-slate-500 dark:text-slate-400")}>stok {formatQty(p.stock_qty)}</span>
             <span className="text-xs font-semibold tabular-nums shrink-0">
               {formatNumber(convertVat(price, Number(p.vat_rate), incl, inclVat))}
             </span>
@@ -493,8 +512,6 @@ function QuickDocForm({
     }
     return [emptyLine()];
   });
-  const [quick, setQuick] = React.useState("");
-  const [quickFocus, setQuickFocus] = React.useState(false);
   const [activeLine, setActiveLine] = React.useState<string | null>(null);
 
   // Toplamlar
@@ -560,9 +577,63 @@ function QuickDocForm({
 
   const patchLine = (id: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
-  /** Kalemlerde Enter: sonraki kutuya geç; son kutuda yeni kalem ekleyip ona geç */
+  // Ürün önerileri: klavye vurgusu ve ekrandaki konum
+  const [sugIdx, setSugIdx] = React.useState(0);
+  const [anchor, setAnchor] = React.useState<DOMRect | null>(null);
+  const nameEl = React.useRef<HTMLInputElement | null>(null);
+  React.useEffect(() => {
+    if (!activeLine) return;
+    const update = () => setAnchor(nameEl.current?.getBoundingClientRect() ?? null);
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [activeLine]);
+
+  const onNameFocus = (e: React.FocusEvent<HTMLInputElement>, id: string) => {
+    nameEl.current = e.currentTarget;
+    setAnchor(e.currentTarget.getBoundingClientRect());
+    setActiveLine(id);
+    setSugIdx(0);
+  };
+
+  /** Ürün kutusu: ↑/↓ öneride gezer; Enter/Tab vurgulu ürünü (ya da barkodu birebir tutanı) seçip Miktar'a geçer */
+  const onNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, l: Line, matches: Product[]) => {
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && matches.length) {
+      e.preventDefault();
+      setSugIdx((i) => (e.key === "ArrowDown" ? Math.min(matches.length - 1, i + 1) : Math.max(0, i - 1)));
+      return;
+    }
+    if (e.key === "Escape") {
+      setActiveLine(null);
+      return;
+    }
+    if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey) {
+      const text = l.name.trim();
+      if (l.kind !== "product" && text) {
+        const exact = (products.data ?? []).find((p) => (p.barcode ?? "") === text || normalize(p.name) === normalize(text));
+        const pick = exact ?? matches[sugIdx] ?? null;
+        if (pick) {
+          setLines((ls) => ls.map((x) => (x.id === l.id ? lineFromProduct(pick, x) : x)));
+        } else if (/^\d{8,14}$/.test(text)) {
+          // katalogda olmayan barkod: barkodu sakla, ad yazılsın
+          e.preventDefault();
+          e.stopPropagation();
+          patchLine(l.id, { name: "", barcode: text, kind: "new" });
+          toast.info("Barkod katalogda yok; ürün adını yazın.");
+          return;
+        }
+      }
+      setActiveLine(null);
+      // olay kalem kabına geçer → sonraki kutuya (Miktar) gidilir
+    }
+  };
+
+  /** Kalemlerde Enter/Tab: sonraki kutuya geç; satır sonunda yeni kalem ekleyip ürün kutusuna geç */
   const onLinesKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
-    if (e.key !== "Enter" || e.shiftKey) return;
+    if ((e.key !== "Enter" && e.key !== "Tab") || e.shiftKey) return;
     const t = e.target as HTMLElement;
     if (!(t instanceof HTMLInputElement || t instanceof HTMLSelectElement)) return;
     e.preventDefault();
@@ -581,10 +652,29 @@ function QuickDocForm({
     };
     if (i >= 0 && i < list.length - 1) focusAt(i + 1);
     else {
+      // son satır boşsa yeni satır açma, o satırın ürün kutusuna dön
+      const last = lines[lines.length - 1];
+      if (last && !last.name.trim() && !last.product_id) {
+        const names = root.querySelectorAll<HTMLInputElement>("input[data-line-name]");
+        const target = [...names].filter((el) => el.offsetParent !== null).pop();
+        target?.focus();
+        return;
+      }
       setLines((ls) => [...ls, emptyLine()]);
       setTimeout(() => focusAt(i + 1), 60);
     }
   };
+
+  // Yeni belgede imleç doğrudan ilk ürün kutusunda
+  const linesRoot = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (isEdit) return;
+    const t = setTimeout(() => {
+      const el = [...(linesRoot.current?.querySelectorAll<HTMLInputElement>("input[data-line-name]") ?? [])].find((x) => x.offsetParent !== null);
+      el?.focus();
+    }, 150);
+    return () => clearTimeout(t);
+  }, [isEdit]);
 
   /** Satır tutarı seçili KDV görünümünde (dahil/hariç), iskonto sonrası */
   const lineAmount = (l: Line) => l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100);
@@ -598,33 +688,7 @@ function QuickDocForm({
   const setShelfShown = (l: Line, v: number) =>
     patchLine(l.id, { shelf_price: Math.max(0, round2(inclVat ? v : v * (1 + l.vat_rate / 100))) });
 
-  /** Boş ilk satırı doldurur, yoksa sona ekler */
-  const pushLine = (line: Line) =>
-    setLines((ls) => {
-      const blank = ls.findIndex((l) => !l.name.trim() && !l.product_id);
-      if (blank >= 0) return ls.map((l, i) => (i === blank ? { ...line, id: l.id } : l));
-      return [...ls, line];
-    });
-
   const removeLine = (id: string) => setLines((ls) => (ls.length <= 1 ? [emptyLine()] : ls.filter((l) => l.id !== id)));
-
-  const quickMatches = React.useMemo(() => searchProducts(products.data ?? [], quick), [products.data, quick]);
-
-  const handleQuickEnter = () => {
-    const text = quick.trim();
-    if (!text) return;
-    const exact = (products.data ?? []).find((p) => p.barcode === text || normalize(p.name) === normalize(text));
-    const match = exact ?? (quickMatches.length === 1 ? quickMatches[0] : null);
-    if (match) {
-      pushLine(lineFromProduct(match));
-    } else {
-      // Katalogda yok: kayıtta yeni ürün olarak oluşturulur
-      const isBarcode = /^\d{8,14}$/.test(text);
-      pushLine({ ...emptyLine(), kind: "new", name: isBarcode ? "" : text, barcode: isBarcode ? text : "" });
-      toast.info(isBarcode ? "Barkod katalogda yok; ürün adını yazın." : "Katalogda yok — kayıtta yeni ürün olarak eklenecek.");
-    }
-    setQuick("");
-  };
 
   const toggleInclVat = (next: boolean) => {
     if (next === inclVat) return;
@@ -914,47 +978,8 @@ function QuickDocForm({
             </label>
           </div>
 
-          {/* Ürün / hizmetler hızlı giriş */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800">
-            <div className="rounded-t-xl bg-brand-600 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white">
-              Ürün / Hizmetler
-            </div>
-            <div className="p-3">
-              <div className="relative">
-                <input
-                  className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-4 text-sm outline-none focus:border-brand-400 transition"
-                  placeholder="Ürün adı yazın (yoksa ekle) veya barkod okutun"
-                  value={quick}
-                  onChange={(e) => setQuick(e.target.value)}
-                  onFocus={() => setQuickFocus(true)}
-                  onBlur={() => setQuickFocus(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleQuickEnter();
-                    }
-                  }}
-                />
-                {quickFocus && (
-                  <ProductSuggestions
-                    items={quickMatches}
-                    inclVat={inclVat}
-                    side={side}
-                    onPick={(p) => {
-                      pushLine(lineFromProduct(p));
-                      setQuick("");
-                    }}
-                  />
-                )}
-              </div>
-              <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                En az üç harf yazın... Katalogda yoksa <b>Enter</b> ile yeni ürün eklenir.
-              </p>
-            </div>
-          </div>
-
           {/* Kalemler */}
-          <div className="space-y-2">
+          <div className="space-y-2" ref={linesRoot}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
                 Kalemler ({lines.filter((l) => l.name.trim() || l.product_id).length})
@@ -1008,19 +1033,24 @@ function QuickDocForm({
                           className={cn(cellInputCls, "h-10")}
                           placeholder={l.kind === "free" ? "Serbest kalem açıklaması" : "Ürün adı veya barkod"}
                           value={l.name}
-                          onFocus={() => setActiveLine(l.id)}
+                          data-line-name
+                          onFocus={(e) => onNameFocus(e, l.id)}
                           onBlur={() => setActiveLine(null)}
-                          onChange={(e) =>
+                          onKeyDown={(e) => onNameKeyDown(e, l, matches)}
+                          onChange={(e) => {
+                            setSugIdx(0);
                             patchLine(l.id, {
                               name: e.target.value,
                               ...(l.kind === "product" ? { kind: "new" as const, product_id: null } : {}),
-                            })
-                          }
+                            });
+                          }}
                         />
                         <ProductSuggestions
                           items={matches}
                           inclVat={inclVat}
                           side={side}
+                          highlight={sugIdx}
+                          anchor={anchor}
                           onPick={(p) => setLines((ls) => ls.map((x) => (x.id === l.id ? lineFromProduct(p, x) : x)))}
                         />
                         <div className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
@@ -1140,21 +1170,26 @@ function QuickDocForm({
                               className={cn(cellInputCls, "pl-9 pr-9")}
                               placeholder={l.kind === "free" ? "Serbest kalem açıklaması" : "Ürün isminden arayın veya barkod okutun"}
                               value={l.name}
-                              onFocus={() => setActiveLine(l.id)}
+                              data-line-name
+                              onFocus={(e) => onNameFocus(e, l.id)}
                               onBlur={() => setActiveLine(null)}
-                              onChange={(e) =>
+                              onKeyDown={(e) => onNameKeyDown(e, l, matches)}
+                              onChange={(e) => {
+                                setSugIdx(0);
                                 patchLine(l.id, {
                                   name: e.target.value,
                                   // Ürün seçildikten sonra ad değişirse yeni ürün sayılır
                                   ...(l.kind === "product" ? { kind: "new" as const, product_id: null } : {}),
-                                })
-                              }
+                                });
+                              }}
                             />
                             <ScanBarcode size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <ProductSuggestions
                               items={matches}
                               inclVat={inclVat}
                               side={side}
+                              highlight={sugIdx}
+                              anchor={anchor}
                               onPick={(p) => setLines((ls) => ls.map((x) => (x.id === l.id ? lineFromProduct(p, x) : x)))}
                             />
                           </div>
