@@ -31,6 +31,7 @@ import {
   type Row,
 } from "@/lib/data";
 import { formatDate, formatMoney, formatQty } from "@/lib/format";
+import { convertVat } from "@/lib/doc-calc";
 import { DOC_TYPES, MOVEMENT_LABELS, type DocType } from "@/lib/doc-types";
 import { useOrg } from "@/providers/org-provider";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -77,7 +78,7 @@ export function ProductDetail({ id }: { id: string }) {
 
   const moves = useRows<any>("stock_movements", {
     select:
-      "*, document:documents(id, doc_type, number, issue_date, contact_id, status, notes, total_amount, contact:contacts(id, name)), warehouse:warehouses(id, name)",
+      "*, document:documents(id, doc_type, number, issue_date, contact_id, status, notes, total, contact:contacts(id, name)), warehouse:warehouses(id, name)",
     params: ["p_moves", id],
     filter: (q) => q.eq("product_id", id),
     order: [
@@ -87,9 +88,11 @@ export function ProductDetail({ id }: { id: string }) {
     limit: 1000,
   });
 
+  // document_lines tablosunda deleted_at yok → softDelete kapalı; silinen/iptal belgeler aşağıda elenir
   const docLines = useRows<any>("document_lines", {
     select:
-      "*, document:documents(id, doc_type, number, issue_date, contact_id, status, notes, total_amount, contact:contacts(id, name))",
+      "*, document:documents(id, doc_type, number, issue_date, contact_id, status, notes, total, currency, exchange_rate, deleted_at, contact:contacts(id, name))",
+    softDelete: false,
     params: ["p_lines", id],
     filter: (q) => q.eq("product_id", id),
     order: [{ column: "created_at", ascending: false }],
@@ -129,6 +132,158 @@ export function ProductDetail({ id }: { id: string }) {
       localStorage.setItem("ren-product-favorites", JSON.stringify([...next]));
     } catch {}
   };
+
+  // Satış / alış istatistikleri — yalnızca kesinleşmiş belgeler; iadeler düşülür, sipariş/irsaliye sayılmaz
+  const stats = React.useMemo(() => {
+    const salesList: TimelineItem[] = [];
+    const purchasesList: TimelineItem[] = [];
+    const transfersList: TimelineItem[] = [];
+    const seenIds = new Set<string>();
+    const prod = product.data;
+
+    // Toplamlar (TL, ana birim)
+    let soldQty = 0, soldAmount = 0, soldNet = 0;
+    let boughtQty = 0, boughtAmount = 0, boughtNet = 0;
+
+    for (const l of docLines.data ?? []) {
+      const doc = l.document;
+      if (!doc || doc.deleted_at || doc.status === "draft" || doc.status === "cancelled") continue;
+
+      const docType = doc.doc_type as DocType;
+      const isSaleDoc = ["sales_invoice", "pos_sale", "sales_delivery", "sales_order"].includes(docType);
+      const isPurchaseDoc = ["purchase_invoice", "purchase_delivery", "purchase_order"].includes(docType);
+      const isReturn = docType === "sales_return" || docType === "purchase_return";
+      const rate = Number(doc.exchange_rate) || 1;
+      const baseQty = Number(l.quantity) * (Number(l.unit_factor) || 1);
+      const lineTotal = Number(l.total_amount ?? Number(l.quantity) * Number(l.unit_price)) * rate;
+      const lineNet = Number(l.net_amount ?? l.total_amount ?? 0) * rate;
+
+      // Kesin toplamlar: fatura + hızlı satış, eksi iadeler
+      if (docType === "sales_invoice" || docType === "pos_sale") {
+        soldQty += baseQty; soldAmount += lineTotal; soldNet += lineNet;
+      } else if (docType === "sales_return") {
+        soldQty -= baseQty; soldAmount -= lineTotal; soldNet -= lineNet;
+      } else if (docType === "purchase_invoice") {
+        boughtQty += baseQty; boughtAmount += lineTotal; boughtNet += lineNet;
+      } else if (docType === "purchase_return") {
+        boughtQty -= baseQty; boughtAmount -= lineTotal; boughtNet -= lineNet;
+      }
+
+      const contactName = doc.contact?.name ?? (isSaleDoc ? "Perakende / belgesiz" : "—");
+      const docLabel = doc.number || DOC_TYPES[docType]?.label || "Belge";
+      const uniqueId = `line-${l.id}`;
+      seenIds.add(uniqueId);
+      const typeLabel = isReturn
+        ? "İade"
+        : docType === "sales_order" || docType === "purchase_order"
+          ? "Sipariş"
+          : docType === "sales_delivery" || docType === "purchase_delivery"
+            ? "İrsaliye"
+            : isSaleDoc
+              ? "Satış"
+              : "Alış";
+
+      const item: TimelineItem = {
+        id: uniqueId,
+        date: doc.issue_date || l.created_at,
+        kind: isPurchaseDoc || docType === "purchase_return" ? "purchase" : "sale",
+        label: `${docLabel} · ${typeLabel}`,
+        partyName: contactName,
+        qty: Number(l.quantity),
+        unitPrice: Number(l.unit_price),
+        lineTotal,
+        paid: doc.status === "paid" || docType === "pos_sale",
+        note: doc.notes || l.description,
+        link: `${DOC_TYPES[docType]?.base || "/satislar/faturalar"}/detay?id=${doc.id}`,
+      };
+      if (isSaleDoc || docType === "sales_return") salesList.push(item);
+      else if (isPurchaseDoc || docType === "purchase_return") purchasesList.push(item);
+    }
+
+    // Belgesiz stok hareketleri (transfer, sayım, düzeltme) — yalnızca listede, toplamlara girmez
+    for (const m of moves.data ?? []) {
+      if (m.document_line_id && seenIds.has(`line-${m.document_line_id}`)) continue;
+      const qty = Number(m.quantity);
+      const uniqueId = `move-${m.id}`;
+      const isTransfer = m.transfer_id || m.movement_type === "transfer_in" || m.movement_type === "transfer_out";
+      if (isTransfer) {
+        transfersList.push({
+          id: uniqueId,
+          date: m.movement_date || m.created_at,
+          kind: "transfer",
+          label: "Depo transferi",
+          partyName: m.warehouse?.name ? `${m.warehouse.name} Deposu` : "Depo Transferi",
+          qty: Math.abs(qty),
+          unitPrice: 0,
+          lineTotal: 0,
+          note: m.description,
+          link: null,
+        });
+      } else if (!m.document_id) {
+        const isPos = qty >= 0;
+        const cost = Number(m.unit_cost || prod?.avg_cost || prod?.purchase_price || 0);
+        const item: TimelineItem = {
+          id: uniqueId,
+          date: m.movement_date || m.created_at,
+          kind: isPos ? "purchase" : "sale",
+          label: MOVEMENT_LABELS[m.movement_type] || "Stok Düzeltme",
+          partyName: m.warehouse?.name ? `${m.warehouse.name} Deposu` : "Depo",
+          qty: Math.abs(qty),
+          unitPrice: cost,
+          lineTotal: Math.abs(qty) * cost,
+          paid: true,
+          note: m.description,
+          link: null,
+        };
+        (isPos ? purchasesList : salesList).push(item);
+      }
+    }
+
+    const byDate = (a: TimelineItem, b: TimelineItem) => new Date(b.date).getTime() - new Date(a.date).getTime();
+    salesList.sort(byDate);
+    purchasesList.sort(byDate);
+    transfersList.sort(byDate);
+
+    const vat = Number(prod?.vat_rate ?? 20);
+    const salePrice = Number(prod?.sale_price || 0);
+    const purchasePrice = Number(prod?.purchase_price || 0);
+    // Liste fiyatlarının KDV hariç karşılıkları
+    const saleExcl = convertVat(salePrice, vat, prod?.sale_price_includes_vat ?? true, false);
+    const buyExcl = convertVat(purchasePrice, vat, prod?.purchase_price_includes_vat ?? false, false);
+
+    const avgSale = soldQty > 0 ? soldAmount / soldQty : salePrice;
+    const avgBuy = boughtQty > 0 ? boughtAmount / boughtQty : purchasePrice;
+    // Kâr marjı: gerçekleşen KDV hariç ort. satış ile KDV hariç maliyet (ortalama maliyet → alışlar → liste)
+    const netSale = soldQty > 0 ? soldNet / soldQty : saleExcl;
+    const netCost = Number(prod?.avg_cost) > 0 ? Number(prod?.avg_cost) : boughtQty > 0 ? boughtNet / boughtQty : buyExcl;
+    const margin = netSale - netCost;
+    const marginPct = netSale > 0 && netCost > 0 ? (margin / netSale) * 100 : 0;
+    const stockQty = Math.max(0, Number(prod?.stock_qty || 0));
+    const stockValue = stockQty * netCost;
+    const stockSaleValue = stockQty * (salePrice || avgSale);
+
+    return {
+      sales: salesList,
+      purchases: purchasesList,
+      transfers: transfersList,
+      soldQty,
+      boughtQty,
+      soldAmount,
+      boughtAmount,
+      avgSale,
+      avgBuy,
+      margin,
+      marginPct,
+      hasCost: netCost > 0,
+      stockValue,
+      stockSaleValue,
+      firstIn: purchasesList.length ? purchasesList[purchasesList.length - 1] : null,
+      lastIn: purchasesList.length ? purchasesList[0] : null,
+      firstOut: salesList.length ? salesList[salesList.length - 1] : null,
+      lastOut: salesList.length ? salesList[0] : null,
+      timeline: [...salesList, ...purchasesList, ...transfersList].sort(byDate),
+    };
+  }, [docLines.data, moves.data, product.data]);
 
   const p = product.data;
   if (product.isPending && !p) {
@@ -178,159 +333,6 @@ export function ProductDetail({ id }: { id: string }) {
   const stockMap = Object.fromEntries((stocks.data ?? []).map((s) => [s.warehouse_id, Number(s.quantity)]));
   const isStockCritical = isCritical(p);
 
-  // Compute transactions, timeline, and stats (matching Pusulam calculations)
-  const stats = React.useMemo(() => {
-    const salesList: TimelineItem[] = [];
-    const purchasesList: TimelineItem[] = [];
-    const transfersList: TimelineItem[] = [];
-    const seenIds = new Set<string>();
-
-    // 1. Process document lines (Invoices, POS sales, Orders, Returns)
-    const lines = docLines.data ?? [];
-    for (const l of lines) {
-      const doc = l.document;
-      if (!doc) continue;
-
-      const docType = doc.doc_type as DocType;
-      const isSaleDoc =
-        docType === "sales_invoice" ||
-        docType === "pos_sale" ||
-        docType === "sales_delivery" ||
-        docType === "sales_order";
-      const isPurchaseDoc =
-        docType === "purchase_invoice" ||
-        docType === "purchase_delivery" ||
-        docType === "purchase_order";
-      const isReturn = docType === "sales_return" || docType === "purchase_return";
-
-      const contactName = doc.contact?.name ?? (isSaleDoc ? "Perakende / belgesiz" : "—");
-      const docLabel = doc.number || DOC_TYPES[docType]?.label || "Belge";
-      const lineTotal = Number(l.total_amount ?? l.quantity * l.unit_price);
-      const isPaid = doc.status === "paid" || docType === "pos_sale";
-      const uniqueId = `line-${l.id}`;
-      seenIds.add(uniqueId);
-
-      const item: TimelineItem = {
-        id: uniqueId,
-        date: doc.issue_date || l.created_at,
-        kind: isPurchaseDoc || docType === "sales_return" ? (docType === "sales_return" ? "sale" : "purchase") : "sale",
-        label: `${docLabel} · ${isReturn ? "İade" : isSaleDoc ? "Satış" : "Alış"}`,
-        partyName: contactName,
-        qty: Number(l.quantity),
-        unitPrice: Number(l.unit_price),
-        lineTotal,
-        paid: isPaid,
-        note: doc.notes || l.description,
-        link: `${DOC_TYPES[docType]?.base || "/satislar/faturalar"}/detay?id=${doc.id}`,
-      };
-
-      if (isSaleDoc || docType === "sales_return") {
-        salesList.push(item);
-      } else if (isPurchaseDoc || docType === "purchase_return") {
-        purchasesList.push(item);
-      }
-    }
-
-    // 2. Process stock movements for standalone entries (transfers, counts, adjustments)
-    const movementRows = moves.data ?? [];
-    for (const m of movementRows) {
-      if (m.document_line_id && seenIds.has(`line-${m.document_line_id}`)) {
-        continue;
-      }
-      const isTransfer =
-        m.transfer_id ||
-        m.movement_type === "transfer_in" ||
-        m.movement_type === "transfer_out";
-
-      const qty = Number(m.quantity);
-      const uniqueId = `move-${m.id}`;
-
-      if (isTransfer) {
-        transfersList.push({
-          id: uniqueId,
-          date: m.movement_date || m.created_at,
-          kind: "transfer",
-          label: "Depo transferi",
-          partyName: m.warehouse?.name ? `${m.warehouse.name} Deposu` : "Depo Transferi",
-          qty: Math.abs(qty),
-          unitPrice: 0,
-          lineTotal: 0,
-          note: m.description,
-          link: null,
-        });
-      } else if (!m.document_id) {
-        // Standalone stock adjustment / count / opening
-        const isPos = qty >= 0;
-        const item: TimelineItem = {
-          id: uniqueId,
-          date: m.movement_date || m.created_at,
-          kind: isPos ? "purchase" : "sale",
-          label: MOVEMENT_LABELS[m.movement_type] || "Stok Düzeltme",
-          partyName: m.warehouse?.name ? `${m.warehouse.name} Deposu` : "Depo",
-          qty: Math.abs(qty),
-          unitPrice: Number(m.unit_cost || p.avg_cost || p.purchase_price || 0),
-          lineTotal: Math.abs(qty) * Number(m.unit_cost || p.avg_cost || p.purchase_price || 0),
-          paid: true,
-          note: m.description,
-          link: null,
-        };
-        if (isPos) purchasesList.push(item);
-        else salesList.push(item);
-      }
-    }
-
-    // Sort by date descending
-    salesList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    purchasesList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    transfersList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    // Aggregates
-    const soldQty = salesList.reduce((acc, r) => acc + Math.abs(r.qty), 0);
-    const boughtQty = purchasesList.reduce((acc, r) => acc + Math.abs(r.qty), 0);
-    const soldAmount = salesList.reduce((acc, r) => acc + Math.abs(r.lineTotal || 0), 0);
-    const boughtAmount = purchasesList.reduce((acc, r) => acc + Math.abs(r.lineTotal || 0), 0);
-
-    const salePrice = Number(p.sale_price || 0);
-    const purchasePrice = Number(p.purchase_price || 0);
-
-    const avgSale = soldQty > 0 ? soldAmount / soldQty : salePrice;
-    const avgBuy = boughtQty > 0 ? boughtAmount / boughtQty : purchasePrice;
-    const margin = salePrice - purchasePrice;
-    const marginPct = salePrice > 0 ? (margin / salePrice) * 100 : 0;
-    const stockQty = Math.max(0, Number(p.stock_qty || 0));
-    const stockValue = stockQty * (avgBuy || purchasePrice);
-    const stockSaleValue = stockQty * (avgSale || salePrice);
-
-    const firstIn = purchasesList.length ? purchasesList[purchasesList.length - 1] : null;
-    const lastIn = purchasesList.length ? purchasesList[0] : null;
-    const firstOut = salesList.length ? salesList[salesList.length - 1] : null;
-    const lastOut = salesList.length ? salesList[0] : null;
-
-    const timeline = [...salesList, ...purchasesList, ...transfersList].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-
-    return {
-      sales: salesList,
-      purchases: purchasesList,
-      transfers: transfersList,
-      soldQty,
-      boughtQty,
-      soldAmount,
-      boughtAmount,
-      avgSale,
-      avgBuy,
-      margin,
-      marginPct,
-      stockValue,
-      stockSaleValue,
-      firstIn,
-      lastIn,
-      firstOut,
-      lastOut,
-      timeline,
-    };
-  }, [docLines.data, moves.data, p]);
 
   const handleDelete = async () => {
     if (
@@ -549,7 +551,7 @@ export function ProductDetail({ id }: { id: string }) {
         {/* Kâr Marjı */}
         <div className="rounded-2xl p-4 sm:p-5 text-white bg-gradient-to-br from-blue-400 to-blue-500 shadow-soft min-w-0 overflow-hidden">
           <div className="text-xl sm:text-3xl font-bold tabular-nums truncate">
-            %{stats.marginPct.toFixed(0)}
+            {stats.hasCost ? `%${stats.marginPct.toFixed(0)}` : "—"}
           </div>
           <div className="text-xs sm:text-sm/relaxed font-medium opacity-90 mt-0.5 truncate">
             Kâr Marjı

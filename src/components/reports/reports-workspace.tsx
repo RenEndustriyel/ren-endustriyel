@@ -82,6 +82,7 @@ export function ReportsWorkspace() {
   // 3. Document Lines for Product Profitability and Top Sellers
   const linesQuery = useRows<Row<"document_lines">>("document_lines", {
     params: ["reports_doc_lines"],
+    softDelete: false,
     select: "id, document_id, product_id, description, quantity, unit_price, net_amount, gross_amount, vat_rate",
   });
 

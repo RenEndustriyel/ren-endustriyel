@@ -148,6 +148,7 @@ export function DocumentPrintModal({
 
   // Veritabanı satırlarını çek (eğer önceden tam çekilmediyse)
   const dbLines = useRows<DocumentLine>("document_lines", {
+    softDelete: false,
     params: ["doc_lines_modal", doc?.id || ""],
     filter: (q) => q.eq("document_id", doc?.id || ""),
   });
