@@ -3,10 +3,12 @@
 import * as React from "react";
 import { Maximize2, Minimize2, Plus, Printer, Save, ScanBarcode, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { newId, useAccounts, useContacts, useProducts, useRpc, useSave, useUnits, useUpdate, type Row } from "@/lib/data";
+import { newId, useAccounts, useContacts, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, type Row } from "@/lib/data";
 import { CURRENCY_SYMBOL, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { rateFor, useRates } from "@/lib/rates";
-import type { DocType } from "@/lib/doc-types";
+import { DOC_TYPES, type DocType } from "@/lib/doc-types";
+import { addDays } from "@/lib/doc-calc";
+import type { DocRow } from "./document-editor";
 import { useOrg } from "@/providers/org-provider";
 import { cn } from "@/lib/utils";
 import type { ContactItem } from "./contact-select-modal";
@@ -42,6 +44,9 @@ type Line = {
   vat_rate: number;
   /** Raf satış fiyatı (KDV dahil, TL) — yalnızca alışta */
   shelf_price: number;
+  /** Kayıtlı belgeden gelen satır iskontosu (%) ve birim çarpanı — düzenlemede korunur */
+  discount_rate: number;
+  unit_factor: number;
 };
 
 type Product = Row<"products">;
@@ -79,7 +84,7 @@ function searchProducts(products: Product[], text: string, limit = 8): Product[]
 
 function calculate(lines: Line[], inclVat: boolean, discountType: "rate" | "amount", discountValue: number) {
   const valid = lines.filter((l) => l.name.trim() || l.product_id);
-  const entered = valid.reduce((s, l) => s + l.quantity * l.unit_price, 0);
+  const entered = valid.reduce((s, l) => s + l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100), 0);
   let ratio = 0;
   if (discountValue > 0 && entered > 0) {
     ratio = discountType === "rate" ? Math.min(discountValue, 100) / 100 : Math.min(discountValue / entered, 1);
@@ -88,9 +93,10 @@ function calculate(lines: Line[], inclVat: boolean, discountType: "rate" | "amou
   let net = 0;
   let vat = 0;
   for (const l of valid) {
-    const base = l.quantity * l.unit_price;
+    const full = l.quantity * l.unit_price;
+    const base = full * (1 - (l.discount_rate || 0) / 100);
     const r = l.vat_rate / 100;
-    gross += round2(inclVat ? base / (1 + r) : base);
+    gross += round2(inclVat ? full / (1 + r) : full);
     const lineNet = round2(inclVat ? (base * (1 - ratio)) / (1 + r) : base * (1 - ratio));
     const lineVat = round2(inclVat ? base * (1 - ratio) - (base * (1 - ratio)) / (1 + r) : base * (1 - ratio) * r);
     net += lineNet;
@@ -161,7 +167,32 @@ export interface QuickDocModalProps {
   contact: ContactItem | null;
   initialKind?: QuickDocKind;
   onSaved?: (doc: { id: string; doc_type: DocType }) => void;
+  /** Belge türü sabitse (teklif, iade, düzenleme…) tür seçimi gizlenir */
+  docType?: DocType;
+  /** edit: kayıtlı belge · convert: kaynak belgeden dönüştür · copy: kopyala */
+  mode?: "new" | "edit" | "convert" | "copy";
+  base?: DocRow | null;
+  /** Hazır cari (ör. cari kartından "yeni fatura") */
+  contactId?: string | null;
+  /** Fiyat farkı faturası gibi hazır ilk kalem */
+  initialLine?: { description: string; unit_price: number; vat_rate: number; quantity: number };
+  initialNotes?: string;
 }
+
+/** Pusulam penceresinin açabildiği belge türleri (hızlı satış, masraf ve maaş kendi ekranlarında) */
+export const QUICK_DOC_TYPES: DocType[] = [
+  "quote",
+  "sales_order",
+  "sales_delivery",
+  "sales_invoice",
+  "sales_return",
+  "purchase_order",
+  "purchase_delivery",
+  "purchase_invoice",
+  "purchase_return",
+];
+
+const INVOICE_TYPES: DocType[] = ["sales_invoice", "purchase_invoice"];
 
 /** Pusulam "Yeni Alış Belgesi / Yeni Satış Belgesi" penceresi */
 export function QuickDocModal(props: QuickDocModalProps) {
@@ -170,10 +201,27 @@ export function QuickDocModal(props: QuickDocModalProps) {
   return <QuickDocForm {...props} />;
 }
 
-function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind = "Fatura", onSaved }: QuickDocModalProps) {
+function QuickDocForm({
+  side: sideProp,
+  onOpenChange,
+  contact: initialContact,
+  initialKind = "Fatura",
+  onSaved,
+  docType: fixedType,
+  mode = "new",
+  base = null,
+  contactId: presetContactId,
+  initialLine,
+  initialNotes,
+}: QuickDocModalProps) {
+  const side: QuickDocSide = fixedType ? (DOC_TYPES[fixedType].side as QuickDocSide) : sideProp;
+  const isEdit = mode === "edit" && !!base;
+  /** kayıtlı/kaynak belgeden alan doldurulsun mu */
+  const fromBase = mode !== "new" && !!base;
   const { org } = useOrg();
   const products = useProducts();
   const units = useUnits();
+  const productUnits = useRows<Row<"product_units">>("product_units");
   const accounts = useAccounts();
   const contacts = useContacts();
   const rates = useRates();
@@ -190,12 +238,21 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
 
   // Üst alanlar
   const [maximized, setMaximized] = React.useState(false);
-  const [contactId, setContactId] = React.useState<string>(initialContact?.id ?? "");
+  const [contactId, setContactId] = React.useState<string>(
+    (fromBase ? base?.contact_id : null) ?? presetContactId ?? initialContact?.id ?? "",
+  );
   const [kind, setKind] = React.useState<QuickDocKind>(initialKind);
-  const [issueDate, setIssueDate] = React.useState(isoDate());
-  const [number, setNumber] = React.useState("");
-  const [currency, setCurrency] = React.useState("TRY");
-  const [rateOverride, setRateOverride] = React.useState<number | null>(null);
+  const docType: DocType = fixedType ?? DOC_TYPE_MAP[side][kind];
+  const cfg = DOC_TYPES[docType];
+  const [issueDate, setIssueDate] = React.useState(isEdit ? base!.issue_date : isoDate());
+  const [number, setNumber] = React.useState(isEdit ? base!.number ?? "" : "");
+  const [validUntil, setValidUntil] = React.useState(
+    isEdit ? base!.valid_until ?? "" : docType === "quote" ? addDays(isoDate(), 15) : "",
+  );
+  const [currency, setCurrency] = React.useState(fromBase ? base!.currency : "TRY");
+  const [rateOverride, setRateOverride] = React.useState<number | null>(
+    fromBase && base!.currency !== "TRY" ? Number(base!.exchange_rate) : null,
+  );
   const exchangeRate = currency === "TRY" ? 1 : rateOverride ?? (rateFor(rates.data, currency) || 1);
 
   // Kalemler
@@ -211,39 +268,80 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
       unit_price: 0,
       vat_rate: 20,
       shelf_price: 0,
+      discount_rate: 0,
+      unit_factor: 1,
     }),
     [defaultUnitId],
   );
-  const [inclVat, setInclVat] = React.useState(true);
-  const [lines, setLines] = React.useState<Line[]>(() => [emptyLine()]);
+  const [inclVat, setInclVat] = React.useState(fromBase ? !!base!.prices_include_vat : !initialLine);
+  const [lines, setLines] = React.useState<Line[]>(() => {
+    if (fromBase && base!.lines?.length) {
+      return base!.lines.map((l) => ({
+        // düzenlemede satır kimliği korunur (stok hareketleri satıra bağlı)
+        id: isEdit ? l.id : newId(),
+        kind: l.product_id ? ("product" as const) : ("free" as const),
+        product_id: l.product_id,
+        name: l.description ?? "",
+        barcode: "",
+        unit_id: l.unit_id,
+        quantity: Number(l.quantity),
+        unit_price: Number(l.unit_price),
+        vat_rate: Number(l.vat_rate),
+        shelf_price: 0,
+        discount_rate: Number(l.discount_rate) || 0,
+        unit_factor: Number(l.unit_factor) || 1,
+      }));
+    }
+    if (initialLine) {
+      return [
+        {
+          ...emptyLine(),
+          kind: "free",
+          name: initialLine.description,
+          quantity: initialLine.quantity,
+          unit_price: initialLine.unit_price,
+          vat_rate: initialLine.vat_rate,
+        },
+      ];
+    }
+    return [emptyLine()];
+  });
   const [quick, setQuick] = React.useState("");
   const [quickFocus, setQuickFocus] = React.useState(false);
   const [activeLine, setActiveLine] = React.useState<string | null>(null);
 
   // Toplamlar
-  const [discountType, setDiscountType] = React.useState<"rate" | "amount">("rate");
-  const [discountValue, setDiscountValue] = React.useState(0);
+  const [discountType, setDiscountType] = React.useState<"rate" | "amount">(
+    fromBase ? ((base!.discount_type as "rate" | "amount") ?? "rate") : "rate",
+  );
+  const [discountValue, setDiscountValue] = React.useState(fromBase ? Number(base!.discount_value) || 0 : 0);
   const discountRef = React.useRef<HTMLInputElement>(null);
 
-  // Ödeme
-  const isInvoice = kind === "Fatura";
-  const [paid, setPaid] = React.useState(isPurchase);
+  // Ödeme (peşin ödeme yalnızca yeni faturada; kayıtlı belgenin ödemeleri kendi ekranında yönetilir)
+  const isInvoice = INVOICE_TYPES.includes(docType);
+  const showPayment = isInvoice && !isEdit;
+  const [paid, setPaid] = React.useState(isPurchase && !fromBase);
   const [accountId, setAccountId] = React.useState("");
-  const [dueDate, setDueDate] = React.useState("");
-  const [notes, setNotes] = React.useState("");
+  const [dueDate, setDueDate] = React.useState(fromBase ? base!.due_date ?? "" : "");
+  const [notes, setNotes] = React.useState((fromBase ? base!.notes : null) ?? initialNotes ?? "");
   const [saving, setSaving] = React.useState(false);
 
   const accountList = accounts.data ?? [];
   const effectiveAccountId = accountId || accountList[0]?.id || "";
 
   const contactOptions = React.useMemo(() => {
-    const list = (contacts.data ?? []).filter((c) => c.kind === (isPurchase ? "supplier" : "customer") || c.kind === "both");
-    // Az önce oluşturulan cari henüz listede yoksa da seçili görünsün
-    if (initialContact && !list.some((c) => c.id === initialContact.id)) {
-      return [{ id: initialContact.id, name: initialContact.name }, ...list.map((c) => ({ id: c.id, name: c.name }))];
+    const all = contacts.data ?? [];
+    const list: { id: string; name: string; payment_term_days?: number | null }[] = all
+      .filter((c) => c.kind === (isPurchase ? "supplier" : "customer") || c.kind === "both")
+      .map((c) => ({ id: c.id, name: c.name, payment_term_days: c.payment_term_days }));
+    // Seçili cari (kayıtlı belgenin carisi, cari kartından gelen ya da az önce oluşturulan) türü farklı olsa da görünsün
+    if (contactId && !list.some((c) => c.id === contactId)) {
+      const found = all.find((c) => c.id === contactId);
+      const name = found?.name ?? (initialContact?.id === contactId ? initialContact.name : null);
+      if (name) list.unshift({ id: contactId, name, payment_term_days: found?.payment_term_days });
     }
-    return list.map((c) => ({ id: c.id, name: c.name, payment_term_days: c.payment_term_days }));
-  }, [contacts.data, isPurchase, initialContact]);
+    return list;
+  }, [contacts.data, isPurchase, initialContact, contactId]);
 
   const totals = React.useMemo(
     () => calculate(lines, inclVat, discountType, discountValue),
@@ -267,6 +365,7 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
     name: p.name,
     barcode: p.barcode ?? "",
     unit_id: p.unit_id ?? defaultUnitId,
+    unit_factor: 1,
     unit_price: priceFromProduct(p),
     vat_rate: Number(p.vat_rate),
     shelf_price: round2(convertVat(Number(p.sale_price), Number(p.vat_rate), p.sale_price_includes_vat, true)),
@@ -333,12 +432,16 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
       toast.error("Kalem miktarları sıfırdan büyük olmalı.");
       return;
     }
+    // Açık (vadeli) kalacak belge cariye yazılmalı; aksi halde borç/alacak kimsenin hesabına geçmez
+    if (!contactId && cfg.payable && !(showPayment && paid)) {
+      toast.error(`${contactLabel} seçin — açık kalan belge cari hesabına yazılır.`);
+      return;
+    }
     if (!org?.id) return;
     setSaving(true);
 
     try {
-      const docType = DOC_TYPE_MAP[side][kind];
-      const docId = newId();
+      const docId = isEdit ? base!.id : newId();
       const toTry = (n: number) => round2(n * exchangeRate);
 
       // 1) Katalogda olmayan ürünleri oluştur (stoğa girebilmeleri için)
@@ -366,32 +469,56 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
 
       // 2) Belge — toplamları veritabanı kalemlerden yeniden hesaplar
       const contact = contactOptions.find((c) => c.id === contactId);
+      // Pencerede olmayan alanlar: düzenlemede kayıtlı değer aynen korunur (veritabanı gelmeyen alanı boşaltır)
+      const kept = isEdit
+        ? {
+            status: base!.status,
+            valid_until: base!.valid_until,
+            employee_id: base!.employee_id,
+            warehouse_id: base!.warehouse_id,
+            category_id: base!.category_id,
+            affects_stock: base!.affects_stock,
+            source_document_id: base!.source_document_id,
+            description: base!.description,
+            terms: base!.terms,
+          }
+        : mode === "convert" && base
+          ? {
+              status: cfg.statuses ? "pending" : "approved",
+              warehouse_id: base.warehouse_id,
+              terms: base.terms,
+              source_document_id: base.id,
+              // irsaliyeden faturaya dönüşümde stok irsaliyede işlenmiştir
+              affects_stock: !(base.doc_type === "sales_delivery" || base.doc_type === "purchase_delivery"),
+            }
+          : { status: cfg.statuses ? "pending" : "approved" };
       const payload = {
+        description: contact?.name ? `${contact.name} - ${isPurchase ? "Alış" : "Satış"}` : null,
+        ...kept,
         id: docId,
         org_id: org.id,
         doc_type: docType,
-        status: "approved",
         number: number.trim() || null,
         issue_date: issueDate,
-        due_date: isInvoice && !paid ? dueDate || null : null,
+        due_date: showPayment ? (!paid ? dueDate || null : null) : dueDate || null,
+        valid_until: docType === "quote" ? validUntil || null : (kept as { valid_until?: string | null }).valid_until ?? null,
         contact_id: contactId || null,
         currency,
         exchange_rate: exchangeRate,
         prices_include_vat: inclVat,
         discount_type: discountType,
         discount_value: discountValue,
-        description: contact?.name ? `${contact.name} - ${isPurchase ? "Alış" : "Satış"}` : null,
         notes: notes.trim() || null,
       };
       const docLines = resolved.map((l) => ({
-        id: newId(),
+        id: isEdit ? l.id : newId(),
         product_id: l.kind === "free" ? null : l.product_id,
         description: l.name.trim() || "Kalem",
         quantity: l.quantity,
         unit_id: l.unit_id,
-        unit_factor: 1,
+        unit_factor: l.unit_factor || 1,
         unit_price: l.unit_price,
-        discount_rate: 0,
+        discount_rate: l.discount_rate || 0,
         vat_rate: l.vat_rate,
       }));
       const account = accountList.find((a) => a.id === effectiveAccountId);
@@ -400,21 +527,22 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
           p_doc: payload,
           p_lines: docLines,
           p_payment:
-            isInvoice && paid && effectiveAccountId
+            showPayment && paid && effectiveAccountId
               ? { id: newId(), account_id: effectiveAccountId, method: PAYMENT_METHOD[account?.type ?? "cash"] ?? "cash" }
               : null,
         },
-        `${isPurchase ? "Alış" : "Satış"} belgesi kaydedildi`,
+        isEdit ? `${cfg.label} güncellendi` : `${cfg.label} kaydedildi`,
       );
 
-      // 3) Alışta ürün kartlarına alış fiyatı, raf fiyatı ve barkodu işle
-      if (isPurchase) {
+      // 3) Alışta ürün kartlarına alış fiyatı, raf fiyatı ve barkodu işle (iadede fiyat değişmez)
+      if (isPurchase && docType !== "purchase_return") {
         for (const l of resolved) {
           if (l.kind !== "product" || !l.product_id) continue;
           const p = products.data?.find((x) => x.id === l.product_id);
           if (!p) continue; // yeni oluşturulan ürün zaten güncel
           const patch: Record<string, unknown> = {
-            purchase_price: toTry(l.unit_price),
+            // birim çarpanı (koli vb.) varsa ana birim fiyatı
+            purchase_price: toTry(l.unit_price / (l.unit_factor || 1)),
             purchase_price_includes_vat: inclVat,
             vat_rate: l.vat_rate,
           };
@@ -442,6 +570,11 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
   // Görünüm
   // -------------------------------------------------------------------------
 
+  const title = isEdit
+    ? `${cfg.label} Düzenle${base?.number ? ` · ${base.number}` : ""}`
+    : fixedType
+      ? `Yeni ${cfg.label}`
+      : `Yeni ${isPurchase ? "Alış" : "Satış"} Belgesi`;
   const priceHeader = isPurchase ? "Alış fiyatı" : "Satış fiyatı";
   // Pusulam bu pencerede tutarları sembol önde gösterir: ₺1.234,56
   const money = (n: number) => `${CURRENCY_SYMBOL[currency] ?? currency}${formatNumber(n)}`;
@@ -451,7 +584,7 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Yeni ${isPurchase ? "Alış" : "Satış"} Belgesi`}
+        aria-label={title}
         className={cn(
           "flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl",
           maximized ? "fixed inset-0 rounded-none" : "w-full max-w-[1500px] max-h-[95dvh] rounded-2xl",
@@ -459,7 +592,7 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
       >
         {/* Başlık */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-5 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight">Yeni {isPurchase ? "Alış" : "Satış"} Belgesi</h2>
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">{title}</h2>
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -497,12 +630,22 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
             </label>
             <label className="space-y-1.5">
               <span className={labelCls}>Belge türü</span>
-              <select className={fieldCls} value={kind} onChange={(e) => setKind(e.target.value as QuickDocKind)}>
-                <option value="Fatura">Fatura</option>
-                <option value="İrsaliye">İrsaliye</option>
-                <option value="Sipariş">Sipariş</option>
-              </select>
+              {fixedType ? (
+                <div className={cn(fieldCls, "flex items-center bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100")}>{cfg.label}</div>
+              ) : (
+                <select className={fieldCls} value={kind} onChange={(e) => setKind(e.target.value as QuickDocKind)}>
+                  <option value="Fatura">Fatura</option>
+                  <option value="İrsaliye">İrsaliye</option>
+                  <option value="Sipariş">Sipariş</option>
+                </select>
+              )}
             </label>
+            {docType === "quote" && (
+              <label className="space-y-1.5">
+                <span className={labelCls}>Geçerlilik</span>
+                <input type="date" className={fieldCls} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+              </label>
+            )}
             <label className="space-y-1.5">
               <span className={labelCls}>Tarih</span>
               <input type="date" className={fieldCls} value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
@@ -646,7 +789,8 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {lines.map((l, idx) => {
                     const product = l.product_id ? products.data?.find((p) => p.id === l.product_id) : null;
-                    const lineTotal = inclVat ? l.quantity * l.unit_price : l.quantity * l.unit_price * (1 + l.vat_rate / 100);
+                    const lineBase = l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100);
+                    const lineTotal = inclVat ? lineBase : lineBase * (1 + l.vat_rate / 100);
                     const matches = activeLine === l.id && l.kind !== "product" ? searchProducts(products.data ?? [], l.name) : [];
                     return (
                       <tr key={l.id} className="align-top">
@@ -676,7 +820,17 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
                               onPick={(p) => setLines((ls) => ls.map((x) => (x.id === l.id ? lineFromProduct(p, x) : x)))}
                             />
                           </div>
-                          <div className="mt-1.5 flex items-center gap-2">
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            {l.discount_rate > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => patchLine(l.id, { discount_rate: 0 })}
+                                className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline"
+                                title="Satır iskontosunu kaldır"
+                              >
+                                satır iskontosu %{formatNumber(l.discount_rate)} ✕
+                              </button>
+                            )}
                             {l.kind === "product" ? (
                               <span className="text-[11px] text-brand-600 dark:text-brand-400 font-semibold">Katalogdan seçildi</span>
                             ) : (
@@ -720,7 +874,12 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
                           <select
                             className={cellInputCls}
                             value={l.unit_id ?? ""}
-                            onChange={(e) => patchLine(l.id, { unit_id: e.target.value || null })}
+                            onChange={(e) => {
+                              const unitId = e.target.value || null;
+                              // Ürünün alternatif birimi (koli vb.) seçilirse çarpanı al, yoksa ana birim
+                              const alt = (productUnits.data ?? []).find((u) => u.product_id === l.product_id && u.unit_id === unitId);
+                              patchLine(l.id, { unit_id: unitId, unit_factor: alt ? Number(alt.factor) || 1 : 1 });
+                            }}
                           >
                             {(units.data ?? []).map((u) => (
                               <option key={u.id} value={u.id}>
@@ -860,7 +1019,7 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
           </div>
 
           {/* Ödeme durumu (yalnızca faturada) */}
-          {isInvoice && (
+          {showPayment && (
             <div className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4">
               <div className="space-y-1.5">
                 <span className={labelCls}>Ödeme durumu</span>
@@ -903,6 +1062,13 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
                 </label>
               )}
             </div>
+          )}
+
+          {!showPayment && cfg.payable && (
+            <label className="block space-y-1.5 border-t border-slate-200 dark:border-slate-800 pt-4">
+              <span className={labelCls}>Vade tarihi</span>
+              <input type="date" className={fieldCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </label>
           )}
 
           <label className="block space-y-1.5">

@@ -35,6 +35,23 @@ const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz"
 const MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 
 const SUMMARY_KEY = "ren-panel-ozet-acik";
+const HIDE_KEY = "ren-panel-veriler-gizli";
+
+/** Panel "gizli mod": müşteri yanındayken tutarlar ve isimler görünmesin */
+const MaskContext = React.createContext(false);
+const MASK = "••••••";
+
+function useFmt() {
+  const hidden = React.useContext(MaskContext);
+  return {
+    hidden,
+    /** isim gibi hassas metinleri bulanıklaştırır */
+    blur: hidden ? "blur-sm select-none" : "",
+    formatMoney: (n: number, cur?: string) => (hidden ? `${MASK} TL` : formatMoney(n, cur)),
+    formatNumber: (n: number) => (hidden ? MASK : formatNumber(n)),
+    formatCompact: (n: number) => (hidden ? "•••" : formatCompact(n)),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Yardımcılar
@@ -83,6 +100,7 @@ const METHOD_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 function KpiCard({ href, value, label, gradient }: { href: string; value: number; label: string; gradient: string }) {
+  const { formatMoney } = useFmt();
   return (
     <Link
       href={href}
@@ -98,6 +116,7 @@ function KpiCard({ href, value, label, gradient }: { href: string; value: number
 }
 
 function SummaryStrip({ data }: { data: DashboardSummary | undefined }) {
+  const { formatMoney } = useFmt();
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -170,6 +189,7 @@ type ChartMode = "daily" | "weekly" | "monthly";
 type ChartPoint = { label: string; amount: number; from: string; to: string };
 
 function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
+  const { hidden, formatMoney, formatCompact } = useFmt();
   const router = useRouter();
   const [mode, setMode] = React.useState<ChartMode>("daily");
 
@@ -259,7 +279,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </Link>
         </div>
       </div>
-      <div className="h-[220px] w-full min-w-0">
+      <div className={cn("h-[220px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={points}
@@ -316,6 +336,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
 }
 
 function TopProductsCard({ data }: { data: DashboardSummary | undefined }) {
+  const { blur, formatMoney } = useFmt();
   const rows = (data?.top_products ?? []).slice(0, 8);
   if (rows.length === 0) return null;
   return (
@@ -334,7 +355,7 @@ function TopProductsCard({ data }: { data: DashboardSummary | undefined }) {
             className="rounded-xl border border-slate-300 dark:border-slate-600 p-3 hover:border-brand-300 dark:hover:border-brand-800 hover:shadow-soft transition"
           >
             <div className="text-[10px] font-bold text-slate-400">#{i + 1}</div>
-            <div className="font-semibold text-sm truncate mt-0.5">{p.name}</div>
+            <div className={cn("font-semibold text-sm truncate mt-0.5", blur)}>{p.name}</div>
             <div className="text-xs text-slate-500 mt-1">{formatQty(p.quantity)} adet</div>
             <div className="text-sm font-bold text-brand-600 mt-1">{formatMoney(p.amount)}</div>
           </Link>
@@ -349,6 +370,7 @@ const FX_SYMBOL: Record<FxCode, string> = { USD: "$", EUR: "€" };
 
 /** Satışları güncel kurla dövize çevirir (panelin en altında) */
 function CurrencyCard({ data }: { data: DashboardSummary | undefined }) {
+  const { formatMoney, formatNumber } = useFmt();
   const ratesQuery = useRates();
   const [fx, setFx] = React.useState<FxCode>("USD");
   const [amount, setAmount] = React.useState("");
@@ -476,6 +498,7 @@ function CurrencyCard({ data }: { data: DashboardSummary | undefined }) {
 }
 
 function BalanceCards({ data }: { data: DashboardSummary | undefined }) {
+  const { formatMoney } = useFmt();
   const receivable = Number(data?.kpi?.receivable) || 0;
   const payable = Number(data?.kpi?.payable) || 0;
   const net = receivable - payable;
@@ -499,6 +522,7 @@ function BalanceCards({ data }: { data: DashboardSummary | undefined }) {
 }
 
 function RecentCard({ data }: { data: DashboardSummary | undefined }) {
+  const { blur, formatMoney } = useFmt();
   const rows = data?.recent ?? [];
   // Bugünün satış özeti (Pusulam: "Bugün: 1 satış · 2.398,00 TL")
   const today = isoDate();
@@ -554,7 +578,7 @@ function RecentCard({ data }: { data: DashboardSummary | undefined }) {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">
                     {TYPE_LABELS[r.type] ?? r.type}
-                    {r.party ? ` · ${r.party}` : ""}
+                    {r.party ? <span className={blur}> · {r.party}</span> : ""}
                   </div>
                   <div className="text-xs text-slate-400 truncate">{detail}</div>
                 </div>
@@ -575,6 +599,7 @@ function RecentCard({ data }: { data: DashboardSummary | undefined }) {
 }
 
 function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undefined }) {
+  const { blur, formatMoney } = useFmt();
   const isIn = flow === "in";
   const rows = items ?? [];
   const total = rows.reduce((s, r) => s + r.amount, 0);
@@ -629,7 +654,7 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                   {t.offset ? <ArrowLeftRight size={17} /> : <CalendarClock size={17} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{t.title}</div>
+                  <div className={cn("text-sm font-medium truncate", blur)}>{t.title}</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{t.subtitle}</div>
                   {t.offset && (
                     <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate" title="Aynı carideki alış ve satışlar mahsup edildi">
@@ -686,6 +711,20 @@ function CriticalStockCard({ data }: { data: DashboardSummary | undefined }) {
 
 export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
   const [helpOpen, setHelpOpen] = React.useState(false);
+  const [hidden, setHidden] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      if (localStorage.getItem(HIDE_KEY) === "1") setHidden(true); // eslint-disable-line react-hooks/set-state-in-effect
+    } catch {}
+  }, []);
+  const toggleHidden = () => {
+    setHidden((v) => {
+      try {
+        localStorage.setItem(HIDE_KEY, v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+  };
   const today = isoDate();
   const thisMonth = MONTHS[new Date().getMonth()];
   const { from: monthFrom } = monthRange(today.slice(0, 7));
@@ -693,6 +732,7 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
   const { data: dues } = useNettedDues();
 
   return (
+    <MaskContext.Provider value={hidden}>
     <div className="pusulam-panel space-y-6">
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center shadow-soft">
@@ -702,6 +742,21 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Genel Bakış</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">İşletmenizin anlık durumu</p>
         </div>
+        <button
+          type="button"
+          onClick={toggleHidden}
+          className={cn(
+            "ml-auto inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition",
+            hidden
+              ? "border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
+          )}
+          title={hidden ? "Verileri göster" : "Verileri gizle (müşteri yanındayken)"}
+          aria-pressed={hidden}
+        >
+          {hidden ? <Eye size={16} /> : <EyeOff size={16} />}
+          <span className="hidden sm:inline">{hidden ? "Verileri göster" : "Verileri gizle"}</span>
+        </button>
       </div>
 
       <SummaryStrip data={data} />
@@ -790,5 +845,6 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
         </DialogContent>
       </Dialog>
     </div>
+    </MaskContext.Provider>
   );
 }

@@ -46,7 +46,7 @@ import {
 import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 
-type DocRow = Row<"documents"> & { lines: Row<"document_lines">[] };
+export type DocRow = Row<"documents"> & { lines: Row<"document_lines">[] };
 
 export type EditorLine = {
   id: string;
