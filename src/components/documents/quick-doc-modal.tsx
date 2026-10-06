@@ -530,6 +530,9 @@ function QuickDocForm({
   const [paid, setPaid] = React.useState(isPurchase && !fromBase);
   const [accountId, setAccountId] = React.useState("");
   const [dueDate, setDueDate] = React.useState(fromBase ? base!.due_date ?? "" : "");
+  /** Vade elle değiştirildiyse otomatik hesap üzerine yazmaz */
+  const dueTouched = React.useRef(false);
+  const isOrderDoc = docType === "sales_order" || docType === "purchase_order";
   const [notes, setNotes] = React.useState((fromBase ? base!.notes : null) ?? initialNotes ?? "");
   const [saving, setSaving] = React.useState(false);
 
@@ -586,6 +589,7 @@ function QuickDocForm({
     setPaid(!!v.paid);
     setAccountId(v.accountId ?? "");
     setDueDate(v.dueDate ?? "");
+    dueTouched.current = true; // taslaktaki vade korunsun
     setNotes(v.notes ?? "");
     // aynı belge/ürün/tahsilat kimlikleri: önceki yarım kayıt sunucuya ulaştıysa üzerine yazılır, çift olmaz
     if (!isEdit) docIdRef.current = draft.docId;
@@ -601,6 +605,16 @@ function QuickDocForm({
 
   const accountList = accounts.data ?? [];
   const effectiveAccountId = accountId || accountList[0]?.id || "";
+
+  // Carinin vade günü → vade tarihi otomatik (fatura/iade; siparişte tarih teslim/hatırlatma anlamında olduğu için atlanır)
+  const termDays = Number((contacts.data ?? []).find((c) => c.id === contactId)?.payment_term_days ?? 0) || 0;
+  React.useEffect(() => {
+    if (isOrderDoc || !cfg.payable || dueTouched.current) return;
+    // kayıtlı belgede yalnızca kullanıcı cariyi ya da tarihi değiştirirse yeniden hesapla (mevcut vade bozulmasın)
+    if (isEdit && contactId === (base!.contact_id ?? "") && issueDate === base!.issue_date) return;
+    if (termDays > 0) setDueDate(addDays(issueDate, termDays)); // eslint-disable-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactId, issueDate, termDays]);
 
   const contactOptions = React.useMemo(() => {
     const all = contacts.data ?? [];
@@ -1075,6 +1089,28 @@ function QuickDocForm({
               <span className={labelCls}>Tarih</span>
               <input type="date" className={fieldCls} value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
             </label>
+            {cfg.payable && (
+              <label className="space-y-1.5">
+                <span className={labelCls}>
+                  {isOrderDoc ? "Teslim / hatırlatma" : "Vade"}
+                  {!isOrderDoc && termDays > 0 && <span className="normal-case font-semibold"> · {termDays} gün</span>}
+                </span>
+                {showPayment && paid ? (
+                  <div className={cn(fieldCls, "flex items-center bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300")}>Peşin — vade yok</div>
+                ) : (
+                  <input
+                    type="date"
+                    className={fieldCls}
+                    value={dueDate}
+                    title={isOrderDoc ? "Bu tarih geldiğinde bildirim gelir" : undefined}
+                    onChange={(e) => {
+                      dueTouched.current = true;
+                      setDueDate(e.target.value);
+                    }}
+                  />
+                )}
+              </label>
+            )}
             <label className="space-y-1.5">
               <span className={labelCls}>{isPurchase ? "Belge no (tedarikçi)" : "Belge no"}</span>
               <input
@@ -1544,22 +1580,8 @@ function QuickDocForm({
                     ))}
                   </select>
                 </label>
-              ) : (
-                <label className="block space-y-1.5">
-                  <span className={labelCls}>Vade tarihi</span>
-                  <input type="date" className={fieldCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                </label>
-              )}
+              ) : null}
             </div>
-          )}
-
-          {!showPayment && cfg.payable && (
-            <label className="block space-y-1.5 border-t border-slate-200 dark:border-slate-800 pt-4">
-              <span className={labelCls}>
-                {docType === "sales_order" || docType === "purchase_order" ? "Teslim / hatırlatma tarihi — o gün bildirim gelir" : "Vade tarihi"}
-              </span>
-              <input type="date" className={fieldCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </label>
           )}
 
           <label className="block space-y-1.5">

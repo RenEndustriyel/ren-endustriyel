@@ -14,9 +14,19 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.6";
+export const LATEST_VERSION = "2.5.7";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.7",
+    date: "6 Ekim 2026",
+    title: "Vade Tarihi Üstte ve Otomatik",
+    badge: "Vade",
+    items: [
+      { type: "iyilestirme", title: "Vade tarihi üst satırda", description: "Belge penceresinde vade tarihi en alttan Tarih alanının yanına taşındı; peşin ödemede 'Peşin — vade yok' görünür." },
+      { type: "yeni", title: "Cari vade gününden otomatik vade", description: "Cari seçilince veya belge tarihi değişince, carinin vade günü kadar ileri tarih vade olarak otomatik yazılır (alış/satış fatura ve iadeler). Elle değiştirilen vade korunur; kayıtlı belgelerin vadesi kendiliğinden değişmez." },
+    ],
+  },
   {
     version: "2.5.6",
     date: "6 Ekim 2026",
