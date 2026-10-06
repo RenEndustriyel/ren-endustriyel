@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRows, useRpc, useUnits, useProducts, useContactBalances, type Row } from "@/lib/data";
-import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, docFlow, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, docFlow, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
 import { formatDate, formatMoney, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
 import { Button } from "@/components/ui/button";
@@ -159,7 +159,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   };
 
   const changeStatus = async (s: string) => {
-    await setStatus.call({ p_doc: d.id, p_status: s }, `Durum: ${STATUS_LABEL[s] ?? s}`);
+    await setStatus.call({ p_doc: d.id, p_status: s }, `Durum: ${statusLabel(d.doc_type as DocType, s)}`);
     q.refetch();
   };
 
@@ -174,11 +174,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   const canAct = canWrite && d.status !== "draft" && d.status !== "cancelled";
   const statusBadges = (
     <span className="flex flex-wrap items-center gap-1.5">
-      {cfg.statuses && (
-        <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" || d.status === "approved" ? "success" : "neutral"}>
-          {STATUS_LABEL[d.status] ?? d.status}
-        </Badge>
-      )}
+      {cfg.statuses && <Badge tone={statusTone(normalizeStatus(d.doc_type as DocType, d.status))}>{statusLabel(d.doc_type as DocType, d.status)}</Badge>}
       {cfg.payable && d.status !== "draft" && <Badge tone={overdue ? "danger" : ps.tone}>{overdue ? "Vadesi geçti" : ps.label}</Badge>}
       {!cfg.statuses && !cfg.payable && (
         <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" ? "success" : "neutral"}>
@@ -215,6 +211,9 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
               )}
             </h1>
             <div className="mt-1">{statusBadges}</div>
+            {cfg.statuses && d.status !== "draft" && (
+              <StatusBar type={d.doc_type as DocType} status={d.status} disabled={!canWrite || setStatus.isPending} onChange={changeStatus} />
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {canWrite && (
@@ -615,6 +614,40 @@ function Line({ label, value, className }: { label: string; value: React.ReactNo
     <div className={cn("flex items-center justify-between", className)}>
       <span className="text-muted">{label}</span>
       <span className="num">{value}</span>
+    </div>
+  );
+}
+
+/** Teklif / sipariş durumu: tek tıkla değiştirilen adım çubuğu */
+function StatusBar({ type, status, disabled, onChange }: { type: DocType; status: string; disabled?: boolean; onChange: (s: string) => void }) {
+  const list = (DOC_TYPES[type].statuses ?? []).filter((x) => x.value !== "converted" && x.value !== "cancelled");
+  const cur = normalizeStatus(type, status);
+  const closed = cur === "converted" || cur === "cancelled";
+  const active = (v: string) =>
+    v === cur
+      ? v === "rejected"
+        ? "bg-rose-600 text-white"
+        : v === "accepted"
+          ? "bg-emerald-600 text-white"
+          : "bg-brand-500 text-white"
+      : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800";
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Durum</span>
+      <div className={cn("inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600", closed && "opacity-60")}>
+        {list.map((x, i) => (
+          <button
+            key={x.value}
+            type="button"
+            disabled={disabled || closed || x.value === cur}
+            onClick={() => onChange(x.value)}
+            className={cn("h-8 px-3 text-xs font-semibold transition disabled:cursor-default", i > 0 && "border-l border-slate-300 dark:border-slate-600", active(x.value))}
+          >
+            {x.label}
+          </button>
+        ))}
+      </div>
+      {closed && <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{statusLabel(type, status)}</span>}
     </div>
   );
 }

@@ -1489,12 +1489,16 @@ function QuickDocForm({
                     KDV Dahil
                   </button>
                 </div>
-                <button type="button" className={ghostSmCls} onClick={generateAllBarcodes}>
-                  <ScanBarcode size={14} /> Tümüne barkod üret
-                </button>
-                <button type="button" className={ghostSmCls} onClick={() => toast.info("Etiket yazdırma henüz hazır değil.")}>
-                  <Printer size={14} /> Etiket yazdır
-                </button>
+                {docType !== "quote" && (
+                  <>
+                    <button type="button" className={ghostSmCls} onClick={generateAllBarcodes}>
+                      <ScanBarcode size={14} /> Tümüne barkod üret
+                    </button>
+                    <button type="button" className={ghostSmCls} onClick={() => toast.info("Etiket yazdırma henüz hazır değil.")}>
+                      <Printer size={14} /> Etiket yazdır
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   className={cn(ghostSmCls, "text-slate-700 dark:text-slate-100")}

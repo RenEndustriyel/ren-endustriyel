@@ -6,7 +6,7 @@ import { FileText, Loader2, Search, Sparkles } from "lucide-react";
 import { useRows, useRpc, type Row } from "@/lib/data";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
-import { DOC_TYPES, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
 import { useOrg } from "@/providers/org-provider";
 import { useConfirm } from "@/components/ui/confirm";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -397,6 +397,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
   const confirm = useConfirm();
   const { org, canWrite } = useOrg();
   const del = useRpc("delete_document");
+  const setStatus = useRpc("set_document_status");
 
   // Sekme: URL'deki ?tab= değeri başlangıç sekmesini belirler
   const tabFromUrl = searchParams.get("tab");
@@ -500,6 +501,11 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
   const handleEdit = (d: Doc) => {
     if (guardSample(d)) return;
     router.push(`${baseOf(d)}/duzenle?id=${d.id}`);
+  };
+
+  const changeStage = async (d: Doc, s: string) => {
+    if (guardSample(d)) return;
+    await setStatus.call({ p_doc: d.id, p_status: s }, `Durum: ${statusLabel(d.doc_type as DocType, s)}`);
   };
 
   const handleDelete = async (d: Doc) => {
@@ -703,6 +709,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                 total={Number(d.total ?? 0)}
                 currency={d.currency}
                 status={isCancelled ? "cancelled" : isPaid ? "paid" : "open"}
+                stage={DOC_TYPES[d.doc_type as DocType]?.statuses ? { label: statusLabel(d.doc_type as DocType, d.status), tone: statusTone(normalizeStatus(d.doc_type as DocType, d.status)) } : null}
                 dueDate={d.due_date}
                 overdue={!!d.due_date && !isPaid && !isCancelled && d.due_date < today}
                 whatsappTitle={d.contact?.phone ? `${nameOf(d)} kişisine WhatsApp'tan gönder` : "Carinin telefonu yok — sohbet seçtirilir"}
@@ -713,6 +720,13 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
                 onCopy={() => handleCopy(d)}
                 onEdit={canWrite ? () => handleEdit(d) : undefined}
                 moreItems={[
+                  ...(DOC_TYPES[d.doc_type as DocType]?.statuses ?? [])
+                    .filter((x) => x.value !== "converted" && x.value !== "cancelled")
+                    .map((x) => ({
+                      label: `Durum: ${x.label}`,
+                      onSelect: () => changeStage(d, x.value),
+                      hidden: !canWrite || isCancelled || d.status === "converted" || normalizeStatus(d.doc_type as DocType, d.status) === x.value,
+                    })),
                   { label: "Tedarikçiye iade (kalem seç)", onSelect: () => handleReturn(d, true), hidden: !canWrite || activeTab !== "invoices" },
                   { label: "Tedarikçiye tam iade", onSelect: () => handleReturn(d, false), hidden: !canWrite || activeTab !== "invoices" },
                   { label: "Sil", onSelect: () => handleDelete(d), danger: true, hidden: !canWrite },

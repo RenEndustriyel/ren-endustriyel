@@ -190,6 +190,7 @@ export function DocCard({
   dueDate,
   overdue,
   extraInfo,
+  stage,
   whatsappTitle,
   onOpen,
   onPrint,
@@ -211,6 +212,8 @@ export function DocCard({
   dueDate?: string | null;
   overdue?: boolean;
   extraInfo?: string | null;
+  /** teklif / sipariş iş durumu (Onaylandı, Sevk edildi …) — ödeme durumu yerine gösterilir */
+  stage?: { label: string; tone: "success" | "danger" | "warning" | "primary" | "neutral" } | null;
   whatsappTitle: string;
   onOpen: () => void;
   onPrint: () => void;
@@ -246,7 +249,29 @@ export function DocCard({
 
       <div className="order-2 sm:order-3 shrink-0 flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 sm:gap-1 text-right sm:min-w-[120px] md:min-w-[150px] border-t sm:border-t-0 border-slate-100 dark:border-slate-800 pt-2.5 sm:pt-0">
         <div className="font-bold text-sm sm:text-base tabular-nums">{formatMoney(total, currency || "TRY")}</div>
-        {status === "paid" ? (
+        {stage && status !== "cancelled" ? (
+          <span className="flex items-center gap-1.5 text-xs font-semibold justify-end select-none mt-1">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                stage.tone === "success" ? "bg-emerald-500" : stage.tone === "danger" ? "bg-rose-500" : stage.tone === "primary" ? "bg-brand-500" : "bg-amber-500",
+              )}
+            />
+            <span
+              className={cn(
+                stage.tone === "success"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : stage.tone === "danger"
+                    ? "text-rose-600 dark:text-rose-400"
+                    : stage.tone === "primary"
+                      ? "text-brand-600 dark:text-brand-400"
+                      : "text-amber-600 dark:text-amber-500",
+              )}
+            >
+              {stage.label}
+            </span>
+          </span>
+        ) : status === "paid" ? (
           <span className="flex items-center gap-1.5 text-xs font-semibold justify-end select-none mt-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             <span className="text-emerald-600 dark:text-emerald-400">Ödendi</span>

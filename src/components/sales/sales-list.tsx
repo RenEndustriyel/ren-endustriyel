@@ -7,7 +7,7 @@ import { CustomerSelectModal, type CustomerItem } from "./customer-select-modal"
 import { useRows, useRpc, type Row } from "@/lib/data";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
-import { DOC_TYPES, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
 import { useOrg } from "@/providers/org-provider";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm";
@@ -498,6 +498,11 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
     if (ok) await setStatus.call({ p_doc: d.id, p_status: "cancelled" }, "Satış iptal edildi");
   };
 
+  const changeStage = async (d: Doc, s: string) => {
+    if (guardSample(d)) return;
+    await setStatus.call({ p_doc: d.id, p_status: s }, `Durum: ${statusLabel(d.doc_type as DocType, s)}`);
+  };
+
   const handleWhatsAppShare = (d: Doc) => {
     const cleanPhone = (d.contact?.phone || "").replace(/[^0-9]/g, "");
     const phone = cleanPhone.startsWith("0") ? "9" + cleanPhone : cleanPhone.length === 10 ? "90" + cleanPhone : cleanPhone;
@@ -667,6 +672,7 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                 total={Number(d.total ?? 0)}
                 currency={d.currency}
                 status={isCancelled ? "cancelled" : isPaid ? "paid" : "open"}
+                stage={DOC_TYPES[d.doc_type as DocType]?.statuses ? { label: statusLabel(d.doc_type as DocType, d.status), tone: statusTone(normalizeStatus(d.doc_type as DocType, d.status)) } : null}
                 dueDate={d.due_date}
                 overdue={!!d.due_date && !isPaid && !isCancelled && d.due_date < today}
                 whatsappTitle={d.contact?.phone ? `${nameOf(d)} kişisine WhatsApp'tan gönder` : "Carinin telefonu yok — sohbet seçtirilir"}
@@ -677,6 +683,13 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                 onCopy={() => handleCopy(d)}
                 onEdit={canWrite && !isCancelled ? () => handleEdit(d) : undefined}
                 moreItems={[
+                  ...(DOC_TYPES[d.doc_type as DocType]?.statuses ?? [])
+                    .filter((x) => x.value !== "converted" && x.value !== "cancelled")
+                    .map((x) => ({
+                      label: `Durum: ${x.label}`,
+                      onSelect: () => changeStage(d, x.value),
+                      hidden: !canWrite || isCancelled || d.status === "converted" || normalizeStatus(d.doc_type as DocType, d.status) === x.value,
+                    })),
                   { label: "Kısmi iade", onSelect: () => handleReturn(d, true), hidden: !canAct },
                   { label: "Tam iade", onSelect: () => handleReturn(d, false), hidden: !canAct },
                   { label: "Kargo gönderisi oluştur", onSelect: () => !guardSample(d) && toast.info("Kargo entegrasyonu henüz kurulmadı."), hidden: !canAct },

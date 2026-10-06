@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Download, FileText, Printer } from "lucide-react";
 import { useRows, type Row } from "@/lib/data";
-import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, PAYMENT_STATUS, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { useOrg } from "@/providers/org-provider";
@@ -72,7 +72,7 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
     if (status === "open") return cfg.payable ? remaining(d) > 0.004 && d.status !== "cancelled" && d.status !== "draft" : !["converted", "cancelled", "rejected"].includes(d.status);
     if (status === "overdue") return isOverdue(d);
     if (status === "paid") return d.payment_status === "paid";
-    return d.status === status;
+    return normalizeStatus(type, d.status) === status;
   });
 
   const sumTry = rows.filter((d) => d.status !== "cancelled" && d.status !== "draft").reduce((s, d) => s + Number(d.total_try), 0);
@@ -84,12 +84,13 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
   const statusBadge = (d: Doc) => {
     if (d.status === "draft") return <Badge>Taslak</Badge>;
     if (d.status === "cancelled") return <Badge tone="danger">İptal</Badge>;
+    if (cfg.statuses) return <Badge tone={statusTone(normalizeStatus(type, d.status))}>{statusLabel(type, d.status)}</Badge>;
     if (cfg.payable) {
       if (isOverdue(d)) return <Badge tone="danger">{Math.round((new Date(today).getTime() - new Date(d.due_date!).getTime()) / 864e5)} gün gecikti</Badge>;
       const ps = PAYMENT_STATUS[d.payment_status] ?? PAYMENT_STATUS.none;
       return <Badge tone={ps.tone}>{ps.label}</Badge>;
     }
-    return <Badge tone={d.status === "accepted" || d.status === "converted" ? "success" : d.status === "rejected" ? "danger" : "neutral"}>{STATUS_LABEL[d.status] ?? d.status}</Badge>;
+    return <Badge tone={statusTone(d.status)}>{statusLabel(type, d.status)}</Badge>;
   };
 
   const columns: Column<Doc>[] = [
@@ -115,7 +116,7 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
     { key: "total", header: "Toplam", align: "right", sortValue: (d) => Number(d.total_try), cell: (d) => <span className="num font-semibold">{formatMoney(d.total, d.currency)}</span> },
   ];
 
-  const statusOptions = cfg.payable
+  const statusOptions = cfg.payable && !cfg.statuses
     ? [
         { value: "all", label: "Tümü" },
         { value: "open", label: "Açık" },
@@ -141,7 +142,7 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
           { header: "Toplam", value: (d) => Number(d.total), type: "money" },
           { header: "Toplam (TL)", value: (d) => Number(d.total_try), type: "money" },
           { header: "Ödenen", value: (d) => Number(d.paid_amount), type: "money" },
-          { header: "Durum", value: (d) => (cfg.payable ? (PAYMENT_STATUS[d.payment_status]?.label ?? "—") : (STATUS_LABEL[d.status] ?? d.status)) },
+          { header: "Durum", value: (d) => (cfg.payable && !cfg.statuses ? (PAYMENT_STATUS[d.payment_status]?.label ?? "—") : statusLabel(type, d.status)) },
         ],
       },
     ]);

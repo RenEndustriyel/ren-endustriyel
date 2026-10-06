@@ -22,7 +22,8 @@ import {
 import { useNettedDues, type DueItem } from "./use-netted-dues";
 import { useRows } from "@/lib/data";
 import { useRates, rateFor, triggerLiveRatesRefresh } from "@/lib/rates";
-import { DOC_TYPES, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
+import { Badge } from "@/components/ui/badge";
 import { formatCompact, formatDate, formatMoney, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -360,7 +361,8 @@ const PENDING_TABS: { id: PendingTab; label: string; convertTo: DocType }[] = [
 /** Faturaya dönüşmeyi bekleyen teklif ve siparişler */
 function PendingDocsCard() {
   const { blur, formatMoney } = useFmt();
-  const [tab, setTab] = React.useState<PendingTab>("quote");
+  // null: kullanıcı seçmedi → içinde belge olan ilk sekme gösterilir
+  const [chosen, setTab] = React.useState<PendingTab | null>(null);
   const docs = useRows<PendingDoc>("documents", {
     select: "id, doc_type, number, issue_date, status, total, total_try, contact:contacts(name)",
     params: ["panel_bekleyen"],
@@ -371,21 +373,14 @@ function PendingDocsCard() {
   const today = isoDate();
   const all = docs.data ?? [];
   const count = (t: PendingTab) => all.filter((d) => d.doc_type === t).length;
-  // Veri gelince içinde belge olan ilk sekmeyi aç (bir kez)
-  const picked = React.useRef(false);
-  React.useEffect(() => {
-    if (picked.current || !docs.data) return;
-    picked.current = true;
-    const first = PENDING_TABS.find((t) => docs.data!.some((d) => d.doc_type === t.id));
-    if (first) setTab(first.id); // eslint-disable-line react-hooks/set-state-in-effect
-  }, [docs.data]);
+  const tab: PendingTab = chosen ?? PENDING_TABS.find((t) => count(t.id) > 0)?.id ?? "quote";
   const rows = all.filter((d) => d.doc_type === tab);
   const total = rows.reduce((s, d) => s + Number(d.total_try ?? d.total ?? 0), 0);
   const cfg = PENDING_TABS.find((t) => t.id === tab)!;
   const age = (d: PendingDoc) => Math.max(0, Math.round((Date.parse(today) - Date.parse(d.issue_date)) / 86400000));
 
   return (
-    <div className="card p-5 flex flex-col min-h-0">
+    <div className="card p-5 flex flex-col h-full min-w-0">
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <h2 className="font-semibold flex items-center gap-2">
@@ -421,7 +416,7 @@ function PendingDocsCard() {
       {rows.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-600 dark:text-slate-300">Bekleyen {cfg.label.toLocaleLowerCase("tr-TR")} yok.</p>
       ) : (
-        <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto max-h-[230px] -mx-2">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto max-h-[420px] -mx-2">
           {rows.map((d) => {
             const days = age(d);
             return (
@@ -432,6 +427,9 @@ function PendingDocsCard() {
                     {d.number ?? "—"} · {formatDate(d.issue_date)} ·{" "}
                     <span className={cn(days > 30 && "font-semibold text-amber-700 dark:text-amber-400")}>{days === 0 ? "bugün" : `${days} gün`}</span>
                   </div>
+                  <Badge tone={statusTone(normalizeStatus(d.doc_type, d.status))} className="mt-1">
+                    {statusLabel(d.doc_type, d.status)}
+                  </Badge>
                 </Link>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-semibold tabular-nums">{formatMoney(Number(d.total_try ?? d.total ?? 0))}</div>
@@ -650,7 +648,7 @@ function RecentCard({ data }: { data: DashboardSummary | undefined }) {
   );
   const todayAmount = Number(data?.sales_daily?.find((d) => String(d.date).slice(0, 10) === today)?.amount) || 0;
   return (
-    <div className="card p-5">
+    <div className="card p-5 h-full min-w-0">
       <h2 className="font-semibold mb-3 flex items-center gap-2">
         <Clock size={17} className="text-brand-500" />
         Son Hareketler
@@ -913,12 +911,7 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-        <div className="xl:col-span-2 min-w-0">
-          <SalesChartCard data={data} />
-        </div>
-        <PendingDocsCard />
-      </div>
+      <SalesChartCard data={data} />
       <TopProductsCard data={data} />
       <BalanceCards data={data} />
 
@@ -928,7 +921,10 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
       </div>
 
       <CriticalStockCard data={data} />
-      <RecentCard data={data} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        <RecentCard data={data} />
+        <PendingDocsCard />
+      </div>
 
       <CurrencyCard data={data} />
 

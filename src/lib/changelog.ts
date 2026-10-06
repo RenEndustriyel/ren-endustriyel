@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.10";
+export const LATEST_VERSION = "2.5.11";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.11",
+    date: "6 Ekim 2026",
+    title: "Teklif ve Sipariş Durumları",
+    badge: "Satış",
+    items: [
+      { type: "yeni", title: "Teklif durumu", description: "Teklifler Beklemede, Onaylandı veya Onaylanmadı olarak işaretlenir; belge ekranında tek tıkla değişir, listede ve ana sayfada görünür." },
+      { type: "yeni", title: "Sipariş durumu", description: "Satış siparişleri Hazırlanıyor, Sevk edildi, Teslim edildi; satın alma siparişleri Sipariş verildi, Yolda, Teslim alındı olarak takip edilir. Teslim edilen siparişler için tarih hatırlatması gelmez." },
+      { type: "iyilestirme", title: "Ana sayfa yerleşimi", description: "Bekleyen Teklif & Siparişler kartı Son Hareketler ile yan yana, aynı hizada; satış grafiği tam genişlikte." },
+      { type: "iyilestirme", title: "Sade teklif ekranı", description: "Tekliflerde Tümüne barkod üret ve Etiket yazdır düğmeleri kaldırıldı." },
+    ],
+  },
   {
     version: "2.5.10",
     date: "6 Ekim 2026",

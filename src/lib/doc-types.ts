@@ -32,16 +32,24 @@ export type DocConfig = {
   statuses?: { value: string; label: string }[];
 };
 
+// Durumlar veritabanındaki izinli değerlere eşlenir (draft, pending, sent, accepted, rejected, approved, converted, cancelled)
 const QUOTE_STATUSES = [
-  { value: "pending", label: "Bekliyor" },
-  { value: "sent", label: "Gönderildi" },
-  { value: "accepted", label: "Kabul edildi" },
-  { value: "rejected", label: "Reddedildi" },
+  { value: "pending", label: "Beklemede" },
+  { value: "accepted", label: "Onaylandı" },
+  { value: "rejected", label: "Onaylanmadı" },
   { value: "converted", label: "Dönüştürüldü" },
 ];
 const ORDER_STATUSES = [
-  { value: "pending", label: "Bekliyor" },
-  { value: "approved", label: "Onaylandı" },
+  { value: "pending", label: "Hazırlanıyor" },
+  { value: "sent", label: "Sevk edildi" },
+  { value: "accepted", label: "Teslim edildi" },
+  { value: "converted", label: "Faturalandı" },
+  { value: "cancelled", label: "İptal" },
+];
+const PURCHASE_ORDER_STATUSES = [
+  { value: "pending", label: "Sipariş verildi" },
+  { value: "sent", label: "Yolda" },
+  { value: "accepted", label: "Teslim alındı" },
   { value: "converted", label: "Faturalandı" },
   { value: "cancelled", label: "İptal" },
 ];
@@ -53,7 +61,7 @@ export const DOC_TYPES: Record<DocType, DocConfig> = {
   sales_invoice: { type: "sales_invoice", label: "Satış Faturası", plural: "Satış Faturaları", base: "/satislar/faturalar", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_return"] },
   sales_return: { type: "sales_return", label: "Satış İadesi", plural: "Satış İadeleri", base: "/satislar/iadeler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: 1, priced: true, autoNumber: true, convertTo: [] },
   pos_sale: { type: "pos_sale", label: "Hızlı Satış", plural: "Hızlı Satışlar", base: "/satislar/hizli-satislar", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_return"] },
-  purchase_order: { type: "purchase_order", label: "Satın Alma Siparişi", plural: "Satın Alma Siparişleri", base: "/giderler/siparisler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 0, priced: true, autoNumber: true, convertTo: ["purchase_delivery", "purchase_invoice"], statuses: ORDER_STATUSES },
+  purchase_order: { type: "purchase_order", label: "Satın Alma Siparişi", plural: "Satın Alma Siparişleri", base: "/giderler/siparisler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 0, priced: true, autoNumber: true, convertTo: ["purchase_delivery", "purchase_invoice"], statuses: PURCHASE_ORDER_STATUSES },
   purchase_delivery: { type: "purchase_delivery", label: "Gelen İrsaliye", plural: "Gelen İrsaliyeler", base: "/giderler/irsaliyeler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: false, stock: 1, priced: true, autoNumber: false, convertTo: ["purchase_invoice"] },
   purchase_invoice: { type: "purchase_invoice", label: "Alış Faturası", plural: "Alış Faturaları", base: "/giderler/alis-faturalari", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 1, priced: true, autoNumber: false, convertTo: ["purchase_return"] },
   purchase_return: { type: "purchase_return", label: "Alış İadesi", plural: "Alış İadeleri", base: "/giderler/iadeler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: [] },
@@ -82,6 +90,31 @@ export const STATUS_LABEL: Record<string, string> = {
   converted: "Dönüştürüldü",
   cancelled: "İptal",
 };
+
+/** Eski kayıtlarda kalan değerlerin karşılığı (ör. eski "onaylı" sipariş = hazırlanıyor) */
+const LEGACY_STATUS: Record<string, string> = { approved: "pending", sent: "pending" };
+
+/** Belge türüne göre durum değerini seçici için normalize eder */
+export function normalizeStatus(type: DocType, status: string): string {
+  const list = DOC_TYPES[type]?.statuses;
+  if (!list || list.some((x) => x.value === status)) return status;
+  return LEGACY_STATUS[status] ?? status;
+}
+
+/** Belge türüne göre durum adı (teklif: Onaylandı, sipariş: Teslim edildi …) */
+export function statusLabel(type: DocType, status: string): string {
+  const list = DOC_TYPES[type]?.statuses;
+  const v = normalizeStatus(type, status);
+  return list?.find((x) => x.value === v)?.label ?? STATUS_LABEL[status] ?? status;
+}
+
+export function statusTone(status: string): "success" | "danger" | "warning" | "primary" | "neutral" {
+  if (status === "rejected" || status === "cancelled") return "danger";
+  if (status === "accepted" || status === "converted") return "success";
+  if (status === "sent") return "primary";
+  if (status === "draft") return "neutral";
+  return "warning";
+}
 
 export const VAT_RATES = [0, 1, 10, 20];
 export const CURRENCIES = ["TRY", "USD", "EUR"];

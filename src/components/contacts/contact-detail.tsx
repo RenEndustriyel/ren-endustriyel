@@ -49,7 +49,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
-import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, PAYMENT_STATUS, statusLabel, type DocType } from "@/lib/doc-types";
 import { TYPE_LABELS } from "@/components/dashboard/types";
 import { useOrg } from "@/providers/org-provider";
 import { Button } from "@/components/ui/button";
@@ -1114,7 +1114,7 @@ export function ContactDetail({ id }: { id: string }) {
                           <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400 text-xs">{formatDate(q.due_date)}</td>
                           <td className="px-3 py-2.5">
                             <span className="inline-block rounded-md border border-cyan-800/40 bg-cyan-950/40 px-2 py-0.5 text-[11px] font-bold text-cyan-400">
-                              {STATUS_LABEL[q.status] ?? q.status}
+                              {statusLabel("quote", q.status)}
                             </span>
                           </td>
                           <td className="num px-3 py-2.5 text-right font-black text-slate-900 dark:text-white">

@@ -55,7 +55,7 @@ export function NotificationsMenu() {
   const orders = useRows<{ id: string; doc_type: string; number: string | null; issue_date: string; due_date: string | null; created_at: string; total: number; currency: string; contact: { name: string } | null }>("documents", {
     select: "id, doc_type, number, issue_date, due_date, created_at, total, currency, contact:contacts(name)",
     params: ["siparis_hatirlatma"],
-    filter: (q) => q.in("doc_type", ["sales_order", "purchase_order"]).not("status", "in", '("draft","cancelled","converted","rejected")'),
+    filter: (q) => q.in("doc_type", ["sales_order", "purchase_order"]).not("status", "in", '("draft","cancelled","converted","rejected","accepted")'),
   });
   const dueOrders = React.useMemo(() => {
     return (orders.data ?? [])
