@@ -377,6 +377,18 @@ function QuickDocForm({
 
   const patchLine = (id: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 
+  /** Satır tutarı seçili KDV görünümünde (dahil/hariç), iskonto sonrası */
+  const lineAmount = (l: Line) => l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100);
+  /** Tutar elle girilince birim fiyatı geri hesapla (miktar ve iskonto korunur) */
+  const setLineAmount = (l: Line, amount: number) => {
+    const per = l.quantity * (1 - (l.discount_rate || 0) / 100);
+    if (per > 0) patchLine(l.id, { unit_price: Math.max(0, Math.round((amount / per) * 10000) / 10000) });
+  };
+  /** Raf fiyatı içeride KDV dahil tutulur; ekranda seçili görünümde gösterilir */
+  const shelfShown = (l: Line) => (inclVat ? l.shelf_price : round2(l.shelf_price / (1 + l.vat_rate / 100)));
+  const setShelfShown = (l: Line, v: number) =>
+    patchLine(l.id, { shelf_price: Math.max(0, round2(inclVat ? v : v * (1 + l.vat_rate / 100))) });
+
   /** Boş ilk satırı doldurur, yoksa sona ekler */
   const pushLine = (line: Line) =>
     setLines((ls) => {
@@ -776,8 +788,6 @@ function QuickDocForm({
             <div className="md:hidden space-y-3">
               {lines.map((l, idx) => {
                 const product = l.product_id ? products.data?.find((p) => p.id === l.product_id) : null;
-                const lineBase = l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100);
-                const lineTotal = inclVat ? lineBase : lineBase * (1 + l.vat_rate / 100);
                 const matches = activeLine === l.id && l.kind !== "product" ? searchProducts(products.data ?? [], l.name) : [];
                 const lbl = "block text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 mb-1";
                 return (
@@ -842,7 +852,7 @@ function QuickDocForm({
                         </select>
                       </label>
                       <label className="min-w-0">
-                        <span className={lbl}>{priceHeader} ({inclVat ? "dahil" : "hariç"})</span>
+                        <span className={lbl}>{priceHeader}</span>
                         <NumberInput value={l.unit_price || null} onChange={(v) => patchLine(l.id, { unit_price: v >= 0 ? v : 0 })} placeholder="Fiyat" className={cn(cellInputCls, "h-10 text-right")} />
                       </label>
                       <label className="min-w-0">
@@ -868,10 +878,10 @@ function QuickDocForm({
                       </div>
                       {isPurchase && (
                         <label className="min-w-0">
-                          <span className={lbl}>Raf fiyatı (dahil)</span>
+                          <span className={lbl}>Satış fiyatı (raf)</span>
                           <NumberInput
-                            value={l.shelf_price || null}
-                            onChange={(v) => patchLine(l.id, { shelf_price: v >= 0 ? v : 0 })}
+                            value={shelfShown(l) || null}
+                            onChange={(v) => setShelfShown(l, v)}
                             placeholder="raf fiyatı"
                             disabled={l.kind === "free"}
                             className={cn(cellInputCls, "h-10 text-right")}
@@ -880,8 +890,15 @@ function QuickDocForm({
                       )}
                     </div>
                     <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-2">
-                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tutar (KDV dahil)</span>
-                      <span className="font-bold tabular-nums">{formatNumber(lineTotal)}</span>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0">Tutar</span>
+                      <div className="w-40">
+                        <NumberInput
+                          value={round2(lineAmount(l)) || null}
+                          onChange={(v) => setLineAmount(l, v)}
+                          className={cn(cellInputCls, "h-10 text-right font-bold")}
+                          aria-label="Tutar"
+                        />
+                      </div>
                     </div>
                   </div>
                 );
@@ -903,21 +920,17 @@ function QuickDocForm({
                     <th className="px-3 py-3 text-left">Ürün</th>
                     <th className="px-2 py-3 text-right w-24">Miktar</th>
                     <th className="px-2 py-3 text-left w-24">Birim</th>
-                    <th className="px-2 py-3 text-right w-32 leading-tight">
-                      {priceHeader} ({inclVat ? "KDV dahil" : "KDV hariç"})
-                    </th>
+                    <th className="px-2 py-3 text-right w-32 leading-tight">{priceHeader}</th>
                     <th className="px-2 py-3 text-left w-24">KDV %</th>
                     <th className="px-2 py-3 text-left w-32 leading-tight">İskonto % <span className="normal-case font-medium">(ör. 10+5)</span></th>
-                    <th className="px-2 py-3 text-right w-28 leading-tight">Tutar (KDV dahil)</th>
-                    {isPurchase && <th className="px-2 py-3 text-right w-32 leading-tight">Satış fiyatı (raf · KDV dahil)</th>}
+                    <th className="px-2 py-3 text-right w-32 leading-tight">Tutar</th>
+                    {isPurchase && <th className="px-2 py-3 text-right w-32 leading-tight">Satış fiyatı (raf)</th>}
                     <th className="px-2 py-3 w-10" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {lines.map((l, idx) => {
                     const product = l.product_id ? products.data?.find((p) => p.id === l.product_id) : null;
-                    const lineBase = l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100);
-                    const lineTotal = inclVat ? lineBase : lineBase * (1 + l.vat_rate / 100);
                     const matches = activeLine === l.id && l.kind !== "product" ? searchProducts(products.data ?? [], l.name) : [];
                     return (
                       <tr key={l.id} className="align-top">
@@ -1042,12 +1055,19 @@ function QuickDocForm({
                             className="[&_input]:h-10 [&_input]:text-sm"
                           />
                         </td>
-                        <td className="px-2 py-2.5 text-right font-bold tabular-nums pt-5">{formatNumber(lineTotal)}</td>
+                        <td className="px-2 py-2.5">
+                          <NumberInput
+                            value={round2(lineAmount(l)) || null}
+                            onChange={(v) => setLineAmount(l, v)}
+                            className={cn(cellInputCls, "h-10 text-right font-bold")}
+                            aria-label="Tutar"
+                          />
+                        </td>
                         {isPurchase && (
                           <td className="px-2 py-2.5">
                             <NumberInput
-                              value={l.shelf_price || null}
-                              onChange={(v) => patchLine(l.id, { shelf_price: v >= 0 ? v : 0 })}
+                              value={shelfShown(l) || null}
+                              onChange={(v) => setShelfShown(l, v)}
                               placeholder="raf fiyatı"
                               disabled={l.kind === "free"}
                               className={cn(cellInputCls, "h-10 text-right")}
