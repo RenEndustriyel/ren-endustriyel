@@ -306,7 +306,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
           )}
 
           {/* Belge bilgileri — belge penceresiyle aynı düzen */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <div className="doc-head grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <div className="space-y-1.5 sm:col-span-2">
               <span className={lbl}>{cfg.contactLabel}</span>
               <div className={box}>

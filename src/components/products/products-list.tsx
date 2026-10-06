@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Presentation,
-  Tags,
   Download,
   Images,
   FileSpreadsheet,
@@ -440,7 +439,7 @@ export function ProductsList() {
         <div className="flex-1 min-h-0">
           {/* 2. Başlık ve Aksiyon Butonları (Pusulam Birebir) */}
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 lg:gap-4 mb-5">
-            <div className="min-w-0 lg:min-w-[12rem] lg:shrink-0 lg:max-w-[45%]">
+            <div className="min-w-0 lg:min-w-[12rem] lg:shrink-0 lg:max-w-[30%]">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                 Ürünler / Hizmetler
               </h1>
@@ -450,7 +449,7 @@ export function ProductsList() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 min-w-0 lg:justify-end">
-              <div className="flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:whitespace-nowrap">
+              <div className="flex gap-1.5 overflow-x-auto sm:flex-wrap sm:justify-end sm:overflow-visible -mx-3 px-3 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:whitespace-nowrap [&>.btn-ghost]:!px-3 [&>.btn-ghost]:!text-[13px]">
                 <button
                   type="button"
                   onClick={() => setSlideSelectMode((v) => !v)}
@@ -461,15 +460,6 @@ export function ProductsList() {
                 >
                   <Presentation size={16} />
                   <span>{slideSelectMode ? "Seçimi Bitir" : "Slayt için seç"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("brands")}
-                  className="btn-ghost"
-                >
-                  <Tags size={16} />
-                  <span>Marka & Kategori</span>
                 </button>
 
                 <button

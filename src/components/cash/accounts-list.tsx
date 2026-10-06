@@ -47,9 +47,11 @@ export function AccountsList() {
 
   // Group accounts
   const cashAccounts = accounts.filter((a) => a.type === "cash" && a.is_active);
-  const bankAccounts = accounts.filter((a) => a.type === "bank" && a.is_active);
-  const posAccounts = accounts.filter((a) => (a.type as string) === "pos" || a.name.toLowerCase().includes("pos"));
-  const creditCardAccounts = accounts.filter((a) => a.type === "credit_card" && a.is_active && !a.name.toLowerCase().includes("pos"));
+  // POS hesapları yalnızca kendi grubunda görünsün (önceden banka grubunda da tekrar listeleniyordu)
+  const isPos = (a: (typeof accounts)[number]) => (a.type as string) === "pos" || /(^|\s)pos(\s|$)/i.test(a.name);
+  const bankAccounts = accounts.filter((a) => a.type === "bank" && a.is_active && !isPos(a));
+  const posAccounts = accounts.filter((a) => a.is_active && isPos(a));
+  const creditCardAccounts = accounts.filter((a) => a.type === "credit_card" && a.is_active && !isPos(a));
 
   // Calculate total TL assets
   const totalTl = accounts

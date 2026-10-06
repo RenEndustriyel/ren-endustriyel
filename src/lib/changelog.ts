@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.8";
+export const LATEST_VERSION = "2.5.9";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.9",
+    date: "6 Ekim 2026",
+    title: "Profesyonel Belge Başlığı ve Görünüm Düzeltmeleri",
+    badge: "Kurumsal",
+    items: [
+      { type: "iyilestirme", title: "Yeni belge başlığı", description: "Alış, satış, teklif, sipariş ve iadelerde üst bölüm iki karta ayrıldı: 'Cari ve belge' ile 'Tarih ve ödeme'. Vade için 7/14/30/60/90 gün şeridi, ödeme durumu ve IBAN aynı kartta; para birimi başlıkta küçük seçici." },
+      { type: "duzeltme", title: "POS hesapları iki kez görünüyordu", description: "Hesaplar sayfasında POS hesapları hem banka hem POS grubunda listeleniyordu; artık yalnızca POS grubunda." },
+      { type: "iyilestirme", title: "Ürünler başlığı tek satır", description: "Ürünler sayfasındaki düğmeler düzenlendi; sekmeyle aynı işi yapan kopya düğme kaldırıldı." },
+      { type: "duzeltme", title: "Mahsup kayıtlarının hesap adı", description: "Tahsilat ve ödemeler listesinde otomatik mahsup kayıtları 'Portföy' yerine 'Mahsup' olarak görünür." },
+    ],
+  },
   {
     version: "2.5.8",
     date: "6 Ekim 2026",

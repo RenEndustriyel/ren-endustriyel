@@ -30,6 +30,10 @@ type Txn = Row<"transactions"> & {
   category: { name: string } | null;
 };
 
+/** Kasasız hareket: otomatik mahsup ya da çek/senet portföyü */
+const accountLabel = (t: { account?: { name: string } | null; type?: string; reference?: string | null }) =>
+  t.account?.name ?? (t.type === "adjustment" && (t.reference ?? "").startsWith("oto-mahsup") ? "Mahsup" : "Portföy");
+
 export function TransactionsList() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -310,7 +314,7 @@ export function TransactionsList() {
               </div>
             ),
           },
-          { key: "a", header: "Hesap", hideBelow: "md", sortValue: (t) => t.account?.name ?? "Portföy", cell: (t) => <span className="text-muted font-medium">{t.account?.name ?? "Portföy"}</span> },
+          { key: "a", header: "Hesap", hideBelow: "md", sortValue: (t) => accountLabel(t), cell: (t) => <span className="text-muted font-medium">{accountLabel(t)}</span> },
           {
             key: "amt",
             header: "Tutar",

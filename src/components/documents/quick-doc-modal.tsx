@@ -114,7 +114,7 @@ function calculate(lines: Line[], inclVat: boolean, discountType: "rate" | "amou
 // Küçük parçalar
 // ---------------------------------------------------------------------------
 
-const labelCls = "text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+const labelCls = "block text-[11px] leading-4 font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300";
 const fieldCls =
   "w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3.5 text-sm font-medium outline-none focus:border-brand-400 transition";
 const cellInputCls =
@@ -1224,7 +1224,36 @@ function QuickDocForm({
       >
         {/* Başlık */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-5 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight">{title}</h2>
+          <div className="flex min-w-0 items-center gap-3">
+            <h2 className="text-lg sm:text-xl font-bold tracking-tight truncate">{title}</h2>
+            <select
+              aria-label="Para birimi"
+              title="Para birimi"
+              className="h-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 text-xs font-bold text-slate-700 dark:text-slate-200"
+              value={currency}
+              onChange={(e) => {
+                setCurrency(e.target.value);
+                setRateOverride(null);
+              }}
+            >
+              <option value="TRY">₺ TRY</option>
+              <option value="USD">$ USD</option>
+              <option value="EUR">€ EUR</option>
+            </select>
+            {currency !== "TRY" && (
+              <span className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                Kur
+                <input
+                  type="number"
+                  step="0.0001"
+                  aria-label="Döviz kuru"
+                  className="h-8 w-24 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 text-xs"
+                  value={exchangeRate}
+                  onChange={(e) => setRateOverride(Number(e.target.value) || null)}
+                />
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -1261,183 +1290,180 @@ function QuickDocForm({
             </div>
           )}
           {/* Üst alanlar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-            <label className="space-y-1.5">
-              <span className={labelCls}>{contactLabel}</span>
-              <ContactCombo
-                value={contactId}
-                options={contactOptions}
-                label={contactLabel}
-                onChange={setContactId}
-                onCreate={createContact}
-                className={fieldCls}
-              />
-            </label>
-            <label className="space-y-1.5">
-              <span className={labelCls}>Belge türü</span>
-              {fixedType ? (
-                <div className={cn(fieldCls, "flex items-center bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100")}>{cfg.label}</div>
-              ) : (
-                <select className={fieldCls} value={kind} onChange={(e) => setKind(e.target.value as QuickDocKind)}>
-                  <option value="Fatura">Fatura</option>
-                  <option value="İrsaliye">İrsaliye</option>
-                  <option value="Sipariş">Sipariş</option>
-                </select>
-              )}
-            </label>
-            {docType === "quote" && (
-              <label className="space-y-1.5">
-                <span className={labelCls}>Geçerlilik</span>
-                <DateInput type="date" className={fieldCls} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
-              </label>
-            )}
-            <label className="space-y-1.5">
-              <span className={labelCls}>Tarih</span>
-              <DateInput type="date" className={fieldCls} value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
-            </label>
-            {cfg.payable && (
-              <label className="space-y-1.5">
-                <span className={cn(labelCls, "flex items-center justify-between gap-2")}>
-                  <span>
-                    {isOrderDoc ? "Teslim / hatırlatma" : "Vade"}
-                    {!isOrderDoc && termDays > 0 && <span className="normal-case font-semibold"> · {termDays} gün</span>}
-                  </span>
-                  {!(showPayment && paid) && (
-                    <select
-                      aria-label="Hızlı vade"
-                      title="Belge tarihinden itibaren hızlı vade"
-                      className="-my-1 h-[18px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1 py-0 text-[11px] leading-none font-semibold normal-case text-slate-700 dark:text-slate-200"
-                      value={String([7, 14, 30, 60, 90].find((d) => addDays(issueDate, d) === dueDate) ?? "")}
-                      onChange={(e) => {
-                        const d = Number(e.target.value);
-                        if (!d) return;
-                        dueTouched.current = true;
-                        setDueDate(addDays(issueDate, d));
-                      }}
-                    >
-                      <option value="">hızlı…</option>
-                      {[7, 14, 30, 60, 90].map((d) => (
-                        <option key={d} value={d}>
-                          {d} gün
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </span>
-                {showPayment && paid ? (
-                  <div className={cn(fieldCls, "flex items-center bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300")}>Peşin — vade yok</div>
-                ) : (
-                  <DateInput
-                    className={fieldCls}
-                    value={dueDate}
-                    title={isOrderDoc ? "Bu tarih geldiğinde bildirim gelir" : undefined}
-                    onChange={(e) => {
-                      dueTouched.current = true;
-                      setDueDate(e.target.value);
-                    }}
-                  />
+          {/* Belge başlığı — sol: cari ve belge, sağ: tarih ve ödeme */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Cari ve belge */}
+            <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 p-4 space-y-3">
+              <h3 className={cn(labelCls, "text-slate-700 dark:text-slate-200")}>{contactLabel} ve belge</h3>
+              <label className="block space-y-1.5">
+                <span className={labelCls}>{contactLabel}</span>
+                <ContactCombo
+                  value={contactId}
+                  options={contactOptions}
+                  label={contactLabel}
+                  onChange={setContactId}
+                  onCreate={createContact}
+                  className={fieldCls}
+                />
+                {contactId && termDays > 0 && !isOrderDoc && (
+                  <span className="block text-xs text-slate-600 dark:text-slate-300">Cari vade süresi: {termDays} gün</span>
                 )}
               </label>
-            )}
-            <label className="space-y-1.5">
-              <span className={labelCls}>{isPurchase ? "Belge no (tedarikçi)" : "Belge no"}</span>
-              <input
-                className={cn(fieldCls, "font-mono placeholder:font-mono placeholder:text-slate-400")}
-                placeholder={isPurchase ? "ör. DMK2026000004172" : "otomatik verilir"}
-                value={number}
-                onChange={(e) => setNumber(e.target.value)}
-              />
-            </label>
-            <label className="space-y-1.5">
-              <span className={labelCls}>Para birimi</span>
-              <select
-                className={fieldCls}
-                value={currency}
-                onChange={(e) => {
-                  setCurrency(e.target.value);
-                  setRateOverride(null);
-                }}
-              >
-                <option value="TRY">₺ TRY</option>
-                <option value="USD">$ USD</option>
-                <option value="EUR">€ EUR</option>
-              </select>
-              {currency !== "TRY" && (
-                <span className="flex items-center gap-2 text-xs text-slate-500">
-                  Kur
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1.5">
+                  <span className={labelCls}>Belge türü</span>
+                  {fixedType ? (
+                    <div className={cn(fieldCls, "flex items-center bg-slate-100 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-100")}>{cfg.label}</div>
+                  ) : (
+                    <select className={fieldCls} value={kind} onChange={(e) => setKind(e.target.value as QuickDocKind)}>
+                      <option value="Fatura">Fatura</option>
+                      <option value="İrsaliye">İrsaliye</option>
+                      <option value="Sipariş">Sipariş</option>
+                    </select>
+                  )}
+                </label>
+                <label className="block space-y-1.5">
+                  <span className={labelCls}>{isPurchase ? "Belge no (tedarikçi)" : "Belge no"}</span>
                   <input
-                    type="number"
-                    step="0.0001"
-                    className="h-7 w-24 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-2 text-xs"
-                    value={exchangeRate}
-                    onChange={(e) => setRateOverride(Number(e.target.value) || null)}
+                    className={cn(fieldCls, "font-mono placeholder:font-sans placeholder:text-slate-500")}
+                    placeholder={isPurchase ? "ör. DMK2026000004172" : "Otomatik verilir"}
+                    value={number}
+                    onChange={(e) => setNumber(e.target.value)}
                   />
-                </span>
-              )}
-            </label>
-          </div>
+                </label>
+              </div>
+            </section>
 
-          {/* Ödeme ve IBAN — üstte */}
-          {(showPayment || !isPurchase) && (
-            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3">
-              {showPayment && (
-                <div className="space-y-1.5">
-                  <span className={cn(labelCls, "block")}>Ödeme durumu</span>
-                  <div className="inline-flex overflow-hidden rounded-xl border border-slate-300 dark:border-slate-600">
-                    {[
-                      { v: true, label: isPurchase ? "Ödendi (Peşin)" : "Tahsil edildi (Peşin)" },
-                      { v: false, label: "Açık (Vadeli)" },
-                    ].map((o) => (
-                      <button
-                        key={String(o.v)}
-                        type="button"
-                        onClick={() => setPaid(o.v)}
-                        className={cn(
-                          "h-11 px-4 text-sm font-bold transition",
-                          paid === o.v ? "bg-brand-500 text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
-                        )}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
+            {/* Tarih ve ödeme */}
+            <section className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 p-4 space-y-3">
+              <h3 className={cn(labelCls, "text-slate-700 dark:text-slate-200")}>Tarih ve ödeme</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block space-y-1.5">
+                  <span className={labelCls}>Belge tarihi</span>
+                  <DateInput type="date" className={fieldCls} value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+                </label>
+                {docType === "quote" ? (
+                  <label className="block space-y-1.5">
+                    <span className={labelCls}>Geçerlilik</span>
+                    <DateInput type="date" className={fieldCls} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+                  </label>
+                ) : cfg.payable ? (
+                  <label className="block space-y-1.5">
+                    <span className={labelCls}>{isOrderDoc ? "Teslim / hatırlatma" : "Vade tarihi"}</span>
+                    {showPayment && paid ? (
+                      <div className={cn(fieldCls, "flex items-center bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300")}>Peşin — vade yok</div>
+                    ) : (
+                      <DateInput
+                        className={fieldCls}
+                        value={dueDate}
+                        title={isOrderDoc ? "Bu tarih geldiğinde bildirim gelir" : undefined}
+                        onChange={(e) => {
+                          dueTouched.current = true;
+                          setDueDate(e.target.value);
+                        }}
+                      />
+                    )}
+                  </label>
+                ) : (
+                  <div />
+                )}
+              </div>
+
+              {/* Hızlı vade: belge tarihinden itibaren */}
+              {cfg.payable && !(showPayment && paid) && docType !== "quote" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{isOrderDoc ? "Hatırlat:" : "Vade süresi:"}</span>
+                  <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600">
+                    {[7, 14, 30, 60, 90].map((d, i) => {
+                      const target = addDays(issueDate, d);
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => {
+                            dueTouched.current = true;
+                            setDueDate(target);
+                          }}
+                          className={cn(
+                            "h-8 px-3 text-xs font-semibold transition",
+                            i > 0 && "border-l border-slate-300 dark:border-slate-600",
+                            dueDate === target ? "bg-brand-500 text-white" : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+                          )}
+                        >
+                          {d} gün
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
-              {showPayment && paid && (
-                <label className="space-y-1.5 min-w-[12rem]">
-                  <span className={cn(labelCls, "block")}>Kasa / Hesap</span>
-                  <select className={fieldCls} value={effectiveAccountId} onChange={(e) => setAccountId(e.target.value)}>
-                    {accountList.length === 0 && <option value="">Kasa / hesap tanımlı değil</option>}
-                    {accountList.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                        {a.currency !== "TRY" ? ` (${a.currency})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
+              {showPayment && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <span className={cn(labelCls, "block")}>Ödeme durumu</span>
+                    <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-slate-300 dark:border-slate-600">
+                      {[
+                        { v: true, label: "Peşin" },
+                        { v: false, label: "Vadeli (açık)" },
+                      ].map((o, i) => (
+                        <button
+                          key={String(o.v)}
+                          type="button"
+                          onClick={() => setPaid(o.v)}
+                          className={cn(
+                            "h-10 text-sm font-semibold transition",
+                            i > 0 && "border-l border-slate-300 dark:border-slate-600",
+                            paid === o.v ? "bg-brand-500 text-white" : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+                          )}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {paid ? (
+                    <label className="block space-y-1.5">
+                      <span className={labelCls}>{isPurchase ? "Ödenen hesap" : "Tahsil edilen hesap"}</span>
+                      <select className={fieldCls} value={effectiveAccountId} onChange={(e) => setAccountId(e.target.value)}>
+                        {accountList.length === 0 && <option value="">Kasa / hesap tanımlı değil</option>}
+                        {accountList.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                            {a.currency !== "TRY" ? ` (${a.currency})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div />
+                  )}
+                </div>
               )}
+
               {!isPurchase && (
-              <div className="space-y-1.5 min-w-[14rem] flex-1">
-                <label className="flex h-[18px] items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={ibanOn} onChange={(e) => setIbanOn(e.target.checked)} className="h-4 w-4 accent-brand-600" />
-                  <span className={labelCls}>Banka IBAN&apos;ı belgeye eklensin</span>
-                </label>
-                {bankAccounts.length === 0 ? (
-                  <div className="h-11 flex items-center text-xs text-slate-600 dark:text-slate-300">IBAN&apos;ı girilmiş banka hesabı yok (Hesaplar → banka hesabı düzenle)</div>
-                ) : (
-                  <select className={fieldCls} disabled={!ibanOn} value={effectiveIbanId} onChange={(e) => setIbanAccountId(e.target.value)}>
-                    {bankAccounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.bank_name || a.name} — {a.iban}
-                      </option>
+                <div className="space-y-1.5 border-t border-slate-200 dark:border-slate-700 pt-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={ibanOn} onChange={(e) => setIbanOn(e.target.checked)} className="h-4 w-4 accent-brand-600" />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Banka IBAN&apos;ını belgeye ekle</span>
+                  </label>
+                  {ibanOn &&
+                    (bankAccounts.length === 0 ? (
+                      <p className="text-xs text-slate-600 dark:text-slate-300">IBAN&apos;ı girilmiş banka hesabı yok — Hesaplar&apos;dan banka hesabınıza IBAN ekleyin.</p>
+                    ) : (
+                      <select className={fieldCls} value={effectiveIbanId} onChange={(e) => setIbanAccountId(e.target.value)}>
+                        {bankAccounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.bank_name || a.name} — {a.iban}
+                          </option>
+                        ))}
+                      </select>
                     ))}
-                  </select>
-                )}
-              </div>
+                </div>
               )}
-            </div>
-          )}
+            </section>
+          </div>
 
           {/* Kalemler */}
           <div className="space-y-2" ref={linesRoot}>
