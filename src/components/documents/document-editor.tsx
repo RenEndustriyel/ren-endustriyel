@@ -540,12 +540,14 @@ function EditorInner({
             if (!l.product_id) continue;
             const p = products.data?.find((x) => x.id === l.product_id);
             const netBuy = calcNetPurchasePrice(l, p);
+            // KDV'siz (%0) alış: ödenen tutar maliyettir; ürünün satış KDV oranı değişmez
+            const noVat = Number(l.vat_rate) === 0;
             await supabase
               .from("products")
               .update({
                 purchase_price: isVatExcluded ? (netBuy > 0 ? netBuy : l.unit_price) : l.unit_price,
-                purchase_price_includes_vat: !isVatExcluded,
-                vat_rate: l.vat_rate,
+                purchase_price_includes_vat: noVat ? false : !isVatExcluded,
+                ...(noVat ? {} : { vat_rate: l.vat_rate }),
                 updated_at: new Date().toISOString(),
               })
               .eq("id", l.product_id);

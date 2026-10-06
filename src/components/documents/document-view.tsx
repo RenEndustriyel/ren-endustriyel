@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRows, useRpc, useUnits, useProducts, useContactBalances, type Row } from "@/lib/data";
-import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, docFlow, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, docBalanceInfo, docFlow, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
 import { formatDate, formatMoney, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,21 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
       return (data as unknown as Alloc[]).filter((a) => a.transaction && !a.transaction.deleted_at);
     },
   });
+  // Satış belgesinin stok hareketlerindeki maliyet (kalem başına, TL, KDV hariç) — tahmini kâr raporlarla aynı olsun
+  const moves = useRows<{ document_line_id: string | null; quantity: number; unit_cost: number | null }>("stock_movements", {
+    select: "document_line_id, quantity, unit_cost",
+    params: ["belge_maliyet", id],
+    enabled: DOC_TYPES[type].side === "sales",
+    filter: (x) => x.eq("document_id", id),
+  });
+  const lineCost = React.useMemo(() => {
+    const m = new Map<string, number>();
+    for (const x of moves.data ?? []) {
+      if (!x.document_line_id) continue;
+      m.set(x.document_line_id, (m.get(x.document_line_id) ?? 0) - Number(x.quantity) * Number(x.unit_cost ?? 0));
+    }
+    return m;
+  }, [moves.data]);
   const related = useRows<Row<"documents">>("documents", {
     params: ["related", id],
     filter: (x) => x.eq("source_document_id", id),
@@ -88,29 +103,11 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
     ? (contactBalances.data?.find((b) => b.contact_id === d.contact_id)?.balance ?? null)
     : null;
 
-  const balanceInfo = (() => {
-    if (!d || !d.contact_id || currentContactBalance === null || currentContactBalance === undefined) return null;
-    const isSales = d.doc_type?.startsWith("sales") || d.doc_type === "pos_sale" || d.doc_type === "quote";
-    const docAmtTry = Number(d.total_try ?? Number(d.total || 0) * Number(d.exchange_rate || 1));
-    const thisDocAmt = Number(d.total || 0);
-    const isActiveInBalance = d.status !== "draft" && d.status !== "cancelled";
-
-    let prevBal = 0;
-    let curBal = Number(currentContactBalance || 0);
-
-    if (isActiveInBalance) {
-      prevBal = isSales ? curBal - docAmtTry : curBal + docAmtTry;
-    } else {
-      prevBal = curBal;
-      curBal = isSales ? prevBal + docAmtTry : prevBal - docAmtTry;
-    }
-
-    return {
-      previous_balance: Math.round((prevBal || 0) * 100) / 100,
-      this_amount: thisDocAmt,
-      current_balance: Math.round((curBal || 0) * 100) / 100,
-    };
-  })();
+  // Ekrandaki bakiye (açık siparişler dahil) bu belgeyi taslak değilse zaten içerir
+  const balanceInfo =
+    d.contact_id && currentContactBalance !== null && currentContactBalance !== undefined
+      ? docBalanceInfo(d, Number(currentContactBalance || 0), d.status !== "draft")
+      : null;
 
   const docForPdf = { ...d, lines, contact_balance_info: balanceInfo };
   const phone = (contact.data?.find((c) => c.id === d.contact_id)?.mobile ?? "").replace(/\D/g, "");
@@ -124,14 +121,23 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
       if (!l.product_id) continue;
       const p = products.data?.find((x) => x.id === l.product_id);
       if (!p) continue;
-      const rawBuy = Number(p.purchase_price ?? 0);
+      const factor = Number(l.unit_factor || 1);
+      // 1) Belgenin stok hareketindeki maliyet (raporlarla aynı; TL, KDV hariç)
+      const moved = lineCost.get(l.id);
+      if (moved != null && moved > 0) {
+        totalCost += moved / (d.currency === "TRY" ? 1 : Number(d.exchange_rate || 1));
+        validCount++;
+        continue;
+      }
+      // 2) Ortalama maliyet (TL, KDV hariç; KDV'siz alışta ödenen tutar) 3) kart alış fiyatı
+      const avg = Number(p.avg_cost ?? 0);
+      const rawBuy = avg > 0 ? avg : Number(p.purchase_price ?? 0);
       if (rawBuy <= 0) continue;
-      const buyExclVat = p.purchase_price_includes_vat
+      const buyExclVat = avg <= 0 && p.purchase_price_includes_vat
         ? rawBuy / (1 + Number(p.vat_rate || 0) / 100)
         : rawBuy;
-      const factor = Number(l.unit_factor || 1);
       const baseBuy = buyExclVat * factor;
-      const prodCur = p.purchase_currency || "TRY";
+      const prodCur = avg > 0 ? "TRY" : p.purchase_currency || "TRY";
       let buyInDocCur = baseBuy;
       if (prodCur !== d.currency) {
         const inTry = baseBuy * (prodCur === "TRY" ? 1 : rateFor(rates.data, prodCur) || 1);

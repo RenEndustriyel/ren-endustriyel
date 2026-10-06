@@ -257,7 +257,9 @@ export function ProductsList() {
     return all.reduce((sum, p) => {
       if (p.type !== "product") return sum;
       const qty = Math.max(Number(p.stock_qty || 0), 0);
-      const cost = Number(p.purchase_price || p.avg_cost || 0);
+      // Maliyet KDV hariç: ortalama maliyet (KDV'siz alışta ödenen tutar), yoksa kart alış fiyatının KDV hariç karşılığı
+      const buy = Number(p.purchase_price || 0);
+      const cost = Number(p.avg_cost) > 0 ? Number(p.avg_cost) : p.purchase_price_includes_vat ? buy / (1 + Number(p.vat_rate || 0) / 100) : buy;
       return sum + qty * cost;
     }, 0);
   }, [all]);

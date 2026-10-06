@@ -14,9 +14,23 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.11";
+export const LATEST_VERSION = "2.5.12";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.12",
+    date: "7 Ekim 2026",
+    title: "KDV'li / KDV'siz Raporlar ve Doğru Bakiye Çıktısı",
+    badge: "Rapor",
+    items: [
+      { type: "yeni", title: "Satış & Alış Analizi", description: "Raporlar > Satış'ta Satış / Alış seçimi ve Tümü / KDV'li / KDV'siz filtresi. KDV'li ve KDV'siz satışlar ayrı sütunlarda, her birinin kârı ve marjı ayrı; alışta indirilecek KDV ve KDV'siz alış ayrı gösterilir." },
+      { type: "duzeltme", title: "Kâr hesabı", description: "Maliyet raporlarla aynı kurala bağlandı: KDV'li alışta KDV hariç fiyat, KDV'siz (%0) alışta ödenen tutarın tamamı. Belge ekranındaki tahmini kâr da satıştaki gerçek maliyeti kullanır." },
+      { type: "duzeltme", title: "KDV'siz alış ürün kartını bozmaz", description: "KDV %0 girilen alış artık ürün kartının satış KDV oranını 0'a çevirmez; ödenen tutar KDV hariç maliyet olarak kaydedilir." },
+      { type: "duzeltme", title: "Fatura çıktısında bakiye", description: "Listeden ya da PDF'ten alınan çıktıda fatura tutarı bakiyeye iki kez ekleniyordu; önceki ve güncel bakiye artık ekrandakiyle aynı. Satış iadesi bakiyeyi doğru yönde düşer, teklif bakiyeyi değiştirmez." },
+      { type: "iyilestirme", title: "Cari kartında devir bakiyesi", description: "Açılış (devir) bakiyesi olan carilerde güncel bakiyenin altında devir tutarı görünür." },
+      { type: "iyilestirme", title: "Stok değeri", description: "Ürünler sayfasındaki stok değeri KDV hariç ortalama maliyetle hesaplanır." },
+    ],
+  },
   {
     version: "2.5.11",
     date: "6 Ekim 2026",

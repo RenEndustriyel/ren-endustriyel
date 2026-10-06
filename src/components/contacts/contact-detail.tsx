@@ -655,6 +655,11 @@ export function ContactDetail({ id }: { id: string }) {
             <div className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
               Açık belge: {formatMoney(openDocsTotal)}
             </div>
+            {Math.abs(Number(c.opening_balance ?? 0)) > 0.004 && (
+              <div className="mt-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400" title="Cari kartındaki açılış bakiyesi; güncel bakiyeye dahildir">
+                Devir (açılış) bakiyesi: {formatMoney(Math.abs(Number(c.opening_balance)))}
+              </div>
+            )}
           </div>
         </div>
       </div>

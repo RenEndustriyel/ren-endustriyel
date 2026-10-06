@@ -116,6 +116,41 @@ export function statusTone(status: string): "success" | "danger" | "warning" | "
   return "warning";
 }
 
+// Belgenin cari bakiyeye etkisi: +1 müşteri bize borçlanır / tedarikçiye borcumuz azalır, -1 tersi, 0 etkisiz
+const BALANCE_SIGN: Partial<Record<DocType, number>> = {
+  sales_invoice: 1,
+  pos_sale: 1,
+  sales_order: 1,
+  purchase_return: 1,
+  purchase_invoice: -1,
+  purchase_order: -1,
+  sales_return: -1,
+};
+
+/** Belge şu an bakiyeye işliyor mu? (taslak hariç; iptal ve faturalanmış sipariş işlemez) */
+export function balanceSign(type: string, status: string): number {
+  if (status === "cancelled") return 0;
+  if (status === "converted" && (type === "sales_order" || type === "purchase_order")) return 0;
+  return BALANCE_SIGN[type as DocType] ?? 0;
+}
+
+/**
+ * Çıktıdaki "Önceki bakiye / Bu belge / Güncel bakiye".
+ * `balance`: carinin güncel bakiyesi (TL). `included`: bu belge o bakiyenin içinde mi.
+ * Taslak belgede güncel bakiye, belge kaydedilirse oluşacak bakiyeyi gösterir.
+ */
+export function docBalanceInfo(
+  doc: { doc_type: string; status: string; total: number | null; total_try?: number | null; exchange_rate?: number | null },
+  balance: number,
+  included: boolean,
+) {
+  const sign = balanceSign(doc.doc_type, doc.status);
+  const amt = Number(doc.total_try ?? Number(doc.total || 0) * Number(doc.exchange_rate || 1));
+  const without = included ? balance - sign * amt : balance;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  return { previous_balance: r2(without), this_amount: Number(doc.total || 0), current_balance: r2(without + sign * amt) };
+}
+
 export const VAT_RATES = [0, 1, 10, 20];
 export const CURRENCIES = ["TRY", "USD", "EUR"];
 

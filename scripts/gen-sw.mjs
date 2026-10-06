@@ -24,7 +24,8 @@ function walk(dir) {
 walk(appDir);
 routes.delete("/");
 
-const version = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ?? Date.now().toString(36);
+// CLI ile yayında VERCEL_GIT_COMMIT_SHA boş gelir → her derlemede yeni sürüm (eski önbellek temizlensin)
+const version = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) || Date.now().toString(36);
 const tpl = readFileSync(join(root, "scripts/sw.template.js"), "utf8");
 writeFileSync(join(root, "public/sw.js"), tpl.replace("__VERSION__", version).replace("__ROUTES__", JSON.stringify([...routes].sort())));
 console.log(`sw.js: sürüm ${version}, ${routes.size} sayfa`);

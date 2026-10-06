@@ -1078,7 +1078,7 @@ function QuickDocForm({
           track_stock: true,
           is_active: true,
           purchase_price: isPurchase ? toTry(l.unit_price / (l.unit_factor || 1)) : 0,
-          purchase_price_includes_vat: inclVat,
+          purchase_price_includes_vat: isPurchase && Number(l.vat_rate) === 0 ? false : inclVat,
           // Satış fiyatı ürün kartına her zaman KDV DAHİL kaydedilir (KDV hariç girildiyse KDV eklenir)
           sale_price: isPurchase ? l.shelf_price : round2(convertVat(toTry(l.unit_price / (l.unit_factor || 1)), l.vat_rate, inclVat, true)),
           sale_price_includes_vat: true,
@@ -1167,11 +1167,13 @@ function QuickDocForm({
           if (l.kind !== "product" || !l.product_id) continue;
           const p = products.data?.find((x) => x.id === l.product_id);
           if (!p) continue; // yeni oluşturulan ürün zaten güncel
+          // KDV'siz (%0) alış: ödenen tutar maliyettir (KDV hariç sayılır); ürünün satış KDV oranı değişmez
+          const noVat = Number(l.vat_rate) === 0;
           const patch: Record<string, unknown> = {
             // birim çarpanı (koli vb.) varsa ana birim fiyatı
             purchase_price: toTry(l.unit_price / (l.unit_factor || 1)),
-            purchase_price_includes_vat: inclVat,
-            vat_rate: l.vat_rate,
+            purchase_price_includes_vat: noVat ? false : inclVat,
+            ...(noVat ? {} : { vat_rate: l.vat_rate }),
           };
           const currentShelf = round2(convertVat(Number(p.sale_price), Number(p.vat_rate), p.sale_price_includes_vat, true));
           if (l.shelf_price > 0 && Math.abs(l.shelf_price - currentShelf) > 0.004) {

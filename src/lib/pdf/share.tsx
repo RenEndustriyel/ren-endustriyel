@@ -4,7 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { supabase, type Tables } from "@/lib/supabase/client";
 import { downloadBlob } from "@/lib/excel";
-import { DOC_TYPES, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, docBalanceInfo, type DocType } from "@/lib/doc-types";
 import { TYPE_LABELS } from "@/components/dashboard/types";
 
 type Org = Tables<"organizations">;
@@ -297,25 +297,10 @@ export async function shareDocumentPdf(
           }
         }
 
-        const isSales = doc.doc_type.startsWith("sales") || doc.doc_type === "pos_sale" || doc.doc_type === "quote";
-        const docAmtTry = Number(doc.total_try ?? Number(doc.total) * Number(doc.exchange_rate || 1));
-        const isActive = doc.status !== "draft" && doc.status !== "cancelled";
-
-        let prevBal = 0;
-        let curBal = 0;
-        if (isActive) {
-          curBal = baseBal + (cb?.includes_orders ? 0 : isSales ? docAmtTry : -docAmtTry);
-          prevBal = isSales ? curBal - docAmtTry : curBal + docAmtTry;
-        } else {
-          prevBal = baseBal;
-          curBal = isSales ? prevBal + docAmtTry : prevBal - docAmtTry;
-        }
-
-        balanceInfo = {
-          previous_balance: Math.round(prevBal * 100) / 100,
-          this_amount: Number(doc.total),
-          current_balance: Math.round(curBal * 100) / 100,
-        };
+        // baseBal: fatura/iade bakiyede zaten var; sipariş ise yukarıda kendisi hariç tutuldu (görünüm siparişi içermiyorsa)
+        const isOrder = doc.doc_type === "sales_order" || doc.doc_type === "purchase_order";
+        const included = doc.status !== "draft" && (!isOrder || !!cb?.includes_orders);
+        balanceInfo = docBalanceInfo(doc, baseBal, included);
       } catch (err) {
         console.warn("Bakiye bilgisi alınamadı:", err);
       }
