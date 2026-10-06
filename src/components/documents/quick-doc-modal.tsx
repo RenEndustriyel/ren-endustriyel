@@ -1555,7 +1555,9 @@ function QuickDocForm({
 
           {!showPayment && cfg.payable && (
             <label className="block space-y-1.5 border-t border-slate-200 dark:border-slate-800 pt-4">
-              <span className={labelCls}>Vade tarihi</span>
+              <span className={labelCls}>
+                {docType === "sales_order" || docType === "purchase_order" ? "Teslim / hatırlatma tarihi — o gün bildirim gelir" : "Vade tarihi"}
+              </span>
               <input type="date" className={fieldCls} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </label>
           )}

@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.5";
+export const LATEST_VERSION = "2.5.6";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.6",
+    date: "6 Ekim 2026",
+    title: "Sipariş Hatırlatmaları",
+    badge: "Hatırlatma",
+    items: [
+      { type: "yeni", title: "Tarihi gelen siparişler için uyarı", description: "Siparişte 'Teslim / hatırlatma tarihi' (ya da ileri yazılmış sipariş tarihi) geldiğinde zil bildirimlerinde 'Tarihi Gelen Siparişler' altında görünür ve uygulama o gün ilk açıldığında ekranda uyarı verir. Sipariş faturalanana veya iptal edilene kadar hatırlatılır." },
+    ],
+  },
   {
     version: "2.5.5",
     date: "6 Ekim 2026",

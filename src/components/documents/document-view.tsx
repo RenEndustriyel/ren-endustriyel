@@ -340,7 +340,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
               </div>
             ) : (
               <div className="space-y-1.5">
-                <span className={lbl}>Vade</span>
+                <span className={lbl}>{d.doc_type === "sales_order" || d.doc_type === "purchase_order" ? "Teslim / hatırlatma" : "Vade"}</span>
                 <div className={cn(box, overdue && "border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300 font-bold")}>
                   {d.due_date ? formatDate(d.due_date) : "—"}
                 </div>

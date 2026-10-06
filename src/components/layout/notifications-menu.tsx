@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, CheckCheck, PackageX } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, PackageCheck, PackageX } from "lucide-react";
+import { toast } from "sonner";
+import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { useRows, type Row } from "@/lib/data";
 import { formatMoney, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
@@ -49,8 +51,61 @@ export function NotificationsMenu() {
     order: [{ column: "due_date" }],
   });
 
+  // Tarihi gelen siparişler: teslim/hatırlatma tarihi (yoksa ileri yazılmış sipariş tarihi) bugün ya da geçmiş, sipariş hâlâ açık
+  const orders = useRows<{ id: string; doc_type: string; number: string | null; issue_date: string; due_date: string | null; created_at: string; total: number; currency: string; contact: { name: string } | null }>("documents", {
+    select: "id, doc_type, number, issue_date, due_date, created_at, total, currency, contact:contacts(name)",
+    params: ["siparis_hatirlatma"],
+    filter: (q) => q.in("doc_type", ["sales_order", "purchase_order"]).not("status", "in", '("draft","cancelled","converted","rejected")'),
+  });
+  const dueOrders = React.useMemo(() => {
+    return (orders.data ?? [])
+      .map((o) => {
+        const created = String(o.created_at).slice(0, 10);
+        const remind = o.due_date ?? (o.issue_date > created ? o.issue_date : null);
+        return remind ? { ...o, remind } : null;
+      })
+      .filter((o): o is NonNullable<typeof o> => !!o && o.remind <= today)
+      .sort((a, b) => a.remind.localeCompare(b.remind));
+  }, [orders.data, today]);
+
+  // Uygulama o gün ilk açıldığında bir kez ekranda uyar
+  React.useEffect(() => {
+    if (!dueOrders.length) return;
+    try {
+      const key = "ren-siparis-uyari-gun";
+      if (localStorage.getItem(key) === today) return;
+      localStorage.setItem(key, today);
+    } catch {}
+    const first = dueOrders[0];
+    toast.warning(`Tarihi gelen ${dueOrders.length} sipariş var`, {
+      description: dueOrders
+        .slice(0, 3)
+        .map((o) => `${o.doc_type === "sales_order" ? "Satış" : "Satın alma"} siparişi ${o.number ?? ""} · ${o.contact?.name ?? "cari yok"}`)
+        .join(" — "),
+      duration: 15000,
+      action: { label: "Aç", onClick: () => router.push(`${DOC_TYPES[first.doc_type as DocType].base}/detay?id=${first.id}`) },
+    });
+  }, [dueOrders, today, router]);
+
   const sections = React.useMemo<Section[]>(() => {
     const list: Section[] = [];
+
+    if (dueOrders.length) {
+      list.push({
+        key: "order",
+        title: `Tarihi Gelen Siparişler (${dueOrders.length})`,
+        icon: <PackageCheck size={13} />,
+        items: dueOrders.map((o) => {
+          const late = Math.round((Date.parse(today) - Date.parse(o.remind)) / 86400000);
+          return {
+            key: o.id,
+            label: `${o.doc_type === "sales_order" ? "Satış" : "Alış"} sip. ${o.number ?? ""} · ${o.contact?.name ?? "—"}`,
+            value: late > 0 ? `${late} gün geçti` : "bugün",
+            href: `${DOC_TYPES[o.doc_type as DocType].base}/detay?id=${o.id}`,
+          };
+        }),
+      });
+    }
 
     const stock = data?.critical_stock ?? [];
     if (stock.length) {
@@ -93,7 +148,7 @@ export function NotificationsMenu() {
       });
     }
     return list;
-  }, [data?.critical_stock, dues, cheques.data]);
+  }, [data?.critical_stock, dues, cheques.data, dueOrders, today]);
 
   const allIds = sections.flatMap((s) => s.items.map((it) => itemId(s.key, it)));
   const count = allIds.length;
