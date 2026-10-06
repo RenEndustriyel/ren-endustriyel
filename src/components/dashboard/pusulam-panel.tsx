@@ -5,40 +5,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  Banknote,
-  Bell,
-  Briefcase,
-  Building2,
-  Calendar,
+  ArrowLeftRight,
   CalendarClock,
   ChartColumn,
   CircleHelp,
   Clock,
   DollarSign,
   Eye,
+  RefreshCw,
   EyeOff,
-  FileCheck,
   FileText,
-  GraduationCap,
   HandCoins,
-  Landmark,
-  Megaphone,
-  Scale,
-  ScrollText,
-  ShoppingCart,
-  Sparkles,
-  Store,
-  Tag,
   TrendingUp,
   TriangleAlert,
-  Truck,
-  Users,
-  UsersRound,
-  Wallet,
-  Warehouse,
-  Zap,
-  type LucideIcon,
 } from "lucide-react";
+import { useNettedDues, type DueItem } from "./use-netted-dues";
+import { useRates, rateFor, triggerLiveRatesRefresh } from "@/lib/rates";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { formatCompact, formatDate, formatMoney, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -51,33 +33,6 @@ import { TYPE_LABELS, type DashboardSummary } from "./types";
 
 const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 const MONTHS_SHORT = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-
-/** Pusulam modül ızgarası; `soon` olanlar henüz uygulamada yok ve "Yakında" sayfasına gider */
-const MODULES: { label: string; href: string; icon: LucideIcon; color: string }[] = [
-  { label: "REN AI", href: "/yapay-zeka", icon: Sparkles, color: "text-purple-500 animate-pulse-slow" },
-  { label: "Hızlı Satış", href: "/hizli-satis", icon: Zap, color: "text-amber-500" },
-  { label: "Ürünler", href: "/urunler", icon: Tag, color: "text-violet-500" },
-  { label: "Alışlar", href: "/alislar", icon: Scale, color: "text-amber-500" },
-  { label: "Satışlar", href: "/satislar", icon: ShoppingCart, color: "text-emerald-500" },
-  { label: "Masraflar", href: "/masraflar", icon: Banknote, color: "text-rose-500" },
-  { label: "e-Fatura", href: "/e-fatura", icon: FileCheck, color: "text-teal-600" },
-  { label: "Şubeler", href: "/stok/depolar", icon: Building2, color: "text-sky-600" },
-  { label: "Stoklar", href: "/stok/hareketler", icon: Warehouse, color: "text-cyan-500" },
-  { label: "Müşteriler", href: "/musteriler", icon: Users, color: "text-sky-500" },
-  { label: "Tedarikçiler", href: "/tedarikciler", icon: Truck, color: "text-indigo-500" },
-  { label: "Teklifler", href: "/satislar/teklifler", icon: FileText, color: "text-purple-500" },
-  { label: "Çek & Senet", href: "/nakit/cek-senet", icon: ScrollText, color: "text-orange-600" },
-  { label: "Hesaplar", href: "/hesaplar", icon: Wallet, color: "text-teal-500" },
-  { label: "Banka Ekstresi", href: "/nakit/ekstre", icon: Landmark, color: "text-emerald-600" },
-  { label: "Kampanya", href: "/kampanya", icon: Megaphone, color: "text-rose-500" },
-  { label: "Hatırlatmalar", href: "/cari-hatirlatmalar", icon: Bell, color: "text-amber-600" },
-  { label: "Raporlar", href: "/raporlar", icon: ChartColumn, color: "text-fuchsia-500" },
-  { label: "Ajanda (Takvim & Notlar)", href: "/ajanda", icon: Calendar, color: "text-blue-500" },
-  { label: "E-Ticaret", href: "/e-ticaret", icon: Store, color: "text-orange-500" },
-  { label: "Çalışanlar & Ekip", href: "/giderler/calisanlar", icon: UsersRound, color: "text-indigo-500" },
-  { label: "Akademi", href: "/akademi", icon: GraduationCap, color: "text-indigo-600" },
-  { label: "Muhasebeci Ağı", href: "/muhasebeci-agi", icon: Briefcase, color: "text-violet-600" },
-];
 
 const SUMMARY_KEY = "ren-panel-ozet-acik";
 
@@ -167,7 +122,7 @@ function SummaryStrip({ data }: { data: DashboardSummary | undefined }) {
   const yesterdaySales = Number(data?.sales_daily?.find((d) => String(d.date).slice(0, 10) === yesterday)?.amount) || 0;
 
   return (
-    <section className="space-y-3" aria-label="Dönem özeti">
+    <section className="card p-4 space-y-3" aria-label="Dönem özeti">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
@@ -376,7 +331,7 @@ function TopProductsCard({ data }: { data: DashboardSummary | undefined }) {
           <Link
             key={p.id}
             href={`/urunler/${p.id}`}
-            className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 hover:border-brand-300 dark:hover:border-brand-800 hover:shadow-soft transition"
+            className="rounded-xl border border-slate-300 dark:border-slate-600 p-3 hover:border-brand-300 dark:hover:border-brand-800 hover:shadow-soft transition"
           >
             <div className="text-[10px] font-bold text-slate-400">#{i + 1}</div>
             <div className="font-semibold text-sm truncate mt-0.5">{p.name}</div>
@@ -389,37 +344,134 @@ function TopProductsCard({ data }: { data: DashboardSummary | undefined }) {
   );
 }
 
+type FxCode = "USD" | "EUR";
+const FX_SYMBOL: Record<FxCode, string> = { USD: "$", EUR: "€" };
+
+/** Satışları güncel kurla dövize çevirir (panelin en altında) */
 function CurrencyCard({ data }: { data: DashboardSummary | undefined }) {
-  const usd = Number(data?.rates?.USD) || 0;
-  const eur = Number(data?.rates?.EUR) || 0;
-  const c = data?.currency;
-  const item = (label: string, value: number, sym: "$" | "€", rate: number, color?: string) => (
-    <div>
-      <div className="text-xs text-slate-400">{label}</div>
-      <div className={cn("font-bold mt-0.5", color)}>
-        {sym}
-        {formatNumber(value)}
-      </div>
-      <div className="text-[11px] text-slate-400">≈ {formatMoney(value * rate)}</div>
-    </div>
-  );
+  const ratesQuery = useRates();
+  const [fx, setFx] = React.useState<FxCode>("USD");
+  const [amount, setAmount] = React.useState("");
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const rate = rateFor(ratesQuery.data, fx) || Number(data?.rates?.[fx]) || 0;
+  const rateDate = ratesQuery.data?.[fx]?.rate_date;
+  const sym = FX_SYMBOL[fx];
+  const fxText = (tl: number) => (rate > 0 ? `${sym}${formatNumber(tl / rate)}` : "—");
+
+  const today = isoDate();
+  const daily = data?.sales_daily ?? [];
+  const sumFrom = (from: string) =>
+    daily.filter((d) => String(d.date).slice(0, 10) >= from).reduce((s, d) => s + (Number(d.amount) || 0), 0);
+  const monthly = data?.sales_monthly ?? [];
+  const { from: monthFrom } = monthRange(today.slice(0, 7));
+  const weekFrom = shiftDay(today, -6);
+  const yearFrom = monthly.length ? monthRange(String(monthly[0].month).slice(0, 7)).from : monthFrom;
+
+  const rows: { label: string; tl: number; href: string }[] = [
+    { label: "Bugün satış", tl: sumFrom(today), href: salesUrl(today, today) },
+    { label: "Son 7 gün satış", tl: sumFrom(weekFrom), href: salesUrl(weekFrom, today) },
+    { label: "Bu ay satış", tl: Number(data?.kpi?.month_sales) || 0, href: salesUrl(monthFrom, today) },
+    { label: "Son 12 ay satış", tl: monthly.reduce((s, m) => s + (Number(m.amount) || 0), 0), href: salesUrl(yearFrom, today) },
+    { label: "Açık alacak", tl: Number(data?.kpi?.receivable) || 0, href: "/musteriler" },
+    { label: "Kasa / Banka", tl: Number(data?.kpi?.cash_bank) || 0, href: "/hesaplar" },
+  ];
+
+  // "1.250,50" → 1250.5
+  const typed = Number(amount.replace(/\./g, "").replace(",", ".")) || 0;
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await triggerLiveRatesRefresh();
+    await ratesQuery.refetch();
+    setRefreshing(false);
+  };
 
   return (
-    <Link href="/hesaplar" className="card p-5 block hover:shadow-soft transition">
-      <h2 className="font-semibold mb-3 flex items-center gap-2">
-        <DollarSign size={17} className="text-blue-500" />
-        Döviz Özeti
-      </h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-        {item("Bu ay satış (USD)", Number(c?.sales_usd) || 0, "$", usd, "text-blue-600 dark:text-blue-400")}
-        {item("Bu ay satış (EUR)", Number(c?.sales_eur) || 0, "€", eur, "text-indigo-600 dark:text-indigo-400")}
-        {item(`Kasa USD · 1$ = ${usd.toFixed(2)} ₺`, Number(c?.cash_usd) || 0, "$", usd)}
-        {item(`Kasa EUR · 1€ = ${eur.toFixed(2)} ₺`, Number(c?.cash_eur) || 0, "€", eur)}
+    <div className="card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="font-semibold flex items-center gap-2">
+            <DollarSign size={17} className="text-blue-500" />
+            Döviz — Satışlarım Dövizde
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            TL tutarlar güncel kurla çevrilir
+            {rate > 0 && ` · 1${sym} = ${formatNumber(rate)} ₺${rateDate ? ` (${formatDate(rateDate)})` : ""}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-bold">
+            {(["USD", "EUR"] as FxCode[]).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setFx(c)}
+                className={cn(
+                  "px-3 py-1.5 transition",
+                  fx === c ? "bg-brand-500 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800",
+                )}
+              >
+                {FX_SYMBOL[c]} {c}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={refreshing}
+            className="h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+            title="Güncel kuru çek"
+            aria-label="Güncel kuru çek"
+          >
+            <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
+          </button>
+        </div>
       </div>
-      <p className="text-xs text-slate-400 mt-3">
-        Aylık ciro ve kasa toplamı döviz belgeleri kayıtlı kurla TL&apos;ye çevrilir. Güncel kur: Ayarlar → Canlı Kuru Çek.
-      </p>
-    </Link>
+
+      {rate <= 0 ? (
+        <p className="text-sm text-amber-600 dark:text-amber-400">
+          {fx} kuru bulunamadı. Sağdaki yenile düğmesiyle güncel kuru çekebilirsiniz.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5 sm:gap-3">
+            {rows.map((r) => (
+              <Link
+                key={r.label}
+                href={r.href}
+                className="rounded-xl border border-slate-300 dark:border-slate-600 p-3 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-soft transition min-w-0"
+              >
+                <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{r.label}</div>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums truncate mt-0.5">{fxText(r.tl)}</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums truncate">{formatMoney(r.tl)}</div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-slate-600 dark:text-slate-300 font-medium">Çevir:</span>
+            <input
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Tutar (TL)"
+              className="input w-36 tabular-nums"
+              aria-label="TL tutar"
+            />
+            <span className="text-slate-500 dark:text-slate-400">TL =</span>
+            <span className="font-bold text-blue-600 dark:text-blue-400 tabular-nums">{fxText(typed)}</span>
+          </div>
+        </>
+      )}
+
+      {(Number(data?.currency?.sales_usd) > 0 || Number(data?.currency?.sales_eur) > 0) && (
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
+          Bu ay dövizli kesilen belgeler: ${formatNumber(Number(data?.currency?.sales_usd) || 0)} · €
+          {formatNumber(Number(data?.currency?.sales_eur) || 0)}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -522,61 +574,81 @@ function RecentCard({ data }: { data: DashboardSummary | undefined }) {
   );
 }
 
-function UpcomingPaymentsCard({ data }: { data: DashboardSummary | undefined }) {
-  const rows = React.useMemo(
-    () =>
-      (data?.timeline ?? [])
-        .filter((t) => t.flow === "out")
-        .sort((a, b) => a.due_date.localeCompare(b.due_date))
-        .slice(0, 8),
-    [data?.timeline],
-  );
+function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undefined }) {
+  const isIn = flow === "in";
+  const rows = items ?? [];
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const overdueCount = rows.filter((r) => r.days_overdue > 0).length;
+  const accent = isIn ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500";
 
   return (
     <div className="card p-5">
-      <h2 className="font-semibold mb-3 flex items-center gap-2">
-        <CalendarClock size={17} className="text-rose-500" />
-        Yaklaşan / Geciken Ödemeler
-      </h2>
-      {rows.length === 0 ? (
-        <p className="text-sm text-slate-400 py-6 text-center">Ödenecek masraf yok.</p>
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div>
+          <h2 className="font-semibold flex items-center gap-2">
+            <CalendarClock size={17} className={isIn ? "text-emerald-500" : "text-rose-500"} />
+            {isIn ? "Yaklaşan / Geciken Tahsilatlar" : "Yaklaşan / Geciken Ödemeler"}
+          </h2>
+          {rows.length > 0 && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {rows.length} kayıt · <span className={cn("font-semibold", accent)}>{formatMoney(total)}</span>
+              {overdueCount > 0 && <span className="text-rose-500 font-semibold"> · {overdueCount} gecikmiş</span>}
+            </p>
+          )}
+        </div>
+        <Link href={isIn ? "/musteriler" : "/tedarikciler"} className="text-xs font-semibold text-brand-600 hover:underline shrink-0">
+          Tümü →
+        </Link>
+      </div>
+      {!items ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">Yükleniyor…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
+          {isIn ? "Bekleyen tahsilat yok." : "Bekleyen ödeme yok."}
+        </p>
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          {rows.map((t) => {
-            const cfg = DOC_TYPES[t.doc_type as DocType];
-            const overdue = Number(t.days_overdue) > 0;
+          {rows.slice(0, 8).map((t) => {
+            const overdue = t.days_overdue > 0;
             return (
               <Link
-                key={t.id}
-                href={cfg ? `${cfg.base}/detay?id=${t.id}` : "/alislar"}
+                key={t.key}
+                href={t.href}
                 className="flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition"
               >
                 <div
                   className={cn(
                     "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
-                    overdue ? "bg-rose-50 dark:bg-rose-900/30 text-rose-500" : "bg-amber-50 dark:bg-amber-900/30 text-amber-500",
+                    overdue
+                      ? "bg-rose-50 dark:bg-rose-900/30 text-rose-500"
+                      : isIn
+                        ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500"
+                        : "bg-amber-50 dark:bg-amber-900/30 text-amber-500",
                   )}
                 >
-                  <CalendarClock size={17} />
+                  {t.offset ? <ArrowLeftRight size={17} /> : <CalendarClock size={17} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">
-                    {cfg?.label ?? "Belge"}
-                    {t.party ? ` · ${t.party}` : ""}
-                  </div>
-                  <div className="text-xs text-slate-400 truncate">
-                    {t.number ? `${t.number} · ` : ""}Vade: {formatDate(t.due_date)}
-                  </div>
+                  <div className="text-sm font-medium truncate">{t.title}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{t.subtitle}</div>
+                  {t.offset && (
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate" title="Aynı carideki alış ve satışlar mahsup edildi">
+                      Mahsup: satış {formatMoney(t.offset.receivable)} − alış {formatMoney(t.offset.payable)}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="font-semibold text-sm text-rose-500">{formatMoney(t.amount)}</div>
-                  {overdue && <span className="text-[10px] text-rose-500 font-semibold">Gecikmiş</span>}
+                  <div className={cn("font-semibold text-sm", accent)}>{formatMoney(t.amount)}</div>
+                  {overdue && <span className="text-[10px] text-rose-500 font-semibold">{t.days_overdue} gün gecikmiş</span>}
                 </div>
               </Link>
             );
           })}
         </div>
       )}
+      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+        Aynı carideki alış/satış faturaları ve yapılan tahsilat/ödemeler otomatik eşleştirilir; yalnızca net bakiye gösterilir.
+      </p>
     </div>
   );
 }
@@ -608,33 +680,6 @@ function CriticalStockCard({ data }: { data: DashboardSummary | undefined }) {
   );
 }
 
-function ModulesGrid() {
-  return (
-    <div>
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-3">Modüller</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
-        {MODULES.map((m) => {
-          const Icon = m.icon;
-          return (
-            <Link
-              key={m.href}
-              href={m.href}
-              className="card p-3 sm:p-4 flex flex-col items-center gap-2 hover:shadow-soft hover:-translate-y-0.5 transition group min-w-0"
-            >
-              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-brand-50 dark:group-hover:bg-brand-900/30 transition shrink-0">
-                <Icon size={22} className={m.color} />
-              </div>
-              <span className="text-[11px] sm:text-xs font-semibold text-center text-slate-600 dark:text-slate-300 leading-tight line-clamp-2">
-                {m.label}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Panel
 // ---------------------------------------------------------------------------
@@ -645,9 +690,10 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
   const thisMonth = MONTHS[new Date().getMonth()];
   const { from: monthFrom } = monthRange(today.slice(0, 7));
   const kpi = data?.kpi;
+  const { data: dues } = useNettedDues();
 
   return (
-    <div className="space-y-6">
+    <div className="pusulam-panel space-y-6">
       <div className="flex items-center gap-3">
         <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 text-white flex items-center justify-center shadow-soft">
           <TrendingUp size={22} />
@@ -695,16 +741,17 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
 
       <SalesChartCard data={data} />
       <TopProductsCard data={data} />
-      <CurrencyCard data={data} />
       <BalanceCards data={data} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <RecentCard data={data} />
-        <UpcomingPaymentsCard data={data} />
+        <DueCard flow="in" items={dues?.incoming} />
+        <DueCard flow="out" items={dues?.outgoing} />
       </div>
 
       <CriticalStockCard data={data} />
-      <ModulesGrid />
+      <RecentCard data={data} />
+
+      <CurrencyCard data={data} />
 
       <button
         type="button"

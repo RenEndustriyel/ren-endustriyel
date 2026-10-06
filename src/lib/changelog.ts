@@ -14,9 +14,23 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.75";
+export const LATEST_VERSION = "2.4.76";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.4.76",
+    date: "6 Ekim 2026",
+    title: "Otomatik Cari Eşleştirme, Sade Hızlı Satış ve Yeni Ana Sayfa",
+    badge: "Otomatik Eşleştirme",
+    items: [
+      { type: "yeni", title: "Otomatik eşleştirme ve mahsup", description: "Faturaya bağlanmamış tahsilat ve ödemeler aynı carinin en eski açık faturalarına otomatik bağlanır. Aynı firmayla hem alış hem satış varsa faturalar karşılıklı mahsup edilir. Kasa/banka ve cari bakiye değişmez, yalnızca faturalar kapanır." },
+      { type: "iyilestirme", title: "Yaklaşan / geciken tahsilat ve ödemeler", description: "Ana sayfada tahsilatlar da listelenir. Her firma için yalnızca net bakiye ve en eski açık vade gösterilir." },
+      { type: "yeni", title: "Sade Hızlı Satış", description: "Nakit, kredi kartı, parçalı ve vadeli ödeme. Ürün fiyatı ve TOPLAM elle değiştirilebilir, indirim nakit (₺) ya da iskonto (%) girilebilir. Bugünkü satışlar ekranda görünür; açık ve koyu tema tam uyumlu." },
+      { type: "duzeltme", title: "Parçalı ödeme kasa kaydı", description: "Nakit + kart ödemelerde kart tutarı artık banka hesabına ayrı yazılıyor; önceden tamamı nakit kasasına geçiyordu." },
+      { type: "yeni", title: "Döviz: satışlarım dövizde", description: "Satışlar, alacaklar ve kasa güncel kurla USD/EUR olarak görünür; hızlı çevirici eklendi." },
+      { type: "iyilestirme", title: "Ana sayfa ve menü", description: "Modül ızgarası kaldırıldı, bölümler belirgin kutulara alındı. Bildirimlere 'Tümü okundu' eklendi, sol menü yazıları büyütüldü." },
+    ],
+  },
   {
     version: "2.4.75",
     date: "5 Ekim 2026",

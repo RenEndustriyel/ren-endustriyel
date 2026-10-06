@@ -75,16 +75,16 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
             href={item.href}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 rounded-xl text-sm font-medium transition",
+              "flex items-center gap-3 rounded-xl text-[15px] font-medium transition",
               collapsed ? "justify-center p-2.5" : "px-3 py-3",
               isActive
                 ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
-                : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
             )}
             title={item.label}
             aria-current={isActive ? "page" : undefined}
           >
-            <Icon size={18} className={cn("shrink-0", isActive ? "text-white" : item.color)} />
+            <Icon size={20} className={cn("shrink-0", isActive ? "text-white" : item.color)} />
             {!collapsed && <span className="truncate">{item.label}</span>}
           </Link>
         );
@@ -240,11 +240,11 @@ export function Sidebar() {
               <Link
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-2 rounded-xl text-sm font-medium transition",
+                  "flex items-center gap-2 rounded-xl text-[15px] font-medium transition",
                   collapsed ? "justify-center p-2.5" : "pl-1.5 pr-3 py-3 lg:py-2.5",
                   isActive
                     ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
-                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                 )}
                 title={item.label}
                 aria-current={isActive ? "page" : undefined}
@@ -269,7 +269,7 @@ export function Sidebar() {
                 )}
 
                 <Icon
-                  size={18}
+                  size={20}
                   className={cn(
                     "shrink-0",
                     isActive ? "text-white" : item.color
@@ -303,13 +303,13 @@ export function Sidebar() {
             <Link
               href="/ayarlar"
               className={cn(
-                "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
+                "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition",
                 pathname.startsWith("/ayarlar")
                   ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
-                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
               )}
             >
-              <Settings size={18} className={pathname.startsWith("/ayarlar") ? "text-white" : "text-slate-400"} />
+              <Settings size={20} className={pathname.startsWith("/ayarlar") ? "text-white" : "text-slate-400"} />
               Ayarlar
             </Link>
           </>

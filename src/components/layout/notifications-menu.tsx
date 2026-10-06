@@ -2,14 +2,34 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, PackageX } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, PackageX } from "lucide-react";
 import { useRows, type Row } from "@/lib/data";
 import { formatMoney, formatQty, isoDate } from "@/lib/format";
-import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { useOrg } from "@/providers/org-provider";
+import { cn } from "@/lib/utils";
 import { useDashboard } from "@/components/dashboard/use-dashboard";
+import { useNettedDues, type DueItem } from "@/components/dashboard/use-netted-dues";
 
 type Item = { key: string; label: string; value: string; href: string };
+const READ_KEY = "ren-bildirim-okundu";
+
+/** Okundu bilgisi yalnızca bu cihazda tutulur; tutar değişirse uyarı yeniden okunmamış sayılır */
+const itemId = (section: string, it: Item) => `${section}:${it.key}:${it.value}`;
+
+function loadRead(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveRead(ids: Set<string>) {
+  try {
+    localStorage.setItem(READ_KEY, JSON.stringify([...ids]));
+  } catch {}
+}
+
 type Section = { key: string; title: string; icon: React.ReactNode; items: Item[] };
 
 /** Pusulam üst çubuk "Bildirimler" menüsü: kritik stok, vadesi geçen ödemeler/tahsilatlar ve çek/senetler */
@@ -17,7 +37,10 @@ export function NotificationsMenu() {
   const router = useRouter();
   const { org } = useOrg();
   const { data } = useDashboard(org?.id || "");
+  const { data: dues } = useNettedDues();
   const [open, setOpen] = React.useState(false);
+  const [read, setRead] = React.useState<Set<string>>(() => new Set());
+  React.useEffect(() => setRead(loadRead()), []); // eslint-disable-line react-hooks/set-state-in-effect
   const today = isoDate();
 
   const cheques = useRows<Row<"cheques">>("cheques", {
@@ -44,18 +67,10 @@ export function NotificationsMenu() {
       });
     }
 
-    const overdue = (data?.timeline ?? []).filter((t) => Number(t.days_overdue) > 0);
-    const toItem = (t: (typeof overdue)[number]): Item => {
-      const cfg = DOC_TYPES[t.doc_type as DocType];
-      return {
-        key: t.id,
-        label: t.party || t.number || cfg?.label || "Belge",
-        value: formatMoney(t.amount),
-        href: cfg ? `${cfg.base}/detay?id=${t.id}` : "/panel",
-      };
-    };
-    const outs = overdue.filter((t) => t.flow === "out");
-    const ins = overdue.filter((t) => t.flow === "in");
+    // Cari bazında mahsuplaşmış net bakiyeler; yalnızca vadesi geçenler
+    const toItem = (t: DueItem): Item => ({ key: t.key, label: t.title, value: formatMoney(t.amount), href: t.href });
+    const outs = (dues?.outgoing ?? []).filter((t) => t.days_overdue > 0);
+    const ins = (dues?.incoming ?? []).filter((t) => t.days_overdue > 0);
     if (outs.length) {
       list.push({ key: "out", title: `Vadesi Geçen Ödemeler (${outs.length})`, icon: <CalendarClock size={13} />, items: outs.map(toItem) });
     }
@@ -78,11 +93,22 @@ export function NotificationsMenu() {
       });
     }
     return list;
-  }, [data?.critical_stock, data?.timeline, cheques.data]);
+  }, [data?.critical_stock, dues, cheques.data]);
 
-  const count = sections.reduce((s, x) => s + x.items.length, 0);
+  const allIds = sections.flatMap((s) => s.items.map((it) => itemId(s.key, it)));
+  const count = allIds.length;
+  const unread = allIds.filter((id) => !read.has(id)).length;
 
-  const go = (href: string) => {
+  /** Yalnızca güncel uyarıların kimliklerini sakla (liste şişmesin) */
+  const markRead = (ids: string[]) => {
+    const next = new Set([...read].filter((id) => allIds.includes(id)));
+    ids.forEach((id) => next.add(id));
+    setRead(next);
+    saveRead(next);
+  };
+
+  const go = (id: string, href: string) => {
+    markRead([id]);
     setOpen(false);
     router.push(href);
   };
@@ -97,9 +123,9 @@ export function NotificationsMenu() {
         aria-expanded={open}
       >
         <Bell size={18} className="text-slate-600 dark:text-slate-300" />
-        {count > 0 && (
+        {unread > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
-            {count > 99 ? "99+" : count}
+            {unread > 99 ? "99+" : unread}
           </span>
         )}
       </button>
@@ -109,29 +135,56 @@ export function NotificationsMenu() {
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
           <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] card p-0 z-30 animate-scale-in overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <span className="font-semibold text-sm">Bildirimler</span>
-              <span className="text-xs text-slate-400">{count > 0 ? `${count} uyarı` : "uyarı yok"}</span>
+              <div>
+                <span className="font-semibold text-sm">Bildirimler</span>
+                <span className="ml-2 text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                  {count === 0 ? "uyarı yok" : unread > 0 ? `${unread} okunmamış · ${count} uyarı` : `${count} uyarı`}
+                </span>
+              </div>
+              {unread > 0 && (
+                <button
+                  type="button"
+                  onClick={() => markRead(allIds)}
+                  className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 shrink-0"
+                >
+                  <CheckCheck size={14} />
+                  Tümü okundu
+                </button>
+              )}
             </div>
             <div className="max-h-[60vh] overflow-y-auto">
               {sections.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-slate-400">Şu an bir uyarı yok.</p>
+                <p className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">Şu an bir uyarı yok.</p>
               ) : (
                 sections.map((s) => (
                   <div key={s.key} className="py-2">
-                    <p className="px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
+                    <p className="px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       {s.icon} {s.title}
                     </p>
-                    {s.items.map((it) => (
-                      <button
-                        key={it.key}
-                        type="button"
-                        onClick={() => go(it.href)}
-                        className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between gap-3"
-                      >
-                        <span className="text-sm truncate">{it.label}</span>
-                        <span className="text-xs font-semibold shrink-0 text-rose-500">{it.value}</span>
-                      </button>
-                    ))}
+                    {s.items.map((it) => {
+                      const id = itemId(s.key, it);
+                      const isRead = read.has(id);
+                      return (
+                        <button
+                          key={it.key}
+                          type="button"
+                          onClick={() => go(id, it.href)}
+                          className={cn(
+                            "w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between gap-3",
+                            !isRead && "bg-brand-50/60 dark:bg-brand-900/20",
+                          )}
+                        >
+                          <span className={cn("text-sm truncate flex items-center gap-2", !isRead && "font-semibold")}>
+                            <span
+                              className={cn("h-2 w-2 rounded-full shrink-0", isRead ? "bg-transparent" : "bg-brand-500")}
+                              aria-label={isRead ? undefined : "okunmamış"}
+                            />
+                            {it.label}
+                          </span>
+                          <span className="text-xs font-semibold shrink-0 text-rose-500">{it.value}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 ))
               )}

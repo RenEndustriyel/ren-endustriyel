@@ -1,7 +1,7 @@
 "use client";
 
-import { PosPage } from "@/components/documents/pos";
+import { QuickSalePage } from "@/components/documents/quick-sale";
 
 export default function Page() {
-  return <PosPage />;
+  return <QuickSalePage />;
 }

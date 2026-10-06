@@ -7,6 +7,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { useOrg } from "@/providers/org-provider";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
+import { AutoReconcileRunner } from "./auto-reconcile-runner";
 import { MobileNav } from "./mobile-nav";
 import { OfflineBanner } from "./online-status";
 import { InstallBanner } from "./install-banner";
@@ -80,6 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <ChangelogProvider>
       <CommandPaletteProvider>
         <Warmup />
+        <AutoReconcileRunner />
         <div className="min-h-dvh flex w-full max-w-[100vw] overflow-x-hidden bg-slate-100 dark:bg-slate-950">
           <div className="contents">
             <Sidebar />
