@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.4";
+export const LATEST_VERSION = "2.5.5";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.5",
+    date: "6 Ekim 2026",
+    title: "Eksi Stoklar İçin Toplu Giriş",
+    badge: "Stok",
+    items: [
+      { type: "yeni", title: "Eksi Stok Girişi", description: "Stoklar → Eksi Stok Girişi sekmesinde stoğu eksiye düşen ürünler listelenir. Seçilenler eksik miktarlarıyla tek tuşla alış faturasına aktarılır ya da faturasız stok girişi yapılır." },
+    ],
+  },
   {
     version: "2.5.4",
     date: "6 Ekim 2026",

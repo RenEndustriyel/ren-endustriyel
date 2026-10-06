@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +19,7 @@ function PusulamDocPage({
   contactId,
   initialLine,
   initialNotes,
+  prefillLines,
 }: {
   type: DocType;
   editId?: string | null;
@@ -26,6 +28,7 @@ function PusulamDocPage({
   contactId?: string | null;
   initialLine?: InitialLine;
   initialNotes?: string;
+  prefillLines?: { product_id: string; quantity: number }[];
 }) {
   const router = useRouter();
   const cfg = DOC_TYPES[type];
@@ -58,6 +61,7 @@ function PusulamDocPage({
       contactId={contactId}
       initialLine={initialLine}
       initialNotes={initialNotes}
+      prefillLines={prefillLines}
       onOpenChange={(o) => !o && close()}
       onSaved={(d) => router.replace(`${DOC_TYPES[d.doc_type].base}/detay?id=${d.id}`)}
     />
@@ -79,6 +83,23 @@ export function DocNewPage({ type }: { type: DocType }) {
     ? `${p.get("belge_no")} no'lu alış faturanızda iskonto/fiyat şartları yansıtılmadığı için düzenlenen fiyat farkı faturasıdır.`
     : undefined;
   const contactId = p.get("cari") || p.get("contact_id");
+  // Eksi stok ekranından gelen ürünler (bir kez okunur)
+  const [prefillLines] = React.useState<{ product_id: string; quantity: number }[] | undefined>(() => {
+    if (p.get("onyukleme") !== "1" || typeof window === "undefined") return undefined;
+    try {
+      const v = JSON.parse(sessionStorage.getItem("ren-alis-onyukleme") || "null");
+      return Array.isArray(v) ? v : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+  // okunduktan sonra temizle (sayfa yenilenince tekrar dolmasın)
+  React.useEffect(() => {
+    if (!prefillLines) return;
+    try {
+      sessionStorage.removeItem("ren-alis-onyukleme");
+    } catch {}
+  }, [prefillLines]);
 
   if (QUICK_DOC_TYPES.includes(type)) {
     return (
@@ -89,6 +110,7 @@ export function DocNewPage({ type }: { type: DocType }) {
         contactId={contactId}
         initialLine={initialLine}
         initialNotes={initialNotes}
+        prefillLines={prefillLines}
       />
     );
   }

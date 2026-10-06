@@ -383,6 +383,8 @@ export interface QuickDocModalProps {
   /** Fiyat farkı faturası gibi hazır ilk kalem */
   initialLine?: { description: string; unit_price: number; vat_rate: number; quantity: number };
   initialNotes?: string;
+  /** Ön yüklenecek ürün kalemleri (ör. eksi stoklardan alış faturası) */
+  prefillLines?: { product_id: string; quantity: number }[];
 }
 
 /** Pusulam penceresinin açabildiği belge türleri (hızlı satış, masraf ve maaş kendi ekranlarında) */
@@ -419,6 +421,7 @@ function QuickDocForm({
   contactId: presetContactId,
   initialLine,
   initialNotes,
+  prefillLines,
 }: QuickDocModalProps) {
   const side: QuickDocSide = fixedType ? (DOC_TYPES[fixedType].side as QuickDocSide) : sideProp;
   const isEdit = mode === "edit" && !!base;
@@ -640,6 +643,21 @@ function QuickDocForm({
     vat_rate: Number(p.vat_rate),
     shelf_price: round2(convertVat(Number(p.sale_price), Number(p.vat_rate), p.sale_price_includes_vat, true)),
   });
+
+  // Ön yüklenen ürünler: katalog gelince bir kez kalemlere dönüştür
+  const prefillDone = React.useRef(false);
+  React.useEffect(() => {
+    if (prefillDone.current || !prefillLines?.length || !products.data?.length) return;
+    prefillDone.current = true;
+    const made = prefillLines
+      .map((x) => {
+        const p = products.data!.find((pp) => pp.id === x.product_id);
+        return p ? { ...lineFromProduct(p), quantity: x.quantity } : null;
+      })
+      .filter(Boolean) as Line[];
+    if (made.length) setLines(made); // eslint-disable-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products.data, prefillLines]);
 
   const patchLine = (id: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
 

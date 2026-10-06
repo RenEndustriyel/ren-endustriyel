@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Download, Eraser, Info, Pencil, Search, Trash2, Upload, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { newId, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, useWarehouses, type Row } from "@/lib/data";
@@ -10,8 +11,9 @@ import { formatMoney, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
 import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
+import { NumberInput } from "@/components/ui/money-input";
 
-type Tab = "depolar" | "sayim";
+type Tab = "depolar" | "sayim" | "eksi";
 type Product = Row<"products">;
 type WarehouseRow = Row<"warehouses">;
 
@@ -526,14 +528,201 @@ function CountTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Eksi stok toplu girişi
+// ---------------------------------------------------------------------------
+
+/** Alış penceresine ön yüklenecek kalemler (sessionStorage) */
+export const PREFILL_KEY = "ren-alis-onyukleme";
+
+function NegativeTab() {
+  const { org, canWrite } = useOrg();
+  const router = useRouter();
+  const confirm = useConfirm();
+  const { warehouses, products, stocks, unitLabel } = useStockData();
+  const adjust = useRpc("adjust_stock");
+  const [q, setQ] = React.useState("");
+  const [sel, setSel] = React.useState<Record<string, boolean>>({});
+  const [amounts, setAmounts] = React.useState<Record<string, number>>({});
+  const [busy, setBusy] = React.useState(false);
+  // aynı satır iki kez gönderilse de tek hareket oluşsun (adjust_stock p_id ile tekrar etmez)
+  const moveIds = React.useRef<Record<string, string>>({});
+
+  const whName = (id: string) => warehouses.data?.find((w) => w.id === id)?.name ?? "Depo";
+  const rows = React.useMemo(() => {
+    // pasife alınmış ürünler de dahil: eksi stok her durumda düzeltilmeli
+    const byId = new Map((products.data ?? []).filter((p) => p.track_stock).map((p) => [p.id, p]));
+    const query = normalize(q.trim());
+    return (stocks.data ?? [])
+      .filter((s) => Number(s.quantity) < 0 && byId.has(s.product_id))
+      .map((s) => ({ key: `${s.product_id}|${s.warehouse_id}`, p: byId.get(s.product_id)!, wid: s.warehouse_id, qty: Number(s.quantity) }))
+      .filter((r) => !query || normalize(`${r.p.name} ${r.p.code ?? ""} ${r.p.barcode ?? ""}`).includes(query))
+      .sort((a, b) => a.qty - b.qty);
+  }, [stocks.data, products.data, q]);
+
+  const amountOf = (r: (typeof rows)[number]) => amounts[r.key] ?? -r.qty;
+  const chosen = rows.filter((r) => sel[r.key] && amountOf(r) > 0);
+  const allSelected = rows.length > 0 && rows.every((r) => sel[r.key]);
+  const toggleAll = () => setSel(allSelected ? {} : Object.fromEntries(rows.map((r) => [r.key, true])));
+
+  /** Seçilenleri alış faturası penceresine eksik miktarlarıyla aktar */
+  const toPurchase = () => {
+    if (!chosen.length) return toast.error("Önce ürün seçin");
+    // Aynı ürün birden fazla depoda eksideyse miktarlar toplanır
+    const merged = new Map<string, number>();
+    for (const r of chosen) merged.set(r.p.id, (merged.get(r.p.id) ?? 0) + amountOf(r));
+    try {
+      sessionStorage.setItem(PREFILL_KEY, JSON.stringify([...merged].map(([product_id, quantity]) => ({ product_id, quantity }))));
+    } catch {}
+    router.push("/giderler/alis-faturalari/yeni?onyukleme=1");
+  };
+
+  /** Faturasız stok girişi: yalnızca stok artar, cari/kasa etkilenmez */
+  const toStock = async () => {
+    if (!org || !chosen.length) return toast.error("Önce ürün seçin");
+    const ok = await confirm({
+      title: `${chosen.length} ürüne faturasız stok girişi yapılsın mı?`,
+      description: "Yalnızca stok miktarı artar; tedarikçi borcu, kasa ve maliyet kaydı oluşmaz. Ürünü satın aldıysanız 'Alış faturası oluştur' seçeneğini kullanın.",
+      confirmText: "Stok girişi yap",
+    });
+    if (!ok) return;
+    setBusy(true);
+    let done = 0;
+    try {
+      for (const r of chosen) {
+        moveIds.current[r.key] ??= newId();
+        await adjust.call({
+          p_org: org.id,
+          p_product: r.p.id,
+          p_warehouse: r.wid,
+          p_quantity: amountOf(r),
+          p_mode: "add",
+          p_date: isoDate(),
+          p_note: "Toplu eksi stok girişi (faturasız)",
+          p_unit_cost: null,
+          p_id: moveIds.current[r.key],
+        });
+        done++;
+      }
+      toast.success(`${done} ürüne stok girişi yapıldı`);
+      setSel({});
+      setAmounts({});
+      moveIds.current = {};
+    } catch {
+      toast.error(`${done} ürün işlendi, kalanlar işlenemedi — tekrar deneyebilirsiniz (işlenenler çift sayılmaz)`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Eksi Stok Girişi</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Stoğu eksiye düşmüş {rows.length} ürün/depo. Girilecek miktar varsayılan olarak stoğu sıfıra getirir; değiştirebilirsiniz.
+          </p>
+        </div>
+        {canWrite && (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={toPurchase} disabled={!chosen.length || busy} className="btn-primary disabled:opacity-50">
+              Alış faturası oluştur ({chosen.length})
+            </button>
+            <button type="button" onClick={toStock} disabled={!chosen.length || busy} className="btn-ghost disabled:opacity-50">
+              {busy ? "İşleniyor…" : `Faturasız stok girişi (${chosen.length})`}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="relative max-w-md">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ürün adı, kod veya barkod" className="input pl-9" />
+      </div>
+
+      <div className="card p-0 overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <th className="px-3 py-2.5 w-10">
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Tümünü seç" />
+              </th>
+              <th className="px-3 py-2.5 text-left">Ürün</th>
+              <th className="px-3 py-2.5 text-center w-32">Depo</th>
+              <th className="px-3 py-2.5 text-center w-28">Mevcut stok</th>
+              <th className="px-3 py-2.5 text-center w-36">Girilecek miktar</th>
+              <th className="px-3 py-2.5 text-center w-28">Yeni stok</th>
+              <th className="px-3 py-2.5 text-center w-32">Birim maliyet</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-10 text-center text-slate-600 dark:text-slate-300">
+                  Eksi stoklu ürün yok.
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => {
+                const amt = amountOf(r);
+                return (
+                  <tr key={r.key} className={cn(sel[r.key] && "bg-brand-50/60 dark:bg-brand-900/20")}>
+                    <td className="px-3 py-2 text-center">
+                      <input type="checkbox" checked={!!sel[r.key]} onChange={(e) => setSel((s) => ({ ...s, [r.key]: e.target.checked }))} aria-label={`${r.p.name} seç`} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link href={`/urunler/${r.p.id}`} className="font-medium hover:text-brand-600 dark:hover:text-brand-400">
+                        {r.p.name}
+                      </Link>
+                      {(r.p.barcode || !r.p.is_active) && (
+                        <div className="text-xs text-slate-600 dark:text-slate-300">
+                          {r.p.barcode}
+                          {!r.p.is_active && <span className="ml-1 font-semibold text-amber-700 dark:text-amber-300">· pasif ürün</span>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center">{whName(r.wid)}</td>
+                    <td className="px-3 py-2 text-center font-bold text-rose-600 dark:text-rose-400 tabular-nums">
+                      {formatQty(r.qty)} {unitLabel(r.p)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <NumberInput
+                        value={amt}
+                        decimals={3}
+                        onChange={(v) => {
+                          setAmounts((a) => ({ ...a, [r.key]: Math.max(0, v) }));
+                          if (v > 0) setSel((s) => ({ ...s, [r.key]: true }));
+                        }}
+                        className="h-9 text-center"
+                        aria-label="Girilecek miktar"
+                      />
+                    </td>
+                    <td className={cn("px-3 py-2 text-center font-semibold tabular-nums", r.qty + amt < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400")}>
+                      {formatQty(r.qty + amt)}
+                    </td>
+                    <td className="px-3 py-2 text-center tabular-nums">{formatMoney(unitCost(r.p))}</td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sayfa
 // ---------------------------------------------------------------------------
 
 export function StoklarPage() {
-  const [tab, setTab] = React.useState<Tab>("depolar");
+  const sp = useSearchParams();
+  const [tab, setTab] = React.useState<Tab>(() => (["sayim", "eksi"].includes(sp.get("sekme") ?? "") ? (sp.get("sekme") as Tab) : "depolar"));
   const tabs: { id: Tab; label: string }[] = [
     { id: "depolar", label: "Depolar & Transfer" },
     { id: "sayim", label: "Stok Sayım & Düzeltme" },
+    { id: "eksi", label: "Eksi Stok Girişi" },
   ];
   return (
     <div className="flex flex-col h-full">
@@ -556,7 +745,7 @@ export function StoklarPage() {
           ))}
         </div>
       </div>
-      <div className="flex-1 min-h-0">{tab === "depolar" ? <WarehousesTab /> : <CountTab />}</div>
+      <div className="flex-1 min-h-0">{tab === "depolar" ? <WarehousesTab /> : tab === "sayim" ? <CountTab /> : <NegativeTab />}</div>
     </div>
   );
 }
