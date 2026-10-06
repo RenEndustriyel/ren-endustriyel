@@ -14,9 +14,23 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.7";
+export const LATEST_VERSION = "2.5.8";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.8",
+    date: "6 Ekim 2026",
+    title: "Kurumsal Belge Ekranı, Tarih Biçimi ve Cari İyileştirmeleri",
+    badge: "Kurumsal",
+    items: [
+      { type: "iyilestirme", title: "Tarihler her yerde GG/AA/YYYY", description: "Tüm tarih kutuları tarayıcı dilinden bağımsız olarak gün/ay/yıl gösterir; yazarken otomatik biçimlenir, yanındaki düğmeyle takvim açılır." },
+      { type: "iyilestirme", title: "Belge penceresi yeni düzen", description: "Ödeme durumu ve IBAN üstte, Genel Toplam toplamlar kutusunda, altta yalnızca açıklama/not. Kırmızı iskonto düğmesi ve 'stopaj yok' kaldırıldı; vade için 7/14/30/60/90 gün hızlı seçimi eklendi." },
+      { type: "yeni", title: "Banka IBAN'ı belgeye eklenebilir", description: "Satış belgelerinde 'Banka IBAN'ı belgeye eklensin' işaretlenip kayıtlı banka hesabı seçilince IBAN PDF'e basılır." },
+      { type: "yeni", title: "Kayıtlı olmayan cari otomatik kaydedilir", description: "Alış/satışta yazılan cari kayıtlı değilse 'yeni cari olarak kaydet' ile tek adımda açılır; aynı isimli kayıt varsa yenisi açılmaz. Müşteri ve tedarikçilerin hepsi her iki tarafta listelenir." },
+      { type: "duzeltme", title: "Cari listesinde çift görünme", description: "Seçim penceresine karışan eski örnek liste kaldırıldı; cariler artık bir kez görünür." },
+      { type: "duzeltme", title: "Taslak uyarısı tekrar tekrar çıkıyordu", description: "'Taslağı sil' sonrası uyarı tekrar çıkmaz; hiçbir şey yazılmayan pencerede taslak oluşmaz." },
+    ],
+  },
   {
     version: "2.5.7",
     date: "6 Ekim 2026",

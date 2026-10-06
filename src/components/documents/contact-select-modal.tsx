@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, X } from "lucide-react";
+import { Search, UserPlus, X } from "lucide-react";
 import { Dialog as D } from "radix-ui";
 import { toast } from "sonner";
 import { useContacts, useSave } from "@/lib/data";
@@ -19,6 +19,8 @@ export interface ContactItem {
 export const isPresetContact = (c: ContactItem | null | undefined) => !!c && /^(sup|cus)-/.test(c.id);
 
 const normalize = (s: string) => s.toLocaleLowerCase("tr-TR").trim();
+/** Mükerrer kontrolü için: büyük/küçük harf, boşluk ve noktalama farkı yok sayılır */
+export const contactKey = (s: string) => s.toLocaleUpperCase("tr-TR").replace(/[^A-ZÇĞİÖŞÜ0-9]/g, "");
 
 interface Props {
   kind: "supplier" | "customer";
@@ -39,21 +41,21 @@ export function ContactSelectModal({ kind, open, onOpenChange, onSelect, presets
   const label = isSupplier ? "Tedarikçi" : "Müşteri";
 
   const list = React.useMemo(() => {
-    const db: ContactItem[] = (contactsQuery.data ?? [])
-      .filter((c) => c.kind === kind || c.kind === "both")
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        tax_number: c.tax_number,
-        tax_office: c.tax_office,
-        city: c.city,
-      }));
+    // Tüm cariler: önce bu türdekiler, sonra diğer türde kayıtlı olanlar (etiketli) — aynı firma ikinci kez açılmasın
+    const db: (ContactItem & { other?: boolean })[] = (contactsQuery.data ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      tax_number: c.tax_number,
+      tax_office: c.tax_office,
+      city: c.city,
+      other: !(c.kind === kind || c.kind === "both"),
+    }));
     const combined = [...db];
     for (const p of presets) {
       if (!combined.some((c) => normalize(c.name) === normalize(p.name))) combined.push(p);
     }
-    combined.sort((a, b) => a.name.localeCompare(b.name, "tr"));
+    combined.sort((a, b) => Number(!!(a as { other?: boolean }).other) - Number(!!(b as { other?: boolean }).other) || a.name.localeCompare(b.name, "tr"));
 
     const query = normalize(q);
     if (!query) return combined;
@@ -65,6 +67,34 @@ export function ContactSelectModal({ kind, open, onOpenChange, onSelect, presets
         normalize(c.tax_office ?? "").includes(query),
     );
   }, [contactsQuery.data, presets, kind, q]);
+
+  const typed = q.trim();
+  const exact = typed ? (contactsQuery.data ?? []).find((c) => contactKey(c.name) === contactKey(typed)) : undefined;
+
+  /** Yazılan isimle cari yoksa kartı oluşturup belgeye devam et (aynı isim varsa onu seçer) */
+  const createAndContinue = async () => {
+    if (!typed || creating) return;
+    if (exact) {
+      // aynı isimde kayıt var: yenisini açma, onu seç (türü farklıysa da)
+      return choose({ id: exact.id, name: exact.name, phone: exact.phone, tax_number: exact.tax_number, tax_office: exact.tax_office, city: exact.city });
+    }
+    setCreating(true);
+    try {
+      const res = await saveContact.save<{ id: string }>({ name: typed, kind, is_active: true });
+      if (res.queued) {
+        toast.error("İnternet yok — cari kaydedilemedi. Bağlantı gelince tekrar deneyin.");
+        setCreating(false);
+        return;
+      }
+      toast.success(`${typed} ${label.toLocaleLowerCase("tr-TR")} olarak kaydedildi`);
+      setCreating(false);
+      setQ("");
+      onSelect({ id: res.data!.id, name: typed });
+      onOpenChange(false);
+    } catch {
+      setCreating(false); // hata mesajı useSave tarafından gösterildi
+    }
+  };
 
   const choose = async (c: ContactItem | null) => {
     if (c && isPresetContact(c)) {
@@ -115,18 +145,40 @@ export function ContactSelectModal({ kind, open, onOpenChange, onSelect, presets
                 placeholder={`${label.toLocaleLowerCase("tr-TR")} adı, telefon veya vergi no...`}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  if (exact) createAndContinue();
+                  else if (list.length === 1) choose(list[0]);
+                  else if (list.length === 0) createAndContinue();
+                }}
                 autoFocus
               />
             </div>
 
+            {typed && !exact && (
+              <button
+                type="button"
+                disabled={creating}
+                onClick={createAndContinue}
+                className="w-full flex items-center gap-3 rounded-xl border border-dashed border-brand-400 dark:border-brand-600 bg-brand-50/60 dark:bg-brand-900/20 px-4 py-3 text-left hover:bg-brand-50 dark:hover:bg-brand-900/40 disabled:opacity-60"
+              >
+                <UserPlus size={18} className="text-brand-600 dark:text-brand-400 shrink-0" />
+                <span className="min-w-0 flex-1 text-sm">
+                  <b className="text-brand-700 dark:text-brand-300">“{typed}”</b> — yeni {label.toLocaleLowerCase("tr-TR")} olarak kaydet ve devam et
+                  {list.length === 0 && <span className="block text-xs text-slate-600 dark:text-slate-300">Enter&apos;a basmanız yeterli</span>}
+                </span>
+              </button>
+            )}
+
             <div className="min-h-0 max-h-[360px] overflow-y-auto thin-scroll rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
               {list.length === 0 ? (
-                <div className="py-8 text-center text-sm text-slate-400">Aramanıza uygun {label.toLocaleLowerCase("tr-TR")} bulunamadı.</div>
+                <div className="py-8 text-center text-sm text-slate-600 dark:text-slate-300">Kayıtlı {label.toLocaleLowerCase("tr-TR")} bulunamadı — yukarıdan yeni kayıt açabilirsiniz.</div>
               ) : (
                 list.map((c) => {
-                  const subtitle = c.phone
-                    ? `${c.phone}${c.tax_number ? ` · ${c.tax_number}` : ""}`
-                    : c.tax_office || "İletişim yok";
+                  const otherKind = (c as { other?: boolean }).other;
+                  const base = c.phone ? `${c.phone}${c.tax_number ? ` · ${c.tax_number}` : ""}` : c.tax_office || "İletişim yok";
+                  const subtitle = otherKind ? `${isSupplier ? "Müşteri" : "Tedarikçi"} olarak kayıtlı · ${base}` : base;
                   return (
                     <button
                       key={c.id}

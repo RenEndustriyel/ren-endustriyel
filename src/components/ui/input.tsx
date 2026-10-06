@@ -1,10 +1,13 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { DateInput } from "./date-input";
 
 export const inputClass =
   "flex h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-text placeholder:text-muted/70 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 aria-invalid:border-danger";
 
-export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: React.ComponentProps<"input">) {
+  // Tarih kutuları her tarayıcıda GG/AA/YYYY görünsün
+  if (props.type === "date") return <DateInput className={cn(inputClass, className)} {...props} />;
   return <input className={cn(inputClass, className)} {...props} />;
 }
 

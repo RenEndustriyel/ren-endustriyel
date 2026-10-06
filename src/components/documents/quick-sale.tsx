@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DateInput } from "@/components/ui/date-input";
 import Link from "next/link";
 import {
   Banknote,
@@ -933,7 +934,7 @@ function CreditDialog({
           </div>
           <label className="block">
             <span className="text-sm font-semibold">Vade tarihi</span>
-            <input
+            <DateInput
               type="date"
               value={due}
               onChange={(e) => setDue(e.target.value)}

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DateInput } from "@/components/ui/date-input";
 import { ChevronDown, ChevronUp, Maximize2, Minimize2, Plus, Printer, Save, ScanBarcode, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { newId, useAccounts, useContacts, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, type Row } from "@/lib/data";
@@ -13,7 +14,7 @@ import { useOrg } from "@/providers/org-provider";
 import { cn } from "@/lib/utils";
 import { NumberInput } from "@/components/ui/money-input";
 import { MultiDiscountInput } from "./multi-discount-input";
-import type { ContactItem } from "./contact-select-modal";
+import { contactKey, type ContactItem } from "./contact-select-modal";
 
 // ---------------------------------------------------------------------------
 // Tipler ve sabitler
@@ -304,6 +305,166 @@ function UnitCombo({
   );
 }
 
+/**
+ * Cari kutusu: yazınca süzülür, ↑/↓ + Enter ile seçilir; kayıtlı değilse "yeni cari olarak kaydet" çıkar.
+ * Aynı isim (harf/noktalama farkı yok sayılarak) varsa yenisi açılmaz, o seçilir.
+ */
+function ContactCombo({
+  value,
+  options,
+  label,
+  onChange,
+  onCreate,
+  className,
+}: {
+  value: string;
+  options: { id: string; name: string }[];
+  label: string;
+  onChange: (id: string) => void;
+  onCreate: (name: string) => Promise<string | null>;
+  className?: string;
+}) {
+  const [q, setQ] = React.useState<string | null>(null);
+  const [open, setOpen] = React.useState(false);
+  const [hi, setHi] = React.useState(0);
+  const [busy, setBusy] = React.useState(false);
+  const [pos, setPos] = React.useState<{ left: number; top: number; width: number } | null>(null);
+  const ref = React.useRef<HTMLInputElement>(null);
+  const listId = React.useId();
+  const current = options.find((o) => o.id === value);
+  const typed = (q ?? "").trim();
+  const norm = (s: string) => s.toLocaleLowerCase("tr-TR");
+  const list = typed ? options.filter((o) => norm(o.name).includes(norm(typed))).slice(0, 50) : options.slice(0, 50);
+  const exact = typed ? options.find((o) => contactKey(o.name) === contactKey(typed)) : undefined;
+  const canCreate = !!typed && !exact;
+  const total = list.length + (canCreate ? 1 : 0);
+
+  const openList = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos({ left: r.left, top: r.bottom + 4, width: Math.max(r.width, 300) });
+    setOpen(true);
+  };
+  const close = () => {
+    setOpen(false);
+    setQ(null);
+  };
+  const pick = (id: string) => {
+    onChange(id);
+    close();
+  };
+  const create = async () => {
+    if (!canCreate || busy) return;
+    setBusy(true);
+    const id = await onCreate(typed);
+    setBusy(false);
+    if (id) pick(id);
+  };
+  const confirm = () => {
+    if (hi < list.length) pick(list[hi].id);
+    else if (canCreate) create();
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onScroll = () => close();
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [open]);
+
+  return (
+    <>
+      <div className="relative">
+        <input
+          ref={ref}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-label={label}
+          placeholder={`${label} ara ya da yeni yaz`}
+          value={q ?? current?.name ?? ""}
+          onFocus={(e) => e.target.select()}
+          onClick={() => (open ? null : openList())}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setHi(0);
+            if (!open) openList();
+          }}
+          onBlur={() => setTimeout(close, 150)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              if (!open) return openList();
+              setHi((h) => (e.key === "ArrowDown" ? Math.min(total - 1, h + 1) : Math.max(0, h - 1)));
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              if (!open) return openList();
+              if (exact && typed) return pick(exact.id);
+              confirm();
+            } else if (e.key === "Escape") close();
+          }}
+          className={cn(className, "pr-8")}
+        />
+        {value && (
+          <button
+            type="button"
+            tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onChange("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-md flex items-center justify-center text-slate-500 hover:text-rose-600"
+            aria-label="Cariyi kaldır"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      {open && pos && (
+        <div
+          id={listId}
+          role="listbox"
+          className="fixed z-[80] max-h-72 overflow-y-auto rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-xl py-1"
+          style={{ left: Math.max(8, Math.min(pos.left, window.innerWidth - pos.width - 8)), top: pos.top, width: Math.min(pos.width, window.innerWidth - 16) }}
+        >
+          {list.map((o, i) => (
+            <button
+              key={o.id}
+              type="button"
+              role="option"
+              aria-selected={i === hi}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setHi(i)}
+              onClick={() => pick(o.id)}
+              className={cn("w-full px-3 py-2 text-left text-sm", i === hi ? "bg-brand-500 text-white" : "text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800", o.id === value && i !== hi && "font-bold")}
+            >
+              {o.name}
+            </button>
+          ))}
+          {canCreate && (
+            <button
+              type="button"
+              role="option"
+              aria-selected={hi === list.length}
+              disabled={busy}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setHi(list.length)}
+              onClick={create}
+              className={cn(
+                "w-full px-3 py-2.5 text-left text-sm border-t border-slate-200 dark:border-slate-700 flex items-center gap-2",
+                hi === list.length ? "bg-brand-500 text-white" : "text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-slate-800",
+              )}
+            >
+              <Plus size={15} />
+              <span>
+                <b>“{typed}”</b> — yeni {label.toLocaleLowerCase("tr-TR")} olarak kaydet{busy ? "…" : ""}
+              </span>
+            </button>
+          )}
+          {list.length === 0 && !canCreate && <div className="px-3 py-2 text-sm text-slate-600 dark:text-slate-300">Cari bulunamadı</div>}
+        </div>
+      )}
+    </>
+  );
+}
+
 /** Sık kullanılan KDV oranları — ↑/↓ ve ok düğmeleri bu oranlar arasında gezer */
 const VAT_STEPS = [0, 1, 10, 20];
 
@@ -534,6 +695,9 @@ function QuickDocForm({
   const dueTouched = React.useRef(false);
   const isOrderDoc = docType === "sales_order" || docType === "purchase_order";
   const [notes, setNotes] = React.useState((fromBase ? base!.notes : null) ?? initialNotes ?? "");
+  // Banka IBAN'ı belgeye eklensin mi (PDF'te "koşullar" alanında basılır)
+  const [ibanOn, setIbanOn] = React.useState(fromBase ? /IBAN:/.test(base!.terms ?? "") : false);
+  const [ibanAccountId, setIbanAccountId] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
   // --- Bağlantı kopmalarına karşı: kalıcı kimlikler (tekrar kaydetmek çift kayıt oluşturmaz) ---
@@ -544,7 +708,7 @@ function QuickDocForm({
 
   // --- Otomatik taslak: yazılanlar bu cihazda saklanır, pencere kapansa da kaybolmaz ---
   const draftKey = `ren-belge-taslak:${isEdit ? base!.id : (fixedType ?? side)}`;
-  const snapshot = JSON.stringify({ contactId, kind, issueDate, number, validUntil, currency, rateOverride, inclVat, lines, discountType, discountValue, paid, accountId, dueDate, notes });
+  const snapshot = JSON.stringify({ contactId, kind, issueDate, number, validUntil, currency, rateOverride, inclVat, lines, discountType, discountValue, paid, accountId, dueDate, notes, ibanOn, ibanAccountId });
   const initialSnapshot = React.useRef(snapshot);
   type Draft = { at: number; snap: string; docId: string; paymentId: string; productIds: Record<string, string> };
   const [draft, setDraft] = React.useState<Draft | null>(null);
@@ -556,7 +720,9 @@ function QuickDocForm({
     } catch {}
   }, [draftKey]);
   React.useEffect(() => {
-    if (snapshot === initialSnapshot.current || draft) return; // değişiklik yoksa ya da geri yükleme bekleniyorsa yazma
+    // yalnızca gerçekten bir şey girildiyse sakla (cari/vade gibi otomatik dolan alanlar taslak sayılmaz)
+    const hasContent = lines.some((l) => l.name.trim() || l.product_id) || notes.trim() !== "";
+    if (!hasContent || snapshot === initialSnapshot.current || draft) return; // değişiklik yoksa ya da geri yükleme bekleniyorsa yazma
     const t = setTimeout(() => {
       try {
         localStorage.setItem(
@@ -566,7 +732,7 @@ function QuickDocForm({
       } catch {}
     }, 500);
     return () => clearTimeout(t);
-  }, [snapshot, draftKey, draft]);
+  }, [snapshot, draftKey, draft, lines, notes]);
   const clearDraft = () => {
     try {
       localStorage.removeItem(draftKey);
@@ -591,6 +757,8 @@ function QuickDocForm({
     setDueDate(v.dueDate ?? "");
     dueTouched.current = true; // taslaktaki vade korunsun
     setNotes(v.notes ?? "");
+    setIbanOn(!!v.ibanOn);
+    setIbanAccountId(v.ibanAccountId ?? "");
     // aynı belge/ürün/tahsilat kimlikleri: önceki yarım kayıt sunucuya ulaştıysa üzerine yazılır, çift olmaz
     if (!isEdit) docIdRef.current = draft.docId;
     paymentIdRef.current = draft.paymentId;
@@ -600,10 +768,14 @@ function QuickDocForm({
   };
   const discardDraft = () => {
     clearDraft();
+    // şimdiki hâli esas al: silinen taslak kendiliğinden yeniden oluşmasın
+    initialSnapshot.current = snapshot;
     setDraft(null);
   };
 
   const accountList = accounts.data ?? [];
+  const bankAccounts = accountList.filter((a) => a.is_active !== false && a.type === "bank" && !!a.iban);
+  const effectiveIbanId = ibanAccountId || bankAccounts[0]?.id || "";
   const effectiveAccountId = accountId || accountList[0]?.id || "";
 
   // Carinin vade günü → vade tarihi otomatik (fatura/iade; siparişte tarih teslim/hatırlatma anlamında olduğu için atlanır)
@@ -616,11 +788,38 @@ function QuickDocForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contactId, issueDate, termDays]);
 
+  /** Yazılan cari kayıtlı değilse oluştur (aynı isim varsa onu döndürür — mükerrer açılmaz) */
+  const saveContact = useSave("contacts");
+  const createContact = async (name: string): Promise<string | null> => {
+    const ex = (contacts.data ?? []).find((c) => contactKey(c.name) === contactKey(name));
+    if (ex) return ex.id;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("İnternet yok — cari kaydedilemedi");
+      return null;
+    }
+    try {
+      const res = await saveContact.save<{ id: string }>({ name: name.trim(), kind: isPurchase ? "supplier" : "customer", is_active: true });
+      if (res.queued) {
+        toast.error("İnternet yok — cari kaydedilemedi");
+        return null;
+      }
+      toast.success(`${name.trim()} ${contactLabel.toLocaleLowerCase("tr-TR")} olarak kaydedildi`);
+      return res.data!.id;
+    } catch {
+      return null; // hata mesajı useSave tarafından gösterildi
+    }
+  };
+
   const contactOptions = React.useMemo(() => {
     const all = contacts.data ?? [];
-    const list: { id: string; name: string; payment_term_days?: number | null }[] = all
-      .filter((c) => c.kind === (isPurchase ? "supplier" : "customer") || c.kind === "both")
-      .map((c) => ({ id: c.id, name: c.name, payment_term_days: c.payment_term_days }));
+    const same = (k: string) => k === (isPurchase ? "supplier" : "customer") || k === "both";
+    // önce bu türdekiler, sonra diğer türde kayıtlı cariler (aynı firma ikinci kez açılmasın)
+    const list: { id: string; name: string; payment_term_days?: number | null }[] = [
+      ...all.filter((c) => same(c.kind)).map((c) => ({ id: c.id, name: c.name, payment_term_days: c.payment_term_days })),
+      ...all
+        .filter((c) => !same(c.kind))
+        .map((c) => ({ id: c.id, name: `${c.name} (${isPurchase ? "müşteri" : "tedarikçi"})`, payment_term_days: c.payment_term_days })),
+    ];
     // Seçili cari (kayıtlı belgenin carisi, cari kartından gelen ya da az önce oluşturulan) türü farklı olsa da görünsün
     if (contactId && !list.some((c) => c.id === contactId)) {
       const found = all.find((c) => c.id === contactId);
@@ -913,6 +1112,12 @@ function QuickDocForm({
               affects_stock: !(base.doc_type === "sales_delivery" || base.doc_type === "purchase_delivery"),
             }
           : { status: cfg.statuses ? "pending" : "approved" };
+      const ibanAcc = bankAccounts.find((a) => a.id === effectiveIbanId);
+      const otherTerms = String((kept as { terms?: string | null }).terms ?? "")
+        .split("\n")
+        .filter((l) => l.trim() && !/IBAN:/.test(l));
+      if (ibanOn && ibanAcc?.iban) otherTerms.push(`Banka: ${ibanAcc.bank_name || ibanAcc.name} — IBAN: ${ibanAcc.iban}`);
+      const terms = otherTerms.join("\n") || null;
       const payload = {
         description: contact?.name ? `${contact.name} - ${isPurchase ? "Alış" : "Satış"}` : null,
         ...kept,
@@ -930,6 +1135,7 @@ function QuickDocForm({
         discount_type: discountType,
         discount_value: discountValue,
         notes: notes.trim() || null,
+        terms,
       };
       const docLines = resolved.map((l) => ({
         id: isEdit ? l.id : newId(),
@@ -1058,14 +1264,14 @@ function QuickDocForm({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <label className="space-y-1.5">
               <span className={labelCls}>{contactLabel}</span>
-              <select className={fieldCls} value={contactId} onChange={(e) => setContactId(e.target.value)}>
-                <option value="">Cari seçilmedi</option>
-                {contactOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <ContactCombo
+                value={contactId}
+                options={contactOptions}
+                label={contactLabel}
+                onChange={setContactId}
+                onCreate={createContact}
+                className={fieldCls}
+              />
             </label>
             <label className="space-y-1.5">
               <span className={labelCls}>Belge türü</span>
@@ -1082,24 +1288,46 @@ function QuickDocForm({
             {docType === "quote" && (
               <label className="space-y-1.5">
                 <span className={labelCls}>Geçerlilik</span>
-                <input type="date" className={fieldCls} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+                <DateInput type="date" className={fieldCls} value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
               </label>
             )}
             <label className="space-y-1.5">
               <span className={labelCls}>Tarih</span>
-              <input type="date" className={fieldCls} value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+              <DateInput type="date" className={fieldCls} value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
             </label>
             {cfg.payable && (
               <label className="space-y-1.5">
-                <span className={labelCls}>
-                  {isOrderDoc ? "Teslim / hatırlatma" : "Vade"}
-                  {!isOrderDoc && termDays > 0 && <span className="normal-case font-semibold"> · {termDays} gün</span>}
+                <span className={cn(labelCls, "flex items-center justify-between gap-2")}>
+                  <span>
+                    {isOrderDoc ? "Teslim / hatırlatma" : "Vade"}
+                    {!isOrderDoc && termDays > 0 && <span className="normal-case font-semibold"> · {termDays} gün</span>}
+                  </span>
+                  {!(showPayment && paid) && (
+                    <select
+                      aria-label="Hızlı vade"
+                      title="Belge tarihinden itibaren hızlı vade"
+                      className="-my-1 h-[18px] rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1 py-0 text-[11px] leading-none font-semibold normal-case text-slate-700 dark:text-slate-200"
+                      value={String([7, 14, 30, 60, 90].find((d) => addDays(issueDate, d) === dueDate) ?? "")}
+                      onChange={(e) => {
+                        const d = Number(e.target.value);
+                        if (!d) return;
+                        dueTouched.current = true;
+                        setDueDate(addDays(issueDate, d));
+                      }}
+                    >
+                      <option value="">hızlı…</option>
+                      {[7, 14, 30, 60, 90].map((d) => (
+                        <option key={d} value={d}>
+                          {d} gün
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </span>
                 {showPayment && paid ? (
                   <div className={cn(fieldCls, "flex items-center bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300")}>Peşin — vade yok</div>
                 ) : (
-                  <input
-                    type="date"
+                  <DateInput
                     className={fieldCls}
                     value={dueDate}
                     title={isOrderDoc ? "Bu tarih geldiğinde bildirim gelir" : undefined}
@@ -1148,6 +1376,68 @@ function QuickDocForm({
               )}
             </label>
           </div>
+
+          {/* Ödeme ve IBAN — üstte */}
+          {(showPayment || !isPurchase) && (
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+              {showPayment && (
+                <div className="space-y-1.5">
+                  <span className={cn(labelCls, "block")}>Ödeme durumu</span>
+                  <div className="inline-flex overflow-hidden rounded-xl border border-slate-300 dark:border-slate-600">
+                    {[
+                      { v: true, label: isPurchase ? "Ödendi (Peşin)" : "Tahsil edildi (Peşin)" },
+                      { v: false, label: "Açık (Vadeli)" },
+                    ].map((o) => (
+                      <button
+                        key={String(o.v)}
+                        type="button"
+                        onClick={() => setPaid(o.v)}
+                        className={cn(
+                          "h-11 px-4 text-sm font-bold transition",
+                          paid === o.v ? "bg-brand-500 text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800",
+                        )}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {showPayment && paid && (
+                <label className="space-y-1.5 min-w-[12rem]">
+                  <span className={cn(labelCls, "block")}>Kasa / Hesap</span>
+                  <select className={fieldCls} value={effectiveAccountId} onChange={(e) => setAccountId(e.target.value)}>
+                    {accountList.length === 0 && <option value="">Kasa / hesap tanımlı değil</option>}
+                    {accountList.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                        {a.currency !== "TRY" ? ` (${a.currency})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {!isPurchase && (
+              <div className="space-y-1.5 min-w-[14rem] flex-1">
+                <label className="flex h-[18px] items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={ibanOn} onChange={(e) => setIbanOn(e.target.checked)} className="h-4 w-4 accent-brand-600" />
+                  <span className={labelCls}>Banka IBAN&apos;ı belgeye eklensin</span>
+                </label>
+                {bankAccounts.length === 0 ? (
+                  <div className="h-11 flex items-center text-xs text-slate-600 dark:text-slate-300">IBAN&apos;ı girilmiş banka hesabı yok (Hesaplar → banka hesabı düzenle)</div>
+                ) : (
+                  <select className={fieldCls} disabled={!ibanOn} value={effectiveIbanId} onChange={(e) => setIbanAccountId(e.target.value)}>
+                    {bankAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.bank_name || a.name} — {a.iban}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              )}
+            </div>
+          )}
 
           {/* Kalemler */}
           <div className="space-y-2" ref={linesRoot}>
@@ -1483,8 +1773,8 @@ function QuickDocForm({
             </div>
           </div>
 
-          {/* Toplamlar */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3 text-sm">
+          {/* Toplamlar — sağda */}
+          <div className="ml-auto w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-slate-500 dark:text-slate-400">Brüt Toplam</span>
               <span className="font-bold tabular-nums">{money(totals.gross)}</span>
@@ -1514,78 +1804,20 @@ function QuickDocForm({
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-slate-500 dark:text-slate-400">Net Toplam</span>
-              <div className="flex items-center gap-2">
-                <span className="font-bold tabular-nums">{money(totals.net)}</span>
-                <select
-                  className="h-8 rounded-lg border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-800/60 px-2 text-xs text-rose-500"
-                  value="0"
-                  disabled
-                  title="Stopaj kesintisi henüz desteklenmiyor"
-                >
-                  <option value="0">stopaj yok</option>
-                </select>
-              </div>
+              <span className="font-bold tabular-nums">{money(totals.net)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500 dark:text-slate-400">KDV</span>
               <span className="font-bold tabular-nums">{money(totals.vat)}</span>
             </div>
-            <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-3">
-              <span className="font-extrabold uppercase">Toplam</span>
-              <span className="text-lg font-extrabold text-brand-600 dark:text-brand-400 tabular-nums">{money(totals.total)}</span>
+            <div className="flex items-center justify-between rounded-xl bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-800 px-4 py-3">
+              <span className="font-extrabold uppercase text-brand-800 dark:text-brand-200">Genel Toplam</span>
+              <span className="text-2xl font-extrabold text-brand-700 dark:text-brand-300 tabular-nums">{money(totals.total)}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => discountRef.current?.focus()}
-              className="w-full rounded-xl bg-rose-600 hover:bg-rose-700 py-2.5 text-sm font-bold text-white transition"
-            >
-              fatura altı iskonto yap
-            </button>
           </div>
 
-          {/* Ödeme durumu (yalnızca faturada) */}
-          {showPayment && (
-            <div className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4">
-              <div className="space-y-1.5">
-                <span className={labelCls}>Ödeme durumu</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { v: true, label: isPurchase ? "Ödendi (Peşin)" : "Tahsil edildi (Peşin)" },
-                    { v: false, label: "Açık (Vadeli)" },
-                  ].map((o) => (
-                    <button
-                      key={String(o.v)}
-                      type="button"
-                      onClick={() => setPaid(o.v)}
-                      className={cn(
-                        "rounded-xl py-3 text-sm font-bold transition",
-                        paid === o.v ? "bg-brand-500 text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700",
-                      )}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {paid ? (
-                <label className="block space-y-1.5">
-                  <span className={labelCls}>Kasa / Hesap</span>
-                  <select className={fieldCls} value={effectiveAccountId} onChange={(e) => setAccountId(e.target.value)}>
-                    {accountList.length === 0 && <option value="">Kasa / hesap tanımlı değil</option>}
-                    {accountList.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                        {a.currency !== "TRY" ? ` (${a.currency})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-            </div>
-          )}
-
           <label className="block space-y-1.5">
-            <span className={labelCls}>Not</span>
+            <span className={labelCls}>Açıklama / Not</span>
             <textarea
               rows={2}
               className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3.5 py-2.5 text-sm outline-none focus:border-brand-400 transition"
@@ -1596,11 +1828,7 @@ function QuickDocForm({
         </div>
 
         {/* Alt çubuk */}
-        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-t border-slate-200 dark:border-slate-800">
-          <div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">Genel Toplam</div>
-            <div className="text-xl font-bold text-brand-600 dark:text-brand-400 tabular-nums">{money(totals.total)}</div>
-          </div>
+        <div className="flex items-center justify-end gap-3 px-5 sm:px-6 py-4 border-t border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <button type="button" className="btn-ghost" onClick={() => onOpenChange(false)} disabled={saving}>
               <X size={16} /> Vazgeç

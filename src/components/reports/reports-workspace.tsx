@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DateInput } from "@/components/ui/date-input";
 import Link from "next/link";
 import {
   Download,
@@ -989,7 +990,7 @@ export function ReportsWorkspace() {
                 <div className="flex flex-wrap items-end gap-2">
                   <div>
                     <label className="text-xs text-slate-400 mb-1 block">Başlangıç</label>
-                    <input
+                    <DateInput
                       type="date"
                       className="input !py-1.5"
                       value={profitDates.from}
@@ -998,7 +999,7 @@ export function ReportsWorkspace() {
                   </div>
                   <div>
                     <label className="text-xs text-slate-400 mb-1 block">Bitiş</label>
-                    <input
+                    <DateInput
                       type="date"
                       className="input !py-1.5"
                       value={profitDates.to}
@@ -1094,7 +1095,7 @@ export function ReportsWorkspace() {
               </div>
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Tarih</label>
-                <input
+                <DateInput
                   type="date"
                   className="input !py-1.5"
                   value={kasaDate}
