@@ -91,7 +91,10 @@ const METHOD_LABELS: Record<string, string> = {
   card: "Kredi kartı",
   credit_card: "Kredi kartı",
   bank: "Havale/EFT",
+  bank_transfer: "Havale/EFT",
   transfer: "Havale/EFT",
+  note: "Senet",
+  other: "Diğer",
   cheque: "Çek",
 };
 
@@ -473,14 +476,16 @@ function CurrencyCard({ data }: { data: DashboardSummary | undefined }) {
 
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-slate-600 dark:text-slate-300 font-medium">Çevir:</span>
-            <input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="Tutar (TL)"
-              className="input w-36 tabular-nums"
-              aria-label="TL tutar"
-            />
+            <div className="w-40">
+              <input
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="Tutar (TL)"
+                className="input tabular-nums"
+                aria-label="TL tutar"
+              />
+            </div>
             <span className="text-slate-500 dark:text-slate-400">TL =</span>
             <span className="font-bold text-blue-600 dark:text-blue-400 tabular-nums">{fxText(typed)}</span>
           </div>
@@ -523,7 +528,8 @@ function BalanceCards({ data }: { data: DashboardSummary | undefined }) {
 
 function RecentCard({ data }: { data: DashboardSummary | undefined }) {
   const { blur, formatMoney } = useFmt();
-  const rows = data?.recent ?? [];
+  // Otomatik mahsup kayıtları (kasasız düzeltme çifti) ekranı doldurmasın
+  const rows = (data?.recent ?? []).filter((r) => !(r.kind === "transaction" && r.type === "adjustment" && r.method === "other"));
   // Bugünün satış özeti (Pusulam: "Bugün: 1 satış · 2.398,00 TL")
   const today = isoDate();
   const todaySales = rows.filter(

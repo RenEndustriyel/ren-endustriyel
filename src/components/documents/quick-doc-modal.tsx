@@ -780,7 +780,7 @@ function QuickDocForm({
                     <th className="px-2 py-3 text-right w-28 leading-tight">
                       {priceHeader} ({inclVat ? "KDV dahil" : "KDV hariç"})
                     </th>
-                    <th className="px-2 py-3 text-left w-16">KDV %</th>
+                    <th className="px-2 py-3 text-left w-24">KDV %</th>
                     <th className="px-2 py-3 text-right w-28 leading-tight">Tutar (KDV dahil)</th>
                     {isPurchase && <th className="px-2 py-3 text-right w-32 leading-tight">Satış fiyatı (raf · KDV dahil)</th>}
                     <th className="px-2 py-3 w-10" />
@@ -914,7 +914,7 @@ function QuickDocForm({
                         </td>
                         <td className="px-2 py-2.5">
                           <select
-                            className={cn(cellInputCls, "h-10")}
+                            className={cn(cellInputCls, "h-10 px-2 min-w-[4.5rem]")}
                             value={l.vat_rate}
                             onChange={(e) => patchLine(l.id, { vat_rate: Number(e.target.value) })}
                           >

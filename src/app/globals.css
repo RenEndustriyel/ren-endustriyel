@@ -363,3 +363,9 @@ html:not(.dark) .border-slate-200 {
 html:not(.dark) .divide-slate-100 > :not(:last-child) {
   border-color: #e2e8f0;
 }
+
+/* .input kendi iç boşluğunu tanımladığı için simgeli arama kutularında sol boşluk ezilmesin */
+.input.pl-8 { padding-left: 2rem; }
+.input.pl-9 { padding-left: 2.25rem; }
+.input.pl-10 { padding-left: 2.5rem; }
+.input.pl-11 { padding-left: 2.75rem; }
