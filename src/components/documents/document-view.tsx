@@ -18,15 +18,15 @@ import {
   Ban,
   CheckCircle2,
   Link2,
+  ArrowLeft,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRows, useRpc, useUnits, useProducts, useContactBalances, type Row } from "@/lib/data";
 import { DOC_TYPES, PAYMENT_STATUS, STATUS_LABEL, docFlow, type DocType } from "@/lib/doc-types";
 import { formatDate, formatMoney, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
-import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardBody } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -166,41 +166,67 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
   const convert = (to: DocType) => router.push(`${DOC_TYPES[to].base}/yeni?kaynak=${d.id}`);
   const ps = PAYMENT_STATUS[d.payment_status] ?? PAYMENT_STATUS.none;
 
+  const money = (n: number | null | undefined) => formatMoney(Number(n || 0), d.currency);
+  const lineAmount = (l: (typeof lines)[number]) =>
+    Number(l.quantity || 0) * Number(l.unit_price || 0) * (1 - Number(l.discount_rate || 0) / 100);
+  const box = "min-h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 px-3.5 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100";
+  const lbl = "text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300";
+  const canAct = canWrite && d.status !== "draft" && d.status !== "cancelled";
+  const statusBadges = (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {cfg.statuses && (
+        <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" || d.status === "approved" ? "success" : "neutral"}>
+          {STATUS_LABEL[d.status] ?? d.status}
+        </Badge>
+      )}
+      {cfg.payable && d.status !== "draft" && <Badge tone={overdue ? "danger" : ps.tone}>{overdue ? "Vadesi geçti" : ps.label}</Badge>}
+      {!cfg.statuses && !cfg.payable && (
+        <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" ? "success" : "neutral"}>
+          {STATUS_LABEL[d.status] ?? d.status}
+        </Badge>
+      )}
+      {!d.affects_stock && cfg.stock !== 0 && <Badge>Stok irsaliyede</Badge>}
+      {!d.is_printed && d.doc_type === "sales_invoice" && <Badge tone="warning">Yazdırılmadı</Badge>}
+    </span>
+  );
+
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader
-        back={cfg.base}
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            {cfg.label} {d.number ?? <span className="text-muted">(Taslak)</span>}
-          </span>
-        }
-        description={
-          <span className="flex flex-wrap items-center gap-2">
-            {cfg.statuses && (
-              <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" || d.status === "approved" ? "success" : "neutral"}>
-                {STATUS_LABEL[d.status] ?? d.status}
-              </Badge>
+    <div className="mx-auto max-w-6xl">
+      <div className="rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+        {/* Başlık + işlemler */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-4">
+          <button
+            type="button"
+            onClick={() => router.push(cfg.base)}
+            className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            aria-label="Listeye dön"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg sm:text-xl font-bold tracking-tight">
+              {cfg.label}{" "}
+              {d.number ? (
+                <span className="text-slate-600 dark:text-slate-300">· {d.number}</span>
+              ) : d.status === "draft" ? (
+                <span className="text-slate-500">(Taslak)</span>
+              ) : (
+                <span className="text-sm font-medium text-slate-500">· belge no girilmemiş</span>
+              )}
+            </h1>
+            <div className="mt-1">{statusBadges}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite && (
+              <Button size="sm" onClick={() => router.push(`${cfg.base}/duzenle?id=${d.id}`)}>
+                <Pencil /> Düzenle
+              </Button>
             )}
-            {cfg.payable && d.status !== "draft" && (
-              <Badge tone={overdue ? "danger" : ps.tone}>{overdue ? "Vadesi geçti" : ps.label}</Badge>
-            )}
-            {!cfg.statuses && !cfg.payable && (
-              <Badge tone={d.status === "cancelled" || d.status === "rejected" ? "danger" : d.status === "accepted" || d.status === "converted" ? "success" : "neutral"}>
-                {STATUS_LABEL[d.status] ?? d.status}
-              </Badge>
-            )}
-            {!d.affects_stock && cfg.stock !== 0 && <Badge>Stok irsaliyede</Badge>}
-            {!d.is_printed && d.doc_type === "sales_invoice" && <Badge tone="warning">Yazdırılmadı</Badge>}
-          </span>
-        }
-        actions={
-          <>
+            <Button size="sm" variant="outline" onClick={() => pdf("open")} title="PDF olarak aç ve yazdır">
+              <Printer /> <span className="hidden sm:inline">Yazdır / PDF</span>
+            </Button>
             <Button size="sm" variant="outline" onClick={() => pdf("share")}>
               <Share2 /> <span className="hidden sm:inline">Paylaş</span>
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => pdf("open")} className="hidden sm:inline-flex" title="PDF Belgeyi Aç ve Yazdır">
-              <Printer /> Yazdır / PDF
             </Button>
             {canWrite && (
               <DropdownMenu>
@@ -210,9 +236,6 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => router.push(`${cfg.base}/duzenle?id=${d.id}`)}>
-                    <Pencil /> Düzenle
-                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => pdf("download")}>
                     <Download /> PDF indir
                   </DropdownMenuItem>
@@ -260,249 +283,281 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-          </>
-        }
-      />
-
-      {/* hızlı işlem şeridi */}
-      {canWrite && d.status !== "draft" && d.status !== "cancelled" && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {cfg.payable && remaining > 0.004 && (
-            <Button size="sm" variant={flow === "in" ? "success" : "danger"} onClick={() => setPayOpen(true)}>
-              <HandCoins /> {flow === "in" ? "Tahsilat ekle" : "Ödeme ekle"}
-            </Button>
-          )}
-          {cfg.convertTo
-            .filter((t) => d.status !== "converted" || t.endsWith("return"))
-            .map((t) => (
-              <Button key={t} size="sm" variant="outline" onClick={() => convert(t)}>
-                <ArrowRightLeft /> {DOC_TYPES[t].label}
-              </Button>
-            ))}
+          </div>
         </div>
-      )}
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <Card>
-            <CardBody className="grid gap-4 text-sm sm:grid-cols-2">
-              <div>
-                <div className="text-xs uppercase tracking-wide text-muted">{cfg.contactLabel}</div>
+        <div className="px-4 sm:px-6 py-5 space-y-5">
+          {/* Hızlı işlemler */}
+          {canAct && (cfg.payable && remaining > 0.004 || cfg.convertTo.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {cfg.payable && remaining > 0.004 && (
+                <Button size="sm" variant={flow === "in" ? "success" : "danger"} onClick={() => setPayOpen(true)}>
+                  <HandCoins /> {flow === "in" ? "Tahsilat ekle" : "Ödeme ekle"}
+                </Button>
+              )}
+              {cfg.convertTo
+                .filter((t) => d.status !== "converted" || t.endsWith("return"))
+                .map((t) => (
+                  <Button key={t} size="sm" variant="outline" onClick={() => convert(t)}>
+                    <ArrowRightLeft /> {DOC_TYPES[t].label}
+                  </Button>
+                ))}
+            </div>
+          )}
+
+          {/* Belge bilgileri — belge penceresiyle aynı düzen */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="space-y-1.5 sm:col-span-2">
+              <span className={lbl}>{cfg.contactLabel}</span>
+              <div className={box}>
                 {d.contact_id ? (
-                  <Link href={`/cariler/detay?id=${d.contact_id}`} className="font-semibold text-primary hover:underline">
+                  <Link href={`/cariler/detay?id=${d.contact_id}`} className="font-semibold text-brand-700 dark:text-brand-300 hover:underline">
                     {snap.name ?? "—"}
                   </Link>
                 ) : (
-                  <div className="font-semibold">{d.doc_type === "pos_sale" ? "Perakende müşteri" : "—"}</div>
+                  <span>{d.doc_type === "pos_sale" ? "Perakende müşteri" : "Cari seçilmedi"}</span>
                 )}
-                <div className="text-muted">{[snap.address, snap.district, snap.city].filter(Boolean).join(" ")}</div>
-                {snap.tax_number && <div className="text-muted">VKN/TCKN {snap.tax_number} {snap.tax_office && `· ${snap.tax_office}`}</div>}
+                {(snap.address || snap.city || snap.tax_number) && (
+                  <div className="mt-0.5 text-xs font-normal text-slate-600 dark:text-slate-300">
+                    {[snap.address, snap.district, snap.city].filter(Boolean).join(" ")}
+                    {snap.tax_number && ` · VKN/TCKN ${snap.tax_number}${snap.tax_office ? ` · ${snap.tax_office}` : ""}`}
+                  </div>
+                )}
               </div>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <dt className="text-muted">Tarih</dt>
-                <dd>{formatDate(d.issue_date)}</dd>
-                {d.due_date && (
-                  <>
-                    <dt className="text-muted">Vade</dt>
-                    <dd className={cn(overdue && "font-semibold text-danger")}>{formatDate(d.due_date)}</dd>
-                  </>
-                )}
-                {d.valid_until && (
-                  <>
-                    <dt className="text-muted">Geçerlilik</dt>
-                    <dd>{formatDate(d.valid_until)}</dd>
-                  </>
-                )}
-                {d.currency !== "TRY" && (
-                  <>
-                    <dt className="text-muted">Kur</dt>
-                    <dd className="num">1 {d.currency} = {formatNumber(d.exchange_rate)} ₺</dd>
-                  </>
-                )}
-              </dl>
-              {d.description && <div className="text-muted sm:col-span-2">{d.description}</div>}
-            </CardBody>
-          </Card>
+            </div>
+            <div className="space-y-1.5">
+              <span className={lbl}>Belge türü</span>
+              <div className={box}>{cfg.label}</div>
+            </div>
+            <div className="space-y-1.5">
+              <span className={lbl}>Tarih</span>
+              <div className={box}>{formatDate(d.issue_date)}</div>
+            </div>
+            {d.valid_until ? (
+              <div className="space-y-1.5">
+                <span className={lbl}>Geçerlilik</span>
+                <div className={box}>{formatDate(d.valid_until)}</div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <span className={lbl}>Vade</span>
+                <div className={cn(box, overdue && "border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300 font-bold")}>
+                  {d.due_date ? formatDate(d.due_date) : "—"}
+                </div>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <span className={lbl}>Para birimi</span>
+              <div className={box}>
+                {d.currency}
+                {d.currency !== "TRY" && <span className="text-xs text-slate-600 dark:text-slate-300"> · 1 {d.currency} = {formatNumber(d.exchange_rate)} ₺</span>}
+              </div>
+            </div>
+          </div>
 
-          <Card className="overflow-hidden">
-            <div className="thin-scroll overflow-x-auto">
+          {/* Kalemler */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">Kalemler ({lines.length})</div>
+              <span className="text-xs text-slate-600 dark:text-slate-300">Fiyatlar KDV {d.prices_include_vat ? "dahil" : "hariç"}</span>
+            </div>
+
+            {/* Telefon: kart */}
+            <div className="md:hidden space-y-2">
+              {lines.map((l, i) => (
+                <div key={l.id} className="rounded-xl border border-slate-300 dark:border-slate-700 p-3 text-sm">
+                  <div className="flex gap-2">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 pt-0.5">{i + 1}</span>
+                    <div className="min-w-0 flex-1 font-semibold">
+                      {l.product_id ? (
+                        <Link href={`/urunler/${l.product_id}`} className="hover:text-brand-600">{l.description || l.product_name}</Link>
+                      ) : (
+                        l.description
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div><div className="text-slate-600 dark:text-slate-300">Miktar</div><div className="font-semibold">{formatQty(l.quantity)} {l.unit_name}</div></div>
+                    <div><div className="text-slate-600 dark:text-slate-300">Fiyat</div><div className="font-semibold">{formatNumber(l.unit_price)}</div></div>
+                    <div><div className="text-slate-600 dark:text-slate-300">KDV / İsk.</div><div className="font-semibold">%{formatQty(l.vat_rate)}{Number(l.discount_rate) ? ` · %${formatQty(l.discount_rate)}` : ""}</div></div>
+                  </div>
+                  <div className="mt-2 flex justify-between border-t border-slate-200 dark:border-slate-700 pt-2">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tutar</span>
+                    <span className="font-bold tabular-nums">{formatNumber(lineAmount(l))}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Masaüstü: tablo */}
+            <div className="hidden md:block rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-muted">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Ürün / hizmet</th>
-                    <th className="px-3 py-2 text-right">Miktar</th>
-                    <th className="px-3 py-2 text-right">B. fiyat</th>
-                    <th className="hidden px-3 py-2 text-right sm:table-cell">İsk.</th>
-                    <th className="hidden px-3 py-2 text-right sm:table-cell">KDV</th>
-                    <th className="px-4 py-2 text-right">Tutar</th>
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                    <th className="px-3 py-3 text-left w-8">#</th>
+                    <th className="px-3 py-3 text-left">Ürün</th>
+                    <th className="px-2 py-3 text-center w-24">Miktar</th>
+                    <th className="px-2 py-3 text-center w-24">Birim</th>
+                    <th className="px-2 py-3 text-center w-32">{cfg.side === "purchase" ? "Alış fiyatı" : "Satış fiyatı"}</th>
+                    <th className="px-2 py-3 text-center w-20">KDV %</th>
+                    <th className="px-2 py-3 text-center w-24">İskonto %</th>
+                    <th className="px-3 py-3 text-center w-32">Tutar</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
-                  {lines.map((l) => (
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {lines.map((l, i) => (
                     <tr key={l.id}>
-                      <td className="px-4 py-2.5">
+                      <td className="px-3 py-3 text-xs text-slate-600 dark:text-slate-300">{i + 1}</td>
+                      <td className="px-3 py-3 font-medium">
                         {l.product_id ? (
-                          <Link href={`/stok/urunler/detay?id=${l.product_id}`} className="font-medium hover:text-primary">
+                          <Link href={`/urunler/${l.product_id}`} className="hover:text-brand-600 dark:hover:text-brand-400">
                             {l.description || l.product_name}
                           </Link>
                         ) : (
-                          <span className="font-medium">{l.description}</span>
+                          l.description
                         )}
                       </td>
-                      <td className="num whitespace-nowrap px-3 py-2.5 text-right">
-                        {formatQty(l.quantity)} <span className="text-xs text-muted">{l.unit_name}</span>
-                      </td>
-                      <td className="num px-3 py-2.5 text-right">{formatNumber(l.unit_price)}</td>
-                      <td className="num hidden px-3 py-2.5 text-right text-muted sm:table-cell">{Number(l.discount_rate) ? `%${formatQty(l.discount_rate)}` : ""}</td>
-                      <td className="num hidden px-3 py-2.5 text-right text-muted sm:table-cell">%{formatQty(l.vat_rate)}</td>
-                      <td className="num px-4 py-2.5 text-right font-medium">{formatNumber(l.net_amount)}</td>
+                      <td className="px-2 py-3 text-center tabular-nums">{formatQty(l.quantity)}</td>
+                      <td className="px-2 py-3 text-center">{l.unit_name?.toLocaleLowerCase("tr-TR")}</td>
+                      <td className="px-2 py-3 text-center tabular-nums">{formatNumber(l.unit_price)}</td>
+                      <td className="px-2 py-3 text-center tabular-nums">{formatQty(l.vat_rate)}</td>
+                      <td className="px-2 py-3 text-center tabular-nums">{Number(l.discount_rate) ? formatQty(l.discount_rate) : "—"}</td>
+                      <td className="px-3 py-3 text-center font-bold tabular-nums">{formatNumber(lineAmount(l))}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </Card>
+          </div>
 
-          {(d.notes || d.terms) && (
-            <Card>
-              <CardBody className="grid gap-3 text-sm sm:grid-cols-2">
-                {d.notes && (
-                  <div>
-                    <div className="text-xs text-muted">Not</div>
-                    <p className="whitespace-pre-line">{d.notes}</p>
-                  </div>
-                )}
-                {d.terms && (
-                  <div>
-                    <div className="text-xs text-muted">Koşullar</div>
-                    <p className="whitespace-pre-line">{d.terms}</p>
-                  </div>
-                )}
-              </CardBody>
-            </Card>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <Card>
-            <CardBody className="flex flex-col gap-2 text-sm">
-              <Line label="Ara toplam" value={formatMoney(d.subtotal, d.currency)} />
-              {Number(d.discount_total) > 0 && <Line label="İskonto" value={`-${formatMoney(d.discount_total, d.currency)}`} />}
-              <Line label="Matrah" value={formatMoney(d.net_total, d.currency)} />
-              <Line label="KDV" value={formatMoney(d.vat_total, d.currency)} />
-              <div className="flex items-center justify-between border-t border-border pt-2 text-lg font-bold">
-                <span>Toplam</span>
-                <span className="num">{formatMoney(d.total, d.currency)}</span>
-              </div>
-              {d.currency !== "TRY" && <div className="num text-right text-xs text-muted">≈ {formatMoney(d.total_try)}</div>}
-              {cfg.payable && (
-                <>
-                  <Line label={flow === "in" ? "Tahsil edilen" : "Ödenen"} value={formatMoney(d.paid_amount, d.currency)} className="text-success" />
-                  <Line label="Kalan" value={formatMoney(remaining, d.currency)} className={cn("font-semibold", remaining > 0.004 && "text-danger")} />
-                </>
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4 items-start">
+            {/* Sol: not, tahsilatlar, ekler, ilişkili belgeler */}
+            <div className="space-y-4 min-w-0">
+              {(d.notes || d.terms || d.description) && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 grid gap-3 text-sm sm:grid-cols-2">
+                  {d.notes && (
+                    <div>
+                      <div className={lbl}>Not</div>
+                      <p className="mt-1 whitespace-pre-line">{d.notes}</p>
+                    </div>
+                  )}
+                  {d.terms && (
+                    <div>
+                      <div className={lbl}>Koşullar</div>
+                      <p className="mt-1 whitespace-pre-line">{d.terms}</p>
+                    </div>
+                  )}
+                  {d.description && !d.notes && (
+                    <div className="sm:col-span-2 text-slate-700 dark:text-slate-200">{d.description}</div>
+                  )}
+                </div>
               )}
+
+              {cfg.payable && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800">
+                  <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 font-semibold">{flow === "in" ? "Tahsilatlar" : "Ödemeler"}</div>
+                  {allocs.data?.length ? (
+                    <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+                      {allocs.data.map((a) => (
+                        <li key={a.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                          <div>
+                            <div>{formatDate(a.transaction.txn_date)}</div>
+                            <div className="text-xs text-slate-600 dark:text-slate-300">{a.transaction.account?.name ?? (a.transaction.type === "adjustment" ? "Mahsup" : "Çek / senet")}</div>
+                          </div>
+                          <span className="font-semibold tabular-nums">{money(a.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">Henüz kayıt yok.</p>
+                  )}
+                </div>
+              )}
+
+              <Attachments entityType="document" entityId={d.id} />
+
+              {(d.source_document_id || !!related.data?.length) && (
+                <Card>
+                  <CardHeader icon={<Link2 />} title="İlişkili belgeler" />
+                  <ul className="divide-y divide-border text-sm">
+                    {d.source_document_id && <RelatedLink id={d.source_document_id} label="Kaynak" />}
+                    {related.data?.map((r) => (
+                      <li key={r.id}>
+                        <Link href={`${DOC_TYPES[r.doc_type as DocType].base}/detay?id=${r.id}`} className="flex justify-between px-4 py-2.5 hover:bg-surface-2">
+                          <span>{DOC_TYPES[r.doc_type as DocType].label}</span>
+                          <span className="text-muted">{r.number ?? "Taslak"}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+            </div>
+
+            {/* Sağ: toplamlar — belge penceresiyle aynı */}
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-2.5 text-sm">
+                <Line label="Brüt toplam" value={money(d.subtotal)} />
+                {Number(d.discount_total) > 0 && <Line label="İndirim" value={`−${money(d.discount_total)}`} className="text-rose-600 dark:text-rose-400" />}
+                <Line label="Net toplam" value={money(d.net_total)} />
+                <Line label="KDV" value={money(d.vat_total)} />
+                <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-3">
+                  <span className="font-extrabold uppercase">Toplam</span>
+                  <span className="text-xl font-extrabold text-brand-700 dark:text-brand-300 tabular-nums">{money(d.total)}</span>
+                </div>
+                {d.currency !== "TRY" && <div className="text-right text-xs text-slate-600 dark:text-slate-300">≈ {formatMoney(d.total_try)}</div>}
+                {cfg.payable && (
+                  <>
+                    <Line label={flow === "in" ? "Tahsil edilen" : "Ödenen"} value={money(d.paid_amount)} className="text-emerald-700 dark:text-emerald-400" />
+                    <Line label="Kalan" value={money(remaining)} className={cn("font-bold", remaining > 0.004 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400")} />
+                  </>
+                )}
+              </div>
+
               {balanceInfo && (
-                <div className="mt-3 border-t border-border pt-3">
-                  <div className="flex items-center justify-between text-xs text-muted">
-                    <span>Önceki Bakiye</span>
-                    <span className="num font-medium">
-                      {Math.abs(balanceInfo.previous_balance) <= 0.009
-                        ? "0,00 ₺ (Kapalı)"
-                        : `${formatMoney(Math.abs(balanceInfo.previous_balance), "TRY")} ${balanceInfo.previous_balance > 0 ? "(Borçlu)" : "(Alacaklı)"}`}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted mt-1.5">
-                    <span>Bu {cfg.label}</span>
-                    <span className="num font-medium">{formatMoney(balanceInfo.this_amount, d.currency)}</span>
-                  </div>
-                  <div className="flex items-center justify-between font-bold text-sm mt-2.5 p-2 rounded bg-surface-2 border border-border">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-text">GÜNCEL TOPLAM BAKİYE</span>
-                    <span
-                      className={cn(
-                        "num",
-                        balanceInfo.current_balance > 0.009
-                          ? "text-success"
-                          : balanceInfo.current_balance < -0.009
-                            ? "text-danger"
-                            : "text-muted",
-                      )}
-                    >
-                      {Math.abs(balanceInfo.current_balance) <= 0.009
-                        ? "0,00 ₺ (Kapalı)"
-                        : `${formatMoney(Math.abs(balanceInfo.current_balance), "TRY")} ${balanceInfo.current_balance > 0 ? "(Borçlu)" : "(Alacaklı)"}`}
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-1.5 text-sm">
+                  <Line label="Önceki bakiye" value={Math.abs(balanceInfo.previous_balance) <= 0.009 ? "0,00 ₺ (Kapalı)" : `${formatMoney(Math.abs(balanceInfo.previous_balance))} ${balanceInfo.previous_balance > 0 ? "(Borçlu)" : "(Alacaklı)"}`} />
+                  <Line label={`Bu ${cfg.label.toLocaleLowerCase("tr-TR")}`} value={money(balanceInfo.this_amount)} />
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-2 font-bold">
+                    <span className="text-xs uppercase tracking-wide">Güncel bakiye</span>
+                    <span className={cn("tabular-nums", balanceInfo.current_balance > 0.009 ? "text-emerald-700 dark:text-emerald-400" : balanceInfo.current_balance < -0.009 ? "text-rose-600 dark:text-rose-400" : "")}>
+                      {Math.abs(balanceInfo.current_balance) <= 0.009 ? "0,00 ₺ (Kapalı)" : `${formatMoney(Math.abs(balanceInfo.current_balance))} ${balanceInfo.current_balance > 0 ? "(Borçlu)" : "(Alacaklı)"}`}
                     </span>
                   </div>
                 </div>
               )}
+
               {profitStats && (
                 <div
                   className={cn(
-                    "mt-3 rounded-lg border p-3 flex flex-col gap-1 print:hidden",
-                    profitStats.totalProfit >= 0
-                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-950 dark:text-emerald-100"
-                      : "bg-rose-500/10 border-rose-500/20 text-rose-950 dark:text-rose-100"
+                    "rounded-xl border p-3 space-y-1 text-sm print:hidden",
+                    profitStats.totalProfit >= 0 ? "bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-100" : "bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-100",
                   )}
                 >
-                  <div className="flex items-center justify-between text-xs font-semibold">
-                    <span className="flex items-center gap-1">
-                      <span>{profitStats.totalProfit >= 0 ? "📈" : "📉"}</span>
-                      <span>Tahmini Kâr (Dahili)</span>
-                    </span>
-                    <span className="font-mono text-sm font-bold">
-                      {profitStats.totalProfit >= 0 ? "+" : ""}{formatMoney(profitStats.totalProfit, d.currency)}
-                    </span>
+                  <div className="flex justify-between font-semibold">
+                    <span>Tahmini kâr (dahili)</span>
+                    <span className="tabular-nums">{profitStats.totalProfit >= 0 ? "+" : ""}{money(profitStats.totalProfit)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] opacity-80">
-                    <span>Kâr Marjı (Net Tutar Üzerinden)</span>
-                    <span className="font-mono font-semibold">%{profitStats.profitMargin.toFixed(1)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] opacity-75 border-t border-border/50 pt-1">
-                    <span>Toplam Alış Maliyeti</span>
-                    <span className="font-mono">{formatMoney(profitStats.totalCost, d.currency)}</span>
+                  <div className="flex justify-between text-xs">
+                    <span>Kâr marjı · maliyet {money(profitStats.totalCost)}</span>
+                    <span className="font-semibold">%{profitStats.profitMargin.toFixed(1).replace(".", ",")}</span>
                   </div>
                 </div>
               )}
-            </CardBody>
-          </Card>
+            </div>
+          </div>
+        </div>
 
-          {cfg.payable && (
-            <Card>
-              <CardHeader title={flow === "in" ? "Tahsilatlar" : "Ödemeler"} />
-              {allocs.data?.length ? (
-                <ul className="divide-y divide-border text-sm">
-                  {allocs.data.map((a) => (
-                    <li key={a.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
-                      <div>
-                        <div>{formatDate(a.transaction.txn_date)}</div>
-                        <div className="text-xs text-muted">{a.transaction.account?.name ?? "Çek / senet"}</div>
-                      </div>
-                      <span className="num font-semibold">{formatMoney(a.amount, d.currency)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="px-4 py-3 text-sm text-muted">Henüz kayıt yok.</p>
-              )}
-            </Card>
-          )}
-
-          <Attachments entityType="document" entityId={d.id} />
-
-          {(d.source_document_id || !!related.data?.length) && (
-            <Card>
-              <CardHeader icon={<Link2 />} title="İlişkili belgeler" />
-              <ul className="divide-y divide-border text-sm">
-                {d.source_document_id && <RelatedLink id={d.source_document_id} label="Kaynak" />}
-                {related.data?.map((r) => (
-                  <li key={r.id}>
-                    <Link href={`${DOC_TYPES[r.doc_type as DocType].base}/detay?id=${r.id}`} className="flex justify-between px-4 py-2.5 hover:bg-surface-2">
-                      <span>{DOC_TYPES[r.doc_type as DocType].label}</span>
-                      <span className="text-muted">{r.number ?? "Taslak"}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </Card>
+        {/* Alt çubuk */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-4">
+          <div>
+            <div className="text-xs text-slate-600 dark:text-slate-300">Genel Toplam</div>
+            <div className="text-xl font-bold text-brand-700 dark:text-brand-300 tabular-nums">{money(d.total)}</div>
+          </div>
+          {cfg.payable && remaining > 0.004 && canAct && (
+            <Button variant={flow === "in" ? "success" : "danger"} onClick={() => setPayOpen(true)}>
+              <HandCoins /> {flow === "in" ? "Tahsilat ekle" : "Ödeme ekle"} · {money(remaining)}
+            </Button>
           )}
         </div>
       </div>
