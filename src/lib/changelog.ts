@@ -14,9 +14,20 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.1";
+export const LATEST_VERSION = "2.5.2";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.2",
+    date: "6 Ekim 2026",
+    title: "Klavyeyle Hızlı Ürün Girişi",
+    badge: "Hızlı Giriş",
+    items: [
+      { type: "iyilestirme", title: "Ürün doğrudan satıra girilir", description: "Üstteki ürün arama kutusu kaldırıldı; pencere açılınca imleç ilk satırın ürün kutusunda." },
+      { type: "yeni", title: "Enter / Tab ile ilerleme", description: "Ürün önerileri ↑/↓ ile seçilir, Enter veya Tab ile onaylanıp Miktar'a geçilir. Satır sonunda Enter/Tab yeni satır açar; barkod okutulunca ürün kendiliğinden seçilir." },
+      { type: "duzeltme", title: "Öneri listesi kesilmiyor", description: "Ürün önerileri tablonun üstünde açılır; tek satırlık tabloda da tam görünür." },
+    ],
+  },
   {
     version: "2.5.1",
     date: "6 Ekim 2026",
