@@ -1,6 +1,6 @@
 {
   "name": "ren-muhasebe",
-  "version": "2.4.78",
+  "version": "2.5.1",
   "private": true,
   "scripts": {
     "dev": "next dev",

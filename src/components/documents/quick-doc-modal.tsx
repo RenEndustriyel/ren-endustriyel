@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Maximize2, Minimize2, Plus, Printer, Save, ScanBarcode, Search, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2, Minimize2, Plus, Printer, Save, ScanBarcode, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { newId, useAccounts, useContacts, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, type Row } from "@/lib/data";
 import { CURRENCY_SYMBOL, formatNumber, formatQty, isoDate } from "@/lib/format";
@@ -156,6 +156,189 @@ function ProductSuggestions({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Birim kutusu: harf yazınca süzülür, Enter ya da ↓ ile liste açılır, oklarla seçilir, Enter ile onaylanır.
+ * Liste "fixed" konumlanır; tablo kaydırma kabının içinde kesilmez.
+ */
+function UnitCombo({
+  value,
+  units,
+  onChange,
+  className,
+}: {
+  value: string | null;
+  units: { id: string; name: string }[];
+  onChange: (id: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [q, setQ] = React.useState<string | null>(null);
+  const [hi, setHi] = React.useState(0);
+  const [pos, setPos] = React.useState<{ left: number; top: number; width: number } | null>(null);
+  const ref = React.useRef<HTMLInputElement>(null);
+  const listId = React.useId();
+  const label = (n: string) => n.toLocaleLowerCase("tr-TR");
+  const current = units.find((u) => u.id === value);
+  const list = q ? units.filter((u) => label(u.name).includes(label(q))).sort((a, b) => Number(!label(a.name).startsWith(label(q))) - Number(!label(b.name).startsWith(label(q)))) : units;
+
+  const openList = (startAt?: number) => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos({ left: r.left, top: r.bottom + 4, width: Math.max(r.width, 140) });
+    setHi(startAt ?? Math.max(0, list.findIndex((u) => u.id === value)));
+    setOpen(true);
+  };
+  const close = () => {
+    setOpen(false);
+    setQ(null);
+  };
+  const pick = (u: { id: string }) => {
+    onChange(u.id);
+    close();
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onScroll = () => close();
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [open]);
+
+  return (
+    <>
+      <input
+        ref={ref}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-label="Birim"
+        value={q ?? (current ? label(current.name) : "")}
+        onFocus={(e) => e.target.select()}
+        onClick={() => (open ? close() : openList())}
+        onChange={(e) => {
+          setQ(e.target.value);
+          if (!open) openList(0);
+          setHi(0);
+        }}
+        onBlur={() => {
+          // yazılan harflere tek eşleşme varsa onu seç; yoksa eski birim kalır
+          if (q && list.length >= 1) onChange(list[0].id);
+          setTimeout(close, 120);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!open) return openList();
+            setHi((h) => (e.key === "ArrowDown" ? Math.min(list.length - 1, h + 1) : Math.max(0, h - 1)));
+          } else if (e.key === "Enter") {
+            if (!open) {
+              // kapalıyken Enter listeyi açar (sonraki kutuya geçmez)
+              e.preventDefault();
+              e.stopPropagation();
+              openList();
+            } else if (list[hi]) {
+              // açıkken Enter seçer; ardından sonraki kutuya geçilir
+              pick(list[hi]);
+            }
+          } else if (e.key === "Escape" && open) {
+            e.stopPropagation();
+            close();
+          }
+        }}
+        className={cn(className, "cursor-pointer text-center")}
+      />
+      {open && pos && (
+        <div
+          id={listId}
+          role="listbox"
+          className="fixed z-[80] max-h-56 overflow-y-auto rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-xl py-1"
+          style={{ left: pos.left, top: pos.top, width: pos.width }}
+        >
+          {list.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-600 dark:text-slate-300">Eşleşen birim yok</div>
+          ) : (
+            list.map((u, i) => (
+              <button
+                key={u.id}
+                type="button"
+                role="option"
+                aria-selected={i === hi}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setHi(i)}
+                onClick={() => pick(u)}
+                className={cn(
+                  "w-full px-3 py-2 text-left text-sm",
+                  i === hi ? "bg-brand-500 text-white" : "text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800",
+                  u.id === value && i !== hi && "font-bold",
+                )}
+              >
+                {label(u.name)}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Sık kullanılan KDV oranları — ↑/↓ ve ok düğmeleri bu oranlar arasında gezer */
+const VAT_STEPS = [0, 1, 10, 20];
+
+/** KDV % kutusu: elle yazılabilir (ör. 18 ya da 8,5), ↑/↓ tuşu ve ok düğmeleriyle değiştirilebilir */
+function VatInput({ value, onChange, className }: { value: number; onChange: (v: number) => void; className?: string }) {
+  const [text, setText] = React.useState<string | null>(null); // null: düzenlenmiyor
+  const fmt = (n: number) => String(n).replace(".", ",");
+  const step = (dir: 1 | -1) => {
+    const next =
+      dir > 0
+        ? (VAT_STEPS.find((v) => v > value) ?? VAT_STEPS[VAT_STEPS.length - 1])
+        : ([...VAT_STEPS].reverse().find((v) => v < value) ?? VAT_STEPS[0]);
+    onChange(next);
+    if (text !== null) setText(fmt(next));
+  };
+  const arrowBtn = "h-1/2 w-6 flex items-center justify-center text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-400";
+  return (
+    <div className="relative">
+      <input
+        inputMode="decimal"
+        aria-label="KDV oranı"
+        value={text ?? fmt(value)}
+        onFocus={(e) => {
+          setText(fmt(value));
+          const el = e.target;
+          requestAnimationFrame(() => el.select());
+        }}
+        onBlur={() => setText(null)}
+        onChange={(e) => {
+          const t = e.target.value.replace(/[^\d,.]/g, "");
+          setText(t);
+          const n = Number(t.replace(",", "."));
+          // yalnızca geçerli oran (0–100) kaydedilir; yarım yazım (ör. "8,") önceki değeri bozmaz
+          if (t !== "" && Number.isFinite(n) && n >= 0 && n <= 100) onChange(Math.round(n * 100) / 100);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            step(1);
+          } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            step(-1);
+          }
+        }}
+        className={cn(className, "pr-7 text-center tabular-nums")}
+      />
+      <div className="absolute right-0.5 inset-y-0.5 flex flex-col">
+        <button type="button" tabIndex={-1} className={arrowBtn} onMouseDown={(e) => e.preventDefault()} onClick={() => step(1)} aria-label="KDV oranını artır">
+          <ChevronUp size={13} />
+        </button>
+        <button type="button" tabIndex={-1} className={arrowBtn} onMouseDown={(e) => e.preventDefault()} onClick={() => step(-1)} aria-label="KDV oranını azalt">
+          <ChevronDown size={13} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -376,6 +559,32 @@ function QuickDocForm({
   });
 
   const patchLine = (id: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+
+  /** Kalemlerde Enter: sonraki kutuya geç; son kutuda yeni kalem ekleyip ona geç */
+  const onLinesKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    const t = e.target as HTMLElement;
+    if (!(t instanceof HTMLInputElement || t instanceof HTMLSelectElement)) return;
+    e.preventDefault();
+    const root = e.currentTarget;
+    const fields = () =>
+      [...root.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input:not([disabled]), select:not([disabled])")].filter(
+        (el) => el.offsetParent !== null,
+      );
+    const list = fields();
+    const i = list.indexOf(t);
+    const focusAt = (k: number) => {
+      const el = fields()[k];
+      if (!el) return;
+      el.focus();
+      if (el instanceof HTMLInputElement) el.select();
+    };
+    if (i >= 0 && i < list.length - 1) focusAt(i + 1);
+    else {
+      setLines((ls) => [...ls, emptyLine()]);
+      setTimeout(() => focusAt(i + 1), 60);
+    }
+  };
 
   /** Satır tutarı seçili KDV görünümünde (dahil/hariç), iskonto sonrası */
   const lineAmount = (l: Line) => l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100);
@@ -785,7 +994,7 @@ function QuickDocForm({
             </div>
 
             {/* Telefon: her kalem bir kart (tablo yana kaymasın) */}
-            <div className="md:hidden space-y-3">
+            <div className="md:hidden space-y-3" onKeyDown={onLinesKeyDown}>
               {lines.map((l, idx) => {
                 const product = l.product_id ? products.data?.find((p) => p.id === l.product_id) : null;
                 const matches = activeLine === l.id && l.kind !== "product" ? searchProducts(products.data ?? [], l.name) : [];
@@ -831,39 +1040,28 @@ function QuickDocForm({
                     <div className="grid grid-cols-2 gap-2">
                       <label className="min-w-0">
                         <span className={lbl}>Miktar</span>
-                        <NumberInput value={l.quantity} onChange={(v) => patchLine(l.id, { quantity: v > 0 ? v : 0 })} decimals={3} className={cn(cellInputCls, "h-10 text-right")} />
+                        <NumberInput value={l.quantity} onChange={(v) => patchLine(l.id, { quantity: v > 0 ? v : 0 })} decimals={3} className={cn(cellInputCls, "h-10 text-center")} />
                       </label>
                       <label className="min-w-0">
                         <span className={lbl}>Birim</span>
-                        <select
-                          className={cn(cellInputCls, "h-10")}
-                          value={l.unit_id ?? ""}
-                          onChange={(e) => {
-                            const unitId = e.target.value || null;
-                            const alt = (productUnits.data ?? []).find((u) => u.product_id === l.product_id && u.unit_id === unitId);
-                            patchLine(l.id, { unit_id: unitId, unit_factor: alt ? Number(alt.factor) || 1 : 1 });
-                          }}
-                        >
-                          {(units.data ?? []).map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name.toLocaleLowerCase("tr-TR")}
-                            </option>
-                          ))}
-                        </select>
+                        <UnitCombo
+                            value={l.unit_id}
+                            units={units.data ?? []}
+                            onChange={(unitId) => {
+                              // Ürünün alternatif birimi (koli vb.) seçilirse çarpanı al, yoksa ana birim
+                              const alt = (productUnits.data ?? []).find((u) => u.product_id === l.product_id && u.unit_id === unitId);
+                              patchLine(l.id, { unit_id: unitId, unit_factor: alt ? Number(alt.factor) || 1 : 1 });
+                            }}
+                            className={cn(cellInputCls, "h-10")}
+                          />
                       </label>
                       <label className="min-w-0">
                         <span className={lbl}>{priceHeader}</span>
-                        <NumberInput value={l.unit_price || null} onChange={(v) => patchLine(l.id, { unit_price: v >= 0 ? v : 0 })} placeholder="Fiyat" className={cn(cellInputCls, "h-10 text-right")} />
+                        <NumberInput value={l.unit_price || null} onChange={(v) => patchLine(l.id, { unit_price: v >= 0 ? v : 0 })} placeholder="Fiyat" className={cn(cellInputCls, "h-10 text-center")} />
                       </label>
                       <label className="min-w-0">
                         <span className={lbl}>KDV %</span>
-                        <select className={cn(cellInputCls, "h-10")} value={l.vat_rate} onChange={(e) => patchLine(l.id, { vat_rate: Number(e.target.value) })}>
-                          {[20, 10, 1, 0].map((v) => (
-                            <option key={v} value={v}>
-                              {v}
-                            </option>
-                          ))}
-                        </select>
+                        <VatInput value={l.vat_rate} onChange={(v) => patchLine(l.id, { vat_rate: v })} className={cn(cellInputCls, "h-10")} />
                       </label>
                       <div className="min-w-0">
                         <span className={lbl}>İskonto % (10+5)</span>
@@ -873,7 +1071,7 @@ function QuickDocForm({
                           unitPrice={l.unit_price}
                           currency={currency}
                           onChange={(rate, str) => patchLine(l.id, { discount_rate: rate, discount_str: str })}
-                          className="[&_input]:h-10 [&_input]:text-sm"
+                          className="[&_input]:h-10 [&_input]:text-sm [&_input]:text-center"
                         />
                       </div>
                       {isPurchase && (
@@ -884,7 +1082,7 @@ function QuickDocForm({
                             onChange={(v) => setShelfShown(l, v)}
                             placeholder="raf fiyatı"
                             disabled={l.kind === "free"}
-                            className={cn(cellInputCls, "h-10 text-right")}
+                            className={cn(cellInputCls, "h-10 text-center")}
                           />
                         </label>
                       )}
@@ -895,7 +1093,7 @@ function QuickDocForm({
                         <NumberInput
                           value={round2(lineAmount(l)) || null}
                           onChange={(v) => setLineAmount(l, v)}
-                          className={cn(cellInputCls, "h-10 text-right font-bold")}
+                          className={cn(cellInputCls, "h-10 text-center font-bold")}
                           aria-label="Tutar"
                         />
                       </div>
@@ -912,19 +1110,19 @@ function QuickDocForm({
               </button>
             </div>
 
-            <div className="hidden md:block rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+            <div className="hidden md:block rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto" onKeyDown={onLinesKeyDown}>
               <table className="w-full min-w-[1050px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     <th className="px-3 py-3 text-left w-8">#</th>
                     <th className="px-3 py-3 text-left">Ürün</th>
-                    <th className="px-2 py-3 text-right w-24">Miktar</th>
-                    <th className="px-2 py-3 text-left w-24">Birim</th>
-                    <th className="px-2 py-3 text-right w-32 leading-tight">{priceHeader}</th>
-                    <th className="px-2 py-3 text-left w-24">KDV %</th>
-                    <th className="px-2 py-3 text-left w-32 leading-tight">İskonto % <span className="normal-case font-medium">(ör. 10+5)</span></th>
-                    <th className="px-2 py-3 text-right w-32 leading-tight">Tutar</th>
-                    {isPurchase && <th className="px-2 py-3 text-right w-32 leading-tight">Satış fiyatı (raf)</th>}
+                    <th className="px-2 py-3 text-center w-24">Miktar</th>
+                    <th className="px-2 py-3 text-center w-24">Birim</th>
+                    <th className="px-2 py-3 text-center w-32 leading-tight">{priceHeader}</th>
+                    <th className="px-2 py-3 text-center w-24">KDV %</th>
+                    <th className="px-2 py-3 text-center w-32 leading-tight">İskonto % <span className="normal-case font-medium">(ör. 10+5)</span></th>
+                    <th className="px-2 py-3 text-center w-32 leading-tight">Tutar</th>
+                    {isPurchase && <th className="px-2 py-3 text-center w-32 leading-tight">Satış fiyatı (raf)</th>}
                     <th className="px-2 py-3 w-10" />
                   </tr>
                 </thead>
@@ -1001,49 +1199,33 @@ function QuickDocForm({
                             value={l.quantity}
                             onChange={(v) => patchLine(l.id, { quantity: v > 0 ? v : 0 })}
                             decimals={3}
-                            className={cn(cellInputCls, "h-10 text-right")}
+                            className={cn(cellInputCls, "h-10 text-center")}
                             aria-label="Miktar"
                           />
                         </td>
                         <td className="px-2 py-2.5">
-                          <select
-                            className={cn(cellInputCls, "h-10")}
-                            value={l.unit_id ?? ""}
-                            onChange={(e) => {
-                              const unitId = e.target.value || null;
+                          <UnitCombo
+                            value={l.unit_id}
+                            units={units.data ?? []}
+                            onChange={(unitId) => {
                               // Ürünün alternatif birimi (koli vb.) seçilirse çarpanı al, yoksa ana birim
                               const alt = (productUnits.data ?? []).find((u) => u.product_id === l.product_id && u.unit_id === unitId);
                               patchLine(l.id, { unit_id: unitId, unit_factor: alt ? Number(alt.factor) || 1 : 1 });
                             }}
-                          >
-                            {(units.data ?? []).map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.name.toLocaleLowerCase("tr-TR")}
-                              </option>
-                            ))}
-                          </select>
+                            className={cn(cellInputCls, "h-10")}
+                          />
                         </td>
                         <td className="px-2 py-2.5">
                           <NumberInput
                             value={l.unit_price || null}
                             onChange={(v) => patchLine(l.id, { unit_price: v >= 0 ? v : 0 })}
                             placeholder="Fiyat"
-                            className={cn(cellInputCls, "h-10 text-right")}
+                            className={cn(cellInputCls, "h-10 text-center")}
                             aria-label="Birim fiyat"
                           />
                         </td>
                         <td className="px-2 py-2.5">
-                          <select
-                            className={cn(cellInputCls, "h-10 px-2 min-w-[4.5rem]")}
-                            value={l.vat_rate}
-                            onChange={(e) => patchLine(l.id, { vat_rate: Number(e.target.value) })}
-                          >
-                            {[20, 10, 1, 0].map((v) => (
-                              <option key={v} value={v}>
-                                {v}
-                              </option>
-                            ))}
-                          </select>
+                          <VatInput value={l.vat_rate} onChange={(v) => patchLine(l.id, { vat_rate: v })} className={cn(cellInputCls, "h-10 min-w-[4.5rem]")} />
                         </td>
                         <td className="px-2 py-2.5">
                           <MultiDiscountInput
@@ -1052,14 +1234,14 @@ function QuickDocForm({
                             unitPrice={l.unit_price}
                             currency={currency}
                             onChange={(rate, str) => patchLine(l.id, { discount_rate: rate, discount_str: str })}
-                            className="[&_input]:h-10 [&_input]:text-sm"
+                            className="[&_input]:h-10 [&_input]:text-sm [&_input]:text-center"
                           />
                         </td>
                         <td className="px-2 py-2.5">
                           <NumberInput
                             value={round2(lineAmount(l)) || null}
                             onChange={(v) => setLineAmount(l, v)}
-                            className={cn(cellInputCls, "h-10 text-right font-bold")}
+                            className={cn(cellInputCls, "h-10 text-center font-bold")}
                             aria-label="Tutar"
                           />
                         </td>
@@ -1070,7 +1252,7 @@ function QuickDocForm({
                               onChange={(v) => setShelfShown(l, v)}
                               placeholder="raf fiyatı"
                               disabled={l.kind === "free"}
-                              className={cn(cellInputCls, "h-10 text-right")}
+                              className={cn(cellInputCls, "h-10 text-center")}
                               aria-label="Raf satış fiyatı"
                             />
                           </td>

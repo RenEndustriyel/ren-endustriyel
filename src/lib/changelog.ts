@@ -14,9 +14,23 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.78";
+export const LATEST_VERSION = "2.5.1";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.1",
+    date: "6 Ekim 2026",
+    title: "Büyük Güncelleme: Yeni Belge Ekranı, Tam Mobil Uyum ve Pratik Veri Girişi",
+    badge: "Büyük Güncelleme",
+    items: [
+      { type: "yeni", title: "Kurumsal belge kalemleri", description: "Tüm alış/satış belgelerinde sıra: Ürün → Miktar → Birim → Birim Fiyat → KDV → İskonto → Tutar. Başlıklar ve değerler ortalı; barkod sütunu kaldırıldı, stok bilgisi ürün adının altında." },
+      { type: "yeni", title: "Tutar elle değiştirilebilir", description: "Tutar seçili görünüme göre (KDV dahil/hariç) gösterilir; tutarı değiştirince birim fiyat miktar ve iskontoya göre otomatik hesaplanır. Raf satış fiyatı da seçime uyar, ürün kartına KDV dahil kaydedilir." },
+      { type: "yeni", title: "Çoklu iskonto (virgüllü)", description: "İskonto alanına 10+5 ya da 11,85 yazılabilir; kademeli iskonto hesaplayıcısı eklendi." },
+      { type: "yeni", title: "Pratik klavye kullanımı", description: "KDV elle yazılır veya ↑/↓ ile değişir; birimde harf yazınca liste süzülür, Enter ile açılır, oklarla seçilir. Enter bir sonraki kutuya geçer, satır sonunda yeni kalem ekler. Sayılar Türkçe (1.234,56) yazılır." },
+      { type: "iyilestirme", title: "Tam mobil uyum", description: "Hiçbir sayfa telefonda yana taşmıyor; belge kalemleri telefonda kart olarak, Hızlı Satış alt menünün üstünde kalacak şekilde düzenlendi." },
+      { type: "duzeltme", title: "Virgüllü iskonto hatası", description: "Önceden \"11,85\" yazınca %11,85 yerine %86,65 iskonto uygulanıyordu; düzeltildi." },
+    ],
+  },
   {
     version: "2.4.78",
     date: "6 Ekim 2026",
