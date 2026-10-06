@@ -20,7 +20,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="max-w-md text-center">
             <p className="text-2xl font-bold tracking-tight text-white">Endüstriyel & Evsel Çözümler Tek Ekranda.</p>
             <p className="mt-3 text-sm text-slate-400 leading-relaxed">
-              Ürün yönetimi, sipariş, cari hesaplar, e-fatura, teklif ve stok takibi — mobil, tablet ve masaüstünde kesintisiz erişim.
+              Ürün yönetimi, sipariş, cari hesaplar, teklif ve stok takibi — mobil, tablet ve masaüstünde kesintisiz erişim.
             </p>
           </div>
         </div>

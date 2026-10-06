@@ -25,6 +25,13 @@ const nextConfig: NextConfig = {
   },
   // Pusulam adresleri; adres çubuğunda Pusulam'daki gibi kalır.
   // /e-ticaret, /akademi, /muhasebeci-agi kendi sayfalarına sahip (dosya rotaları önceliklidir).
+  async redirects() {
+    // E-Fatura modülü kaldırıldı (arsiv/e-fatura); eski bağlantılar Satışlar'a gider
+    return [
+      { source: "/e-fatura", destination: "/satislar", permanent: false },
+      { source: "/e-fatura/:path*", destination: "/satislar", permanent: false },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/numex-ai", destination: "/yapay-zeka" },

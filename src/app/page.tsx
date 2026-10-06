@@ -914,7 +914,7 @@ export default function HomePage() {
                 Ren Endüstriyel Müşteri &amp; Bayi Portalı
               </h2>
               <p className="mt-4 text-slate-300 text-sm sm:text-base leading-relaxed max-w-2xl">
-                Kayıtlı bayilerimiz, kurumsal müşterilerimiz ve servis ortaklarımız için tek ekrandan anlık sipariş verme, cari bakiye takibi, teklif onaylama ve e-fatura görüntüleme imkanı.
+                Kayıtlı bayilerimiz, kurumsal müşterilerimiz ve servis ortaklarımız için tek ekrandan anlık sipariş verme, cari bakiye takibi ve teklif onaylama görüntüleme imkanı.
               </p>
             </div>
 

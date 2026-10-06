@@ -194,7 +194,6 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
   const [kind, setKind] = React.useState<QuickDocKind>(initialKind);
   const [issueDate, setIssueDate] = React.useState(isoDate());
   const [number, setNumber] = React.useState("");
-  const [invoiceType, setInvoiceType] = React.useState("Kağıt Fatura");
   const [currency, setCurrency] = React.useState("TRY");
   const [rateOverride, setRateOverride] = React.useState<number | null>(null);
   const exchangeRate = currency === "TRY" ? 1 : rateOverride ?? (rateFor(rates.data, currency) || 1);
@@ -382,9 +381,7 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
         discount_type: discountType,
         discount_value: discountValue,
         description: contact?.name ? `${contact.name} - ${isPurchase ? "Alış" : "Satış"}` : null,
-        notes: [notes.trim(), invoiceType !== "Kağıt Fatura" && isInvoice ? `Fatura tipi: ${invoiceType}` : ""]
-          .filter(Boolean)
-          .join("\n") || null,
+        notes: notes.trim() || null,
       };
       const docLines = resolved.map((l) => ({
         id: newId(),
@@ -518,14 +515,6 @@ function QuickDocForm({ side, onOpenChange, contact: initialContact, initialKind
                 value={number}
                 onChange={(e) => setNumber(e.target.value)}
               />
-            </label>
-            <label className="space-y-1.5">
-              <span className={labelCls}>Fatura tipi</span>
-              <select className={fieldCls} value={invoiceType} onChange={(e) => setInvoiceType(e.target.value)}>
-                <option>Kağıt Fatura</option>
-                <option>e-Fatura</option>
-                <option>e-Arşiv Fatura</option>
-              </select>
             </label>
             <label className="space-y-1.5">
               <span className={labelCls}>Para birimi</span>

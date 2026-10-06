@@ -684,7 +684,7 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
             </div>
             <div className="font-semibold">Henüz {docTypeLabel.toLocaleLowerCase("tr-TR")} yok</div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              {q.trim() || period !== "all" ? "Filtreyle eşleşen kayıt bulunamadı." : "Yeni alış belgesi oluşturun veya Gelen e-Fatura kutusundan aktarın."}
+              {q.trim() || period !== "all" ? "Filtreyle eşleşen kayıt bulunamadı." : "Yeni alış belgesi oluşturun."}
             </p>
           </div>
         ) : (

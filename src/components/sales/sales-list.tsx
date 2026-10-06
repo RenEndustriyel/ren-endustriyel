@@ -677,7 +677,6 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                 onCopy={() => handleCopy(d)}
                 onEdit={canWrite && !isCancelled ? () => handleEdit(d) : undefined}
                 moreItems={[
-                  { label: "Fatura kes (GİB'e gönder)", onSelect: () => !guardSample(d) && router.push("/e-fatura/olustur"), hidden: !canAct },
                   { label: "Kısmi iade", onSelect: () => handleReturn(d, true), hidden: !canAct },
                   { label: "Tam iade", onSelect: () => handleReturn(d, false), hidden: !canAct },
                   { label: "Kargo gönderisi oluştur", onSelect: () => !guardSample(d) && toast.info("Kargo entegrasyonu henüz kurulmadı."), hidden: !canAct },
