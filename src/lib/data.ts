@@ -191,8 +191,12 @@ async function runOrQueue<T>(mutateAsync: () => Promise<T>, mutate: () => void, 
     return { data, queued: false };
   } catch (e) {
     if (isNetworkError(e)) {
-      toast.info("Bağlantı koptu", { description: "Kayıt kuyruğa alındı, bağlantı gelince gönderilecek." });
-      return { queued: true };
+      // Yeniden denemeler de başarısız oldu: işlem kuyrukta DEĞİL. Hata fırlat ki form kapanmasın, girilenler kaybolmasın.
+      toast.error("İnternet bağlantısı koptu — kayıt YAPILAMADI", {
+        description: "Girdiğiniz bilgiler ekranda duruyor. Bağlantı gelince tekrar Kaydet'e basın.",
+        duration: 10000,
+      });
+      throw e;
     }
     toast.error(errorMessage(e));
     throw e;

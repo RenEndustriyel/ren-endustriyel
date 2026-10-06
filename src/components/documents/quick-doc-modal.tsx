@@ -530,6 +530,72 @@ function QuickDocForm({
   const [notes, setNotes] = React.useState((fromBase ? base!.notes : null) ?? initialNotes ?? "");
   const [saving, setSaving] = React.useState(false);
 
+  // --- Bağlantı kopmalarına karşı: kalıcı kimlikler (tekrar kaydetmek çift kayıt oluşturmaz) ---
+  const docIdRef = React.useRef<string>(isEdit ? base!.id : newId());
+  const paymentIdRef = React.useRef<string>(newId());
+  const productIds = React.useRef<Record<string, string>>({});
+  const productIdFor = (lineId: string) => (productIds.current[lineId] ??= newId());
+
+  // --- Otomatik taslak: yazılanlar bu cihazda saklanır, pencere kapansa da kaybolmaz ---
+  const draftKey = `ren-belge-taslak:${isEdit ? base!.id : (fixedType ?? side)}`;
+  const snapshot = JSON.stringify({ contactId, kind, issueDate, number, validUntil, currency, rateOverride, inclVat, lines, discountType, discountValue, paid, accountId, dueDate, notes });
+  const initialSnapshot = React.useRef(snapshot);
+  type Draft = { at: number; snap: string; docId: string; paymentId: string; productIds: Record<string, string> };
+  const [draft, setDraft] = React.useState<Draft | null>(null);
+  React.useEffect(() => {
+    try {
+      const d = JSON.parse(localStorage.getItem(draftKey) || "null") as Draft | null;
+      // 7 günden eski taslakları gösterme
+      if (d && Date.now() - d.at < 7 * 864e5 && d.snap !== initialSnapshot.current) setDraft(d); // eslint-disable-line react-hooks/set-state-in-effect
+    } catch {}
+  }, [draftKey]);
+  React.useEffect(() => {
+    if (snapshot === initialSnapshot.current || draft) return; // değişiklik yoksa ya da geri yükleme bekleniyorsa yazma
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          draftKey,
+          JSON.stringify({ at: Date.now(), snap: snapshot, docId: docIdRef.current, paymentId: paymentIdRef.current, productIds: productIds.current }),
+        );
+      } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [snapshot, draftKey, draft]);
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {}
+  };
+  const restoreDraft = () => {
+    if (!draft) return;
+    const v = JSON.parse(draft.snap);
+    setContactId(v.contactId ?? "");
+    setKind(v.kind);
+    setIssueDate(v.issueDate);
+    setNumber(v.number ?? "");
+    setValidUntil(v.validUntil ?? "");
+    setCurrency(v.currency);
+    setRateOverride(v.rateOverride ?? null);
+    setInclVat(!!v.inclVat);
+    setLines(v.lines);
+    setDiscountType(v.discountType);
+    setDiscountValue(Number(v.discountValue) || 0);
+    setPaid(!!v.paid);
+    setAccountId(v.accountId ?? "");
+    setDueDate(v.dueDate ?? "");
+    setNotes(v.notes ?? "");
+    // aynı belge/ürün/tahsilat kimlikleri: önceki yarım kayıt sunucuya ulaştıysa üzerine yazılır, çift olmaz
+    if (!isEdit) docIdRef.current = draft.docId;
+    paymentIdRef.current = draft.paymentId;
+    productIds.current = draft.productIds ?? {};
+    setDraft(null);
+    toast.success("Taslak geri yüklendi");
+  };
+  const discardDraft = () => {
+    clearDraft();
+    setDraft(null);
+  };
+
   const accountList = accounts.data ?? [];
   const effectiveAccountId = accountId || accountList[0]?.id || "";
 
@@ -712,6 +778,13 @@ function QuickDocForm({
   // -------------------------------------------------------------------------
 
   const handleSave = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("İnternet bağlantısı yok — belge kaydedilmedi", {
+        description: "Girdiğiniz bilgiler bu cihazda taslak olarak saklandı. Bağlantı gelince tekrar Kaydet'e basın.",
+        duration: 10000,
+      });
+      return;
+    }
     const valid = lines.filter((l) => l.name.trim() || l.product_id);
     if (!valid.length) {
       toast.error("En az bir kalem ekleyin.");
@@ -730,7 +803,7 @@ function QuickDocForm({
     setSaving(true);
 
     try {
-      const docId = isEdit ? base!.id : newId();
+      const docId = docIdRef.current;
       const toTry = (n: number) => round2(n * exchangeRate);
 
       // 1) Katalogda olmayan ürünleri oluştur (stoğa girebilmeleri için)
@@ -741,6 +814,7 @@ function QuickDocForm({
           continue;
         }
         const res = await saveProduct.save<{ id: string }>({
+          id: productIdFor(l.id),
           name: l.name.trim(),
           barcode: l.barcode.trim() || null,
           unit_id: l.unit_id,
@@ -754,6 +828,7 @@ function QuickDocForm({
           sale_price: isPurchase ? l.shelf_price : round2(convertVat(toTry(l.unit_price / (l.unit_factor || 1)), l.vat_rate, inclVat, true)),
           sale_price_includes_vat: true,
         });
+        if (res.queued) throw new Error("Bağlantı yok — ürün kaydı sıraya alındı, belge kaydedilmedi");
         resolved.push({ ...l, kind: "product", product_id: res.data!.id });
       }
 
@@ -812,13 +887,13 @@ function QuickDocForm({
         vat_rate: l.vat_rate,
       }));
       const account = accountList.find((a) => a.id === effectiveAccountId);
-      await saveDoc.call(
+      const docRes = await saveDoc.call(
         {
           p_doc: payload,
           p_lines: docLines,
           p_payment:
             showPayment && paid && effectiveAccountId
-              ? { id: newId(), account_id: effectiveAccountId, method: PAYMENT_METHOD[account?.type ?? "cash"] ?? "cash" }
+              ? { id: paymentIdRef.current, account_id: effectiveAccountId, method: PAYMENT_METHOD[account?.type ?? "cash"] ?? "cash" }
               : null,
         },
         isEdit ? `${cfg.label} güncellendi` : `${cfg.label} kaydedildi`,
@@ -846,6 +921,11 @@ function QuickDocForm({
         }
       }
 
+      if (docRes.queued) {
+        // çevrimdışı kuyruğa alındı: pencereyi kapatma, taslak dursun (tekrar kaydetmek aynı belgeyi günceller)
+        return;
+      }
+      clearDraft();
       onSaved?.({ id: docId, doc_type: docType });
       onOpenChange(false);
     } catch (e) {
@@ -905,6 +985,19 @@ function QuickDocForm({
 
         {/* İçerik */}
         <div className="flex-1 overflow-y-auto thin-scroll px-5 sm:px-6 py-5 space-y-5">
+          {draft && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+              <span className="flex-1 min-w-0">
+                <b>Kaydedilmemiş taslak var</b> ({new Date(draft.at).toLocaleString("tr-TR")}). Kaldığınız yerden devam etmek ister misiniz?
+              </span>
+              <button type="button" onClick={restoreDraft} className="btn-primary h-9 px-3 text-sm">
+                Geri yükle
+              </button>
+              <button type="button" onClick={discardDraft} className="btn-ghost h-9 px-3 text-sm">
+                Taslağı sil
+              </button>
+            </div>
+          )}
           {/* Üst alanlar */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <label className="space-y-1.5">
