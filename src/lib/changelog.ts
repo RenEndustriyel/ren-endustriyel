@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.9";
+export const LATEST_VERSION = "2.5.10";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.10",
+    date: "6 Ekim 2026",
+    title: "Ana Sayfada Bekleyen Teklif & Siparişler",
+    badge: "Panel",
+    items: [
+      { type: "yeni", title: "Bekleyen Teklif & Siparişler kartı", description: "Ana sayfada satış grafiğinin yanında faturalanmayı bekleyen teklifler, satış siparişleri ve satın alma siparişleri listelenir; bekleme süresi görünür, 30 günü geçenler vurgulanır ve tek tıkla faturaya çevrilir." },
+    ],
+  },
   {
     version: "2.5.9",
     date: "6 Ekim 2026",

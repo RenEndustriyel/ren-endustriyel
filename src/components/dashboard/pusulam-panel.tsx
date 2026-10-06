@@ -20,6 +20,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useNettedDues, type DueItem } from "./use-netted-dues";
+import { useRows } from "@/lib/data";
 import { useRates, rateFor, triggerLiveRatesRefresh } from "@/lib/rates";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { formatCompact, formatDate, formatMoney, formatNumber, formatQty, isoDate } from "@/lib/format";
@@ -334,6 +335,118 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </AreaChart>
         </ResponsiveContainer>
       </div>
+    </div>
+  );
+}
+
+type PendingTab = "quote" | "sales_order" | "purchase_order";
+type PendingDoc = {
+  id: string;
+  doc_type: PendingTab;
+  number: string | null;
+  issue_date: string;
+  status: string;
+  total: number;
+  total_try: number | null;
+  contact: { name: string } | null;
+};
+
+const PENDING_TABS: { id: PendingTab; label: string; convertTo: DocType }[] = [
+  { id: "quote", label: "Teklifler", convertTo: "sales_invoice" },
+  { id: "sales_order", label: "Siparişler", convertTo: "sales_invoice" },
+  { id: "purchase_order", label: "Satın alma", convertTo: "purchase_invoice" },
+];
+
+/** Faturaya dönüşmeyi bekleyen teklif ve siparişler */
+function PendingDocsCard() {
+  const { blur, formatMoney } = useFmt();
+  const [tab, setTab] = React.useState<PendingTab>("quote");
+  const docs = useRows<PendingDoc>("documents", {
+    select: "id, doc_type, number, issue_date, status, total, total_try, contact:contacts(name)",
+    params: ["panel_bekleyen"],
+    filter: (q) =>
+      q.in("doc_type", ["quote", "sales_order", "purchase_order"]).not("status", "in", '("draft","cancelled","converted","rejected")'),
+    order: [{ column: "issue_date", ascending: true }],
+  });
+  const today = isoDate();
+  const all = docs.data ?? [];
+  const count = (t: PendingTab) => all.filter((d) => d.doc_type === t).length;
+  // Veri gelince içinde belge olan ilk sekmeyi aç (bir kez)
+  const picked = React.useRef(false);
+  React.useEffect(() => {
+    if (picked.current || !docs.data) return;
+    picked.current = true;
+    const first = PENDING_TABS.find((t) => docs.data!.some((d) => d.doc_type === t.id));
+    if (first) setTab(first.id); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [docs.data]);
+  const rows = all.filter((d) => d.doc_type === tab);
+  const total = rows.reduce((s, d) => s + Number(d.total_try ?? d.total ?? 0), 0);
+  const cfg = PENDING_TABS.find((t) => t.id === tab)!;
+  const age = (d: PendingDoc) => Math.max(0, Math.round((Date.parse(today) - Date.parse(d.issue_date)) / 86400000));
+
+  return (
+    <div className="card p-5 flex flex-col min-h-0">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div>
+          <h2 className="font-semibold flex items-center gap-2">
+            <FileText size={17} className="text-violet-500" />
+            Bekleyen Teklif & Siparişler
+          </h2>
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+            {rows.length} belge · <span className="font-semibold text-brand-700 dark:text-brand-300">{formatMoney(total)}</span>
+          </p>
+        </div>
+        <Link href={DOC_TYPES[tab].base} className="text-xs font-semibold text-brand-600 hover:underline shrink-0">
+          Tümü →
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-semibold mb-2">
+        {PENDING_TABS.map((t, i) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "py-1.5 transition",
+              i > 0 && "border-l border-slate-300 dark:border-slate-600",
+              tab === t.id ? "bg-brand-500 text-white" : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800",
+            )}
+          >
+            {t.label} ({count(t.id)})
+          </button>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-600 dark:text-slate-300">Bekleyen {cfg.label.toLocaleLowerCase("tr-TR")} yok.</p>
+      ) : (
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto max-h-[230px] -mx-2">
+          {rows.map((d) => {
+            const days = age(d);
+            return (
+              <div key={d.id} className="flex items-center gap-2 px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg">
+                <Link href={`${DOC_TYPES[d.doc_type].base}/detay?id=${d.id}`} className="min-w-0 flex-1">
+                  <div className={cn("text-sm font-medium truncate", blur)}>{d.contact?.name ?? "Cari seçilmedi"}</div>
+                  <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                    {d.number ?? "—"} · {formatDate(d.issue_date)} ·{" "}
+                    <span className={cn(days > 30 && "font-semibold text-amber-700 dark:text-amber-400")}>{days === 0 ? "bugün" : `${days} gün`}</span>
+                  </div>
+                </Link>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-semibold tabular-nums">{formatMoney(Number(d.total_try ?? d.total ?? 0))}</div>
+                  <Link
+                    href={`${DOC_TYPES[cfg.convertTo].base}/yeni?kaynak=${d.id}`}
+                    className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Faturaya çevir →
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -800,7 +913,12 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
         />
       </div>
 
-      <SalesChartCard data={data} />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+        <div className="xl:col-span-2 min-w-0">
+          <SalesChartCard data={data} />
+        </div>
+        <PendingDocsCard />
+      </div>
       <TopProductsCard data={data} />
       <BalanceCards data={data} />
 
