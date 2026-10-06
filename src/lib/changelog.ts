@@ -14,9 +14,20 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.4.76";
+export const LATEST_VERSION = "2.4.77";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.4.77",
+    date: "6 Ekim 2026",
+    title: "Cari Ekranı Tema Düzeltmesi ve Gerçek Ürün İstatistikleri",
+    badge: "Düzeltme",
+    items: [
+      { type: "duzeltme", title: "Cari detay ekranı açık temada siyah çıkıyordu", description: "Cari kartı artık açık temada açık, koyu temada koyu görünüyor; soluk yazılar okunur hale getirildi." },
+      { type: "duzeltme", title: "Ürün kartı satış/alış rakamları", description: "Toplam satış, satış tutarı ve toplam alış gerçek faturalardan hesaplanıyor; iadeler düşülüyor, sipariş/irsaliye çift sayılmıyor. Kâr marjı KDV hariç gerçek fiyatlarla hesaplanıyor." },
+      { type: "duzeltme", title: "Belge kalemleri ve kârlılık raporu", description: "Yazdırma penceresinde ve ürün kârlılık raporunda belge kalemlerinin boş gelmesi giderildi." },
+    ],
+  },
   {
     version: "2.4.76",
     date: "6 Ekim 2026",
