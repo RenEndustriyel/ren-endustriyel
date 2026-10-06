@@ -5,7 +5,7 @@ import { Percent, Calculator, Plus, Trash2, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { formatMoney, formatNumber } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** Çoklu iskontoyu bileşik efektif iskonto yüzdesine çevirir (1 - (1-d1/100)*(1-d2/100)...) */
@@ -15,17 +15,21 @@ export function calcMultiDiscount(discounts: number[]): number {
     const valid = Math.max(0, Math.min(100, d));
     return acc * (1 - valid / 100);
   }, 1);
-  return Math.round((1 - factor) * 10000) / 100;
+  // discount_rate veritabanında 4 ondalıklı: hassasiyet kaybolmasın
+  return Math.round((1 - factor) * 1000000) / 10000;
 }
 
-/** "10+5+2.5" gibi bir metni sayı dizisine ayrıştırır */
+/** "10+5" ya da "11,85" gibi metni sayı dizisine ayrıştırır — virgül ONDALIK ayırıcıdır, oranlar "+" ile ayrılır */
 export function parseDiscountString(str: string): number[] {
   if (!str || !str.trim()) return [];
   return str
-    .split(/[+,;\s/]+/)
-    .map((s) => parseFloat(s.replace(",", ".")))
+    .split(/[+;\s/]+/)
+    .map((s) => parseFloat(s.replace(/\./g, "").replace(",", ".")))
     .filter((n) => !isNaN(n) && n > 0);
 }
+
+/** Oranı Türkçe yazımla gösterir: 11.85 → "11,85" */
+export const formatRate = (n: number) => String(Math.round(n * 10000) / 10000).replace(".", ",");
 
 export function MultiDiscountInput({
   value,
@@ -47,7 +51,7 @@ export function MultiDiscountInput({
   const [open, setOpen] = React.useState(false);
   const [rawText, setRawText] = React.useState<string>(() => {
     if (discountStr !== undefined && discountStr !== "") return discountStr;
-    return value > 0 ? String(value) : "";
+    return value > 0 ? formatRate(value) : "";
   });
 
   // Dışarıdan value/discountStr değiştiğinde senkronize et
@@ -55,7 +59,7 @@ export function MultiDiscountInput({
     if (discountStr !== undefined && discountStr !== "") {
       setRawText(discountStr);
     } else if (value > 0) {
-      setRawText(String(value));
+      setRawText(formatRate(value));
     } else {
       setRawText("");
     }
@@ -108,7 +112,7 @@ export function MultiDiscountInput({
             "h-9 pr-7 text-xs font-semibold",
             isMulti && "border-primary/50 bg-primary-soft/10 text-primary",
           )}
-          title={isMulti ? `Bileşik İskonto: %${effectiveRate.toFixed(2)}` : undefined}
+          title={isMulti ? `Bileşik İskonto: %${formatRate(effectiveRate)}` : undefined}
         />
         {/* Çoklu İskonto Butonu */}
         <Popover open={open} onOpenChange={setOpen}>
@@ -207,7 +211,7 @@ export function MultiDiscountInput({
                 </div>
                 <div className="flex justify-between font-bold text-primary">
                   <span>Bileşik İskonto:</span>
-                  <span>%{popoverEffective.toFixed(2)}</span>
+                  <span>%{formatRate(popoverEffective)}</span>
                 </div>
                 {unitPrice > 0 && (
                   <>
@@ -251,7 +255,7 @@ export function MultiDiscountInput({
       {/* Eğer çoklu iskonto girilmişse efektif oranı altında minik göster */}
       {isMulti && (
         <span className="absolute -bottom-3.5 left-0 text-[10px] font-bold text-primary whitespace-nowrap">
-          =%{effectiveRate.toFixed(2)}
+          =%{formatRate(effectiveRate)}
         </span>
       )}
     </div>

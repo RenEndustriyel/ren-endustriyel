@@ -369,3 +369,9 @@ html:not(.dark) .divide-slate-100 > :not(:last-child) {
 .input.pl-9 { padding-left: 2.25rem; }
 .input.pl-10 { padding-left: 2.5rem; }
 .input.pl-11 { padding-left: 2.75rem; }
+
+/* Sayfa gövdesi: flex sütununda "mx-auto" kutular içerik kadar genişlemesin, ekran genişliğini aşmasın (mobil taşma) */
+.app-content > * {
+  width: 100%;
+  min-width: 0;
+}

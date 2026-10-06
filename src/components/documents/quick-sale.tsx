@@ -463,7 +463,7 @@ export function QuickSalePage() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-      <div className="lg:h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-3 p-3">
+      <div className="lg:h-full grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px] gap-3 p-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-3">
         {/* ------------------------------ SOL: ürün + sepet ------------------------------ */}
         <section className="flex flex-col min-h-0 gap-3">
           <div className="flex items-center justify-between gap-2">

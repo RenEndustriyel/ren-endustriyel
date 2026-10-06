@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : "p-3 sm:p-4 lg:p-8 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] lg:pb-8 overflow-x-hidden"
               )}
             >
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="app-content flex-1 flex flex-col min-h-0 min-w-0">
                 <React.Suspense fallback={null}>{children}</React.Suspense>
               </div>
             </main>

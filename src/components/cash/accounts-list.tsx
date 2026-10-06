@@ -145,7 +145,7 @@ export function AccountsList() {
     const isNegative = bal < 0;
 
     return (
-      <div key={acc.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+      <div key={acc.id} className="flex flex-wrap sm:flex-nowrap items-center gap-3 px-4 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
         <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0">
           {acc.type === "bank" ? (
             <Landmark className="h-[18px] w-[18px]" />
@@ -167,7 +167,7 @@ export function AccountsList() {
         <div className={`font-bold tabular-nums ${isNegative ? "text-rose-500" : ""}`}>
           {formatMoney(bal)}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center justify-end gap-1 shrink-0 w-full sm:w-auto">
           <button
             type="button"
             className="h-8 w-8 rounded-lg bg-sky-50 dark:bg-sky-900/30 text-sky-600 flex items-center justify-center hover:bg-sky-100 dark:hover:bg-sky-900/50 transition"

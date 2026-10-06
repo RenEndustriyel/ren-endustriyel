@@ -297,7 +297,7 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
           </div>
 
           {/* Right Controls: Sort & View Mode */}
-          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+          <div className="flex items-center gap-2 min-w-0 max-w-full self-end sm:self-auto">
             {/* Sort Dropdown */}
             <select
               value={`${sortField}:${sortDir}`}
@@ -306,7 +306,7 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
                 setSortField(field);
                 setSortDir(dir);
               }}
-              className="input !w-auto !py-1.5 text-xs text-slate-700 dark:text-slate-200 shrink-0"
+              className="input !w-auto !py-1.5 text-xs text-slate-700 dark:text-slate-200 min-w-0 max-w-[11rem] sm:max-w-none"
               aria-label="Sırala"
             >
               <option value="name:asc">Unvan (A → Z)</option>

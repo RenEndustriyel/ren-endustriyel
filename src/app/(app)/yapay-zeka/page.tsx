@@ -431,7 +431,7 @@ export default function RenAiPage() {
       </div>
 
       {/* SEKME BAŞLIKLARI */}
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto thin-scroll [&>button]:shrink-0 [&>button]:whitespace-nowrap">
         <button
           type="button"
           onClick={() => setActiveTab("briefing")}
