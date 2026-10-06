@@ -155,7 +155,7 @@ export function RemindersList() {
                   <div className="min-w-0 flex-1">
                     <Link
                       className="font-semibold hover:text-slate-900 dark:hover:text-white transition-colors"
-                      href={`/musteriler/detay?id=${item.contact.id}`}
+                      href={`/cariler/detay?id=${item.contact.id}`}
                     >
                       {item.contact.name}
                     </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
@@ -116,39 +117,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {!isPosPage && (
               <footer className="hidden lg:flex lg:flex-col border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-3 py-2.5 items-center gap-1.5 text-[11px] sm:text-xs text-slate-400">
                 <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 max-w-5xl">
-                <a href="/biz-kimiz" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <a href="/#hizmetler" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Biz Kimiz
                 </a>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <a href="/tanitim" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <a href="/" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Tanıtım
                 </a>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <button type="button" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <Link href="/akademi" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Akademi
-                </button>
+                </Link>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <button type="button" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <a href="mailto:destek@renendustriyel.com" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Destek
-                </button>
+                </a>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
                 <a href="mailto:destek@renendustriyel.com" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   destek@renendustriyel.com
                 </a>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <a href="/yardim" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <a href="/#iletisim" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Yardım
                 </a>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <a href="/gizlilik" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <a href="/yasal" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Gizlilik
                 </a>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <a href="/veri-guvenligi" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <a href="/yasal" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   Veri Güvenliği
                 </a>
                 <span className="text-slate-300 dark:text-slate-700">·</span>
-                <a href="/kvkk" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <a href="/yasal" target="_blank" rel="noopener noreferrer" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   KVKK
                 </a>
                 <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">·</span>

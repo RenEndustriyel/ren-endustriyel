@@ -14,9 +14,20 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.3";
+export const LATEST_VERSION = "2.5.4";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.4",
+    date: "6 Ekim 2026",
+    title: "Satışta Alış Fiyatı Göstergesi ve Bağlantı Düzeltmeleri",
+    badge: "Kontrol",
+    items: [
+      { type: "yeni", title: "Satış belgesinde alış fiyatı", description: "Satış fiyatının altında ürünün alış fiyatı küçük yazıyla görünür (belge KDV hariçse hariç, dahilse dahil). Satış fiyatı alışın altına düşerse kırmızı 'zarar' uyarısı çıkar." },
+      { type: "duzeltme", title: "Hatırlatmalardan cari kartı açılmıyordu", description: "Hatırlatmalar listesindeki cari bağlantısı yanlış adrese gidiyordu; düzeltildi." },
+      { type: "duzeltme", title: "Sayfa altı bağlantıları", description: "Biz Kimiz, Tanıtım, Yardım, Akademi ve Destek bağlantıları çalışır hale getirildi; Gizlilik/KVKK bilgi sayfasına yönlenir." },
+    ],
+  },
   {
     version: "2.5.3",
     date: "6 Ekim 2026",

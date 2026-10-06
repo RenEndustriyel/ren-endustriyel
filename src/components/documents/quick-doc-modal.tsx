@@ -744,6 +744,30 @@ function QuickDocForm({
 
   /** Satır tutarı seçili KDV görünümünde (dahil/hariç), iskonto sonrası */
   const lineAmount = (l: Line) => l.quantity * l.unit_price * (1 - (l.discount_rate || 0) / 100);
+
+  /** Satış belgesinde: ürünün alış fiyatı — belgenin KDV dahil/hariç görünümünde ve para biriminde */
+  const purchaseHint = (l: Line) => {
+    if (isPurchase || !l.product_id) return null;
+    const p = products.data?.find((x) => x.id === l.product_id);
+    const raw = Number(p?.purchase_price || 0);
+    if (!p || raw <= 0) return null;
+    const cur = p.purchase_currency || "TRY";
+    const inTry = raw * (cur === "TRY" ? 1 : rateFor(rates.data, cur) || 1);
+    const inDoc = inTry / (exchangeRate || 1);
+    const buy = round2(convertVat(inDoc, Number(p.vat_rate ?? l.vat_rate), !!p.purchase_price_includes_vat, inclVat) * (l.unit_factor || 1));
+    const netSale = l.unit_price * (1 - (l.discount_rate || 0) / 100);
+    return { buy, loss: l.unit_price > 0 && netSale < buy - 0.004 };
+  };
+  const hintEl = (l: Line) => {
+    const h = purchaseHint(l);
+    if (!h) return null;
+    return (
+      <div className={cn("mt-1 text-center text-[11px] tabular-nums", h.loss ? "font-bold text-rose-600 dark:text-rose-400" : "text-slate-600 dark:text-slate-300")}>
+        Alış: {formatNumber(h.buy)}
+        {h.loss && " · zarar"}
+      </div>
+    );
+  };
   /** Tutar elle girilince birim fiyatı geri hesapla (miktar ve iskonto korunur) */
   const setLineAmount = (l: Line, amount: number) => {
     const per = l.quantity * (1 - (l.discount_rate || 0) / 100);
@@ -1181,6 +1205,7 @@ function QuickDocForm({
                       <label className="min-w-0">
                         <span className={lbl}>{priceHeader}</span>
                         <NumberInput value={l.unit_price || null} onChange={(v) => patchLine(l.id, { unit_price: v >= 0 ? v : 0 })} placeholder="Fiyat" className={cn(cellInputCls, "h-10 text-center")} />
+                        {hintEl(l)}
                       </label>
                       <label className="min-w-0">
                         <span className={lbl}>KDV %</span>
@@ -1351,6 +1376,7 @@ function QuickDocForm({
                             className={cn(cellInputCls, "h-10 text-center")}
                             aria-label="Birim fiyat"
                           />
+                          {hintEl(l)}
                         </td>
                         <td className="px-2 py-2.5">
                           <VatInput value={l.vat_rate} onChange={(v) => patchLine(l.id, { vat_rate: v })} className={cn(cellInputCls, "h-10 min-w-[4.5rem]")} />
