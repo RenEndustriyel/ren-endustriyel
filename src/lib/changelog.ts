@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.2";
+export const LATEST_VERSION = "2.5.3";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.3",
+    date: "6 Ekim 2026",
+    title: "Veri Kaybına Karşı Koruma ve Yeni Belge Detay Ekranı",
+    badge: "Güvenli Kayıt",
+    items: [
+      { type: "duzeltme", title: "İnternet koptuğunda kayıt kaybolmuyor", description: "Bağlantı kayıt sırasında koparsa artık 'kayıt yapılamadı' uyarısı çıkar ve form kapanmaz; girilen bilgiler ekranda kalır. Önceden 'kuyruğa alındı' denip kayıt kayboluyordu." },
+      { type: "yeni", title: "Belgelerde otomatik taslak", description: "Yeni ve düzenlenen belgeler cihazda otomatik taslak olarak saklanır; pencere kapansa da 'Geri yükle' ile kaldığınız yerden devam edilir. Tekrar kaydetmek çift belge, ürün veya tahsilat oluşturmaz." },
+      { type: "yeni", title: "Pusulam tarzı belge detay ekranı", description: "Kayıtlı fatura, sipariş, teklif, irsaliye ve iadeler belge penceresiyle aynı tasarımda açılır; tüm işlemler (tahsilat, yazdır, iade, dönüştür) korunur." },
+      { type: "iyilestirme", title: "Yeni belgeler KDV hariç açılır", description: "Yeni fatura, sipariş, teklif ve irsaliye her zaman KDV hariç fiyatla başlar." },
+    ],
+  },
   {
     version: "2.5.2",
     date: "6 Ekim 2026",
