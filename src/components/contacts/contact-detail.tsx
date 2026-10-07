@@ -63,6 +63,7 @@ import { ContactForm } from "./contact-form";
 import { DocumentPrintModal } from "@/components/documents/document-print-modal";
 import { TransactionEditDialog, txnEditBlock } from "@/components/cash/transaction-edit-dialog";
 import { SupplierInsights } from "./supplier-insights";
+import { CustomerInsights } from "./customer-insights";
 
 type Contact = Row<"contacts">;
 type StatementRow = {
@@ -518,7 +519,7 @@ export function ContactDetail({ id }: { id: string }) {
 
   const TABS = [
     { id: "ozet", label: "Özet" },
-    ...(isSupplier ? [{ id: "analiz", label: "Analiz" } as const] : []),
+    { id: "analiz", label: "Analiz" },
     { id: "faturalar", label: isSupplier ? "Alışlar" : "Satışlar" },
     { id: "tahsilatlar", label: isSupplier ? "Ödemeler" : "Tahsilatlar" },
     { id: "cek-senet", label: "Çek & Senet" },
@@ -935,7 +936,8 @@ export function ContactDetail({ id }: { id: string }) {
         )}
 
         {/* TEDARİKÇİ ANALİZİ */}
-        {activeTab === "analiz" && <SupplierInsights contactId={c.id} docs={docs.data ?? []} />}
+        {activeTab === "analiz" &&
+          (isSupplier ? <SupplierInsights contactId={c.id} docs={docs.data ?? []} /> : <CustomerInsights contactId={c.id} docs={docs.data ?? []} termDays={Number(c.payment_term_days ?? 0)} />)}
 
         {/* SEKME 2: SATIŞLAR veya ALIŞLAR */}
         {activeTab === "faturalar" && (

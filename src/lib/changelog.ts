@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.16";
+export const LATEST_VERSION = "2.5.17";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.17",
+    date: "7 Ekim 2026",
+    title: "Müşteri Analizi",
+    badge: "Müşteri",
+    items: [
+      { type: "yeni", title: "Müşteri kartında Analiz sekmesi", description: "Tahsil edilecekler, ödeme ve alışveriş alışkanlığı (ortalama ödeme süresi, vadesinde ödeme oranı, alışveriş sıklığı, uzun süredir gelmeyen uyarısı), tekrar alması beklenen ürünler (tek tuşla teklif/fatura), KDV'li/KDV'siz satış ve kârı, aylık satış-kâr grafiği, en çok aldığı ürünler ve kâr marjı, son satış fiyatları ve liste fiyatına göre iskonto." },
+    ],
+  },
   {
     version: "2.5.16",
     date: "7 Ekim 2026",
