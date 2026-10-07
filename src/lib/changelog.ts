@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.19";
+export const LATEST_VERSION = "2.5.20";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.20",
+    date: "7 Ekim 2026",
+    title: "Pusulam Tarzı Tahsilat / Ödeme Penceresi",
+    badge: "Cari",
+    items: [
+      { type: "iyilestirme", title: "Cari ekranında hızlı tahsilat", description: "Tahsilat Al / Ödeme Yap artık sayfadan çıkmadan küçük bir pencere açar: tutar, hesap, tarih, açıklama. Bakiyenin tamamı tek tıkla yazılır; tutar en eski açık faturalara sırayla bağlanır." },
+    ],
+  },
   {
     version: "2.5.19",
     date: "7 Ekim 2026",

@@ -51,6 +51,7 @@ import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { DOC_TYPES, PAYMENT_STATUS, docFlow, statusLabel, type DocType } from "@/lib/doc-types";
 import { PaymentDialog } from "@/components/cash/payment-dialog";
+import { ContactPaymentDialog } from "@/components/cash/contact-payment-dialog";
 import { TYPE_LABELS } from "@/components/dashboard/types";
 import { useOrg } from "@/providers/org-provider";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,7 @@ export function ContactDetail({ id }: { id: string }) {
   const [printDoc, setPrintDoc] = React.useState<Row<"documents"> | null>(null);
   const [editTxn, setEditTxn] = React.useState<Row<"transactions"> | null>(null);
   const [payDoc, setPayDoc] = React.useState<Row<"documents"> | null>(null);
+  const [payFlow, setPayFlow] = React.useState<"in" | "out" | null>(null);
 
   // Borç / Alacak Kaydı Form State
   const [adjType, setAdjType] = React.useState<"debit" | "credit">("debit");
@@ -600,23 +602,25 @@ export function ContactDetail({ id }: { id: string }) {
           </Link>
 
           {/* Tahsilat Al (Müşteri) veya Ödeme Yap (Tedarikçi) -> Yeşil Vurgulu Buton */}
-          <Link
-            href={`/nakit/hareketler/yeni?tip=${isSupplier ? "odeme" : "tahsilat"}&cari=${c.id}`}
+          <button
+            type="button"
+            onClick={() => setPayFlow(isSupplier ? "out" : "in")}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#00b49c] hover:bg-[#009e89] px-4 py-1.5 text-xs sm:text-sm font-bold text-white shadow-sm transition"
           >
             <Coins className="size-4" />
             <span>{isSupplier ? "Ödeme Yap" : "Tahsilat Al"}</span>
-          </Link>
+          </button>
 
           {/* Hem müşteri hem tedarikçi: karşı yöndeki para hareketi (tedarikçiden tahsilat / müşteriye ödeme) */}
           {(isSupplier || hasPurchaseDocs) && (
-            <Link
-              href={`/nakit/hareketler/yeni?tip=${isSupplier ? "tahsilat" : "odeme"}&cari=${c.id}`}
+            <button
+              type="button"
+              onClick={() => setPayFlow(isSupplier ? "in" : "out")}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[#00b49c] px-3 py-1.5 text-xs sm:text-sm font-bold text-[#008f7b] dark:text-[#00d4b8] transition hover:bg-[#00b49c]/10"
             >
               <Coins className="size-4" />
               <span>{isSupplier ? "Tahsilat Al" : "Ödeme Yap"}</span>
-            </Link>
+            </button>
           )}
 
           {/* Borç / Alacak Kaydı */}
@@ -1096,13 +1100,14 @@ export function ContactDetail({ id }: { id: string }) {
               <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-wide">
                 {isSupplier ? "Ödeme Hareketleri" : "Tahsilat Hareketleri"}
               </h2>
-              <Link
-                href={`/nakit/hareketler/yeni?tip=${isSupplier ? "odeme" : "tahsilat"}&cari=${c.id}`}
+              <button
+                type="button"
+                onClick={() => setPayFlow(isSupplier ? "out" : "in")}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[#00b49c] hover:bg-[#009e89] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition"
               >
                 <Plus className="size-3.5" />
                 <span>Yeni {isSupplier ? "Ödeme Yap" : "Tahsilat Al"}</span>
-              </Link>
+              </button>
             </div>
 
             {txns.isPending ? (
@@ -1627,6 +1632,15 @@ export function ContactDetail({ id }: { id: string }) {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ContactPaymentDialog
+        flow={payFlow}
+        contact={{ id: c.id, name: c.name }}
+        docs={docs.data ?? []}
+        balance={balance}
+        onOpenChange={(o) => !o && setPayFlow(null)}
+        onSaved={refreshAfterEdit}
+      />
 
       {payDoc && (
         <PaymentDialog
