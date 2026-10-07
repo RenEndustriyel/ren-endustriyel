@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.23";
+export const LATEST_VERSION = "2.5.24";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.24",
+    date: "7 Ekim 2026",
+    title: "Tahsilat Önce Devri Kapatır",
+    badge: "Cari",
+    items: [
+      { type: "iyilestirme", title: "Devir önce, sonra en eski fatura", description: "Tahsilat ve ödemeler önce carinin devir (açılış) bakiyesini, sonra en eski tarihli faturaları kapatır. Kalan borç en son faturalarda görünür; vade ve tahsil edilecekler doğru izlenir. Faturayla birlikte alınan peşin ödemeler kendi faturasında kalır." },
+    ],
+  },
   {
     version: "2.5.23",
     date: "7 Ekim 2026",

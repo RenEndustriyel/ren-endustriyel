@@ -54,7 +54,6 @@ export async function reconcileContactAllocations(orgId: string): Promise<number
       .neq("status", "draft")
       .neq("status", "cancelled")
       .in("payment_status", ["unpaid", "partial"])
-      .order("due_date", { ascending: true, nullsFirst: false })
       .order("issue_date", { ascending: true })
       .order("created_at", { ascending: true });
 
@@ -66,6 +65,15 @@ export async function reconcileContactAllocations(orgId: string): Promise<number
       docRemainingMap.set(d.id, Math.max(0, Number(d.total) - Number(d.paid_amount)));
     }
 
+    // Devir önce: carinin açılış bakiyesi kadar bağlanmamış tutar devri karşılar (faturaya bağlanmaz)
+    const { data: openingRows } = await supabase.from("contacts").select("id, opening_balance").in("id", contactIds);
+    const reserve = new Map<string, number>();
+    for (const c of openingRows ?? []) {
+      const ob = Number(c.opening_balance) || 0;
+      if (ob > 0) reserve.set(c.id + ":in", ob);
+      if (ob < 0) reserve.set(c.id + ":out", -ob);
+    }
+
     const newAllocations: { org_id: string; transaction_id: string; document_id: string; amount: number }[] = [];
 
     // Tarihe göre sırala
@@ -74,6 +82,12 @@ export async function reconcileContactAllocations(orgId: string): Promise<number
     for (const txn of unallocatedTxns) {
       const alreadyAllocated = allocatedMap.get(txn.id) ?? 0;
       let unallocated = Number(txn.amount) - alreadyAllocated;
+      const rk = txn.contact_id + ":" + txn.direction;
+      const take = Math.min(unallocated, reserve.get(rk) ?? 0);
+      if (take > 0) {
+        reserve.set(rk, (reserve.get(rk) ?? 0) - take);
+        unallocated -= take;
+      }
       if (unallocated <= 0.009) continue;
 
       const validDocTypes =

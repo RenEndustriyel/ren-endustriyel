@@ -68,15 +68,17 @@ function Form({
   // Bu yöndeki açık faturalar, en eski vadeden başlayarak
   const open = docs
     .filter((d) => DOC_TYPES[d.doc_type as DocType]?.payable && docFlow(d.doc_type as DocType) === flow && d.status !== "draft" && d.status !== "cancelled" && d.currency === "TRY")
-    .map((d) => ({ id: d.id, rem: Math.round((Number(d.total) - Number(d.paid_amount || 0)) * 100) / 100, key: d.due_date ?? d.issue_date }))
+    .map((d) => ({ id: d.id, rem: Math.round((Number(d.total) - Number(d.paid_amount || 0)) * 100) / 100, key: d.issue_date }))
     .filter((d) => d.rem > 0.004)
-    .sort((a, b) => a.key.localeCompare(b.key));
+    .sort((a, b) => a.key.localeCompare(b.key) || a.id.localeCompare(b.id));
   const due = flow === "in" ? Math.max(balance, 0) : Math.max(-balance, 0);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (value <= 0 || !acc || !org) return;
-    let left = value;
+    // Önce devir / faturaya bağlı olmayan bakiye kapanır, kalanı en eski faturalara
+    const unlinked = Math.max(0, due - open.reduce((s, d) => s + d.rem, 0));
+    let left = Math.round((value - Math.min(value, unlinked)) * 100) / 100;
     const allocations: { document_id: string; amount: number }[] = [];
     for (const d of open) {
       if (left <= 0.004) break;
@@ -141,7 +143,9 @@ function Form({
       </label>
       {open.length > 0 && value > 0 && (
         <p className="text-xs text-slate-600 dark:text-slate-400">
-          En eski açık faturalara sırayla bağlanır ({open.length} açık fatura · {formatMoney(open.reduce((s, d) => s + d.rem, 0))}).
+          {due - open.reduce((s, d) => s + d.rem, 0) > 0.004
+            ? `Önce ${formatMoney(due - open.reduce((s, d) => s + d.rem, 0))} devir bakiyesi kapanır, kalanı en eski faturalara bağlanır.`
+            : `En eski tarihli açık faturalara sırayla bağlanır (${open.length} açık fatura · ${formatMoney(open.reduce((s, d) => s + d.rem, 0))}).`}
         </p>
       )}
       <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">

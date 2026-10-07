@@ -78,7 +78,8 @@ async function runReconcile(orgId: string): Promise<{ allocations: number; offse
       id: d.id,
       contact_id: d.contact_id,
       doc_type: d.doc_type,
-      due: String(d.due_date ?? d.issue_date).slice(0, 10),
+      // en eski tarihli fatura önce kapanır
+      due: String(d.issue_date ?? d.due_date).slice(0, 10),
       remaining: r2(Number(d.total) - (Number(d.paid_amount) || 0)),
     }))
     .filter((d) => d.remaining > 0.009);
@@ -130,7 +131,14 @@ async function runReconcile(orgId: string): Promise<{ allocations: number; offse
     });
   }
 
-  const plan = planReconcile(docs, txns);
+  // Devir (açılış) bakiyeleri: tahsilat önce devri kapatır
+  const openings = new Map<string, number>();
+  for (const part of chunks(contactIds)) {
+    const rows = await must<{ id: string; opening_balance: number | null }[]>(db.from("contacts").select("id, opening_balance").in("id", part).limit(5000));
+    for (const c of rows) if (Number(c.opening_balance)) openings.set(c.id, Number(c.opening_balance));
+  }
+
+  const plan = planReconcile(docs, txns, openings);
 
   // 1) Bağlanmamış hareketleri belgelere bağla (aynı çift varsa dokunmaz)
   if (plan.allocations.length) {

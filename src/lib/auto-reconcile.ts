@@ -1,7 +1,9 @@
 /**
  * Otomatik eşleştirme (cari bazında, yalnızca TL)
  *
- * 1) Faturaya bağlanmamış tahsilat / ödemeler aynı carinin en eski açık belgelerine bağlanır (FIFO).
+ * 1) Faturaya bağlanmamış tahsilat / ödemeler önce carinin DEVİR (açılış) bakiyesini kapatır;
+ *    devri aşan kısım en eski tarihli açık belgelere bağlanır (FIFO). Devri karşılayan tutar
+ *    bilerek bağlanmadan kalır (devir bir belge değildir).
  * 2) Aynı caride hem açık satış hem açık alış belgesi kalırsa, küçük tutar kadar MAHSUP yapılır:
  *    kasasız (account_id = null) bir "giriş" + bir "çıkış" düzeltme hareketi. İkisi birbirini
  *    sıfırladığı için cari bakiye ve kasa/banka DEĞİŞMEZ; yalnızca belgeler "ödendi" olur.
@@ -46,7 +48,11 @@ export const OFFSET_REF = "oto-mahsup";
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const EPS = 0.009;
 
-export function planReconcile(docs: RecDoc[], txns: RecTxn[]) {
+/**
+ * @param openings cari → açılış bakiyesi (+ müşteri bize borçlu, − biz borçluyuz). Verilirse
+ *   bağlanmamış tahsilatların (müşteri) / ödemelerin (tedarikçi) en eski kısmı önce devre ayrılır.
+ */
+export function planReconcile(docs: RecDoc[], txns: RecTxn[], openings: Map<string, number> = new Map()) {
   const allocations: PlannedAllocation[] = [];
   const offsets: PlannedOffset[] = [];
 
@@ -62,8 +68,14 @@ export function planReconcile(docs: RecDoc[], txns: RecTxn[]) {
     const cTxns = txns
       .filter((t) => t.contact_id === cid && t.unallocated > EPS)
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    // Devir önce: en eski bağlanmamış tutar devri karşılar
+    const opening = openings.get(cid) ?? 0;
+    const reserve = { in: Math.max(0, r2(opening)), out: Math.max(0, r2(-opening)) };
     for (const t of cTxns) {
       let avail = r2(t.unallocated);
+      const take = r2(Math.min(avail, reserve[t.direction]));
+      avail = r2(avail - take);
+      reserve[t.direction] = r2(reserve[t.direction] - take);
       for (const d of t.direction === "in" ? ins : outs) {
         if (avail <= EPS) break;
         const rem = left.get(d.id) ?? 0;
