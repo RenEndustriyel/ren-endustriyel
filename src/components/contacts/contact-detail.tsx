@@ -354,6 +354,12 @@ export function ContactDetail({ id }: { id: string }) {
     await shareStatementPdf({ org: org!, contact: c, rows, carried, from, to, mode });
   };
 
+  /** Kalan tutarı olan, ödemesi yapılabilir belge (satış → tahsilat, alış → ödeme) */
+  const payableDoc = (docId: string) => {
+    const d = (docs.data ?? []).find((x) => x.id === docId);
+    if (!d || !DOC_TYPES[d.doc_type as DocType]?.payable || d.status === "draft" || d.status === "cancelled") return null;
+    return Number(d.total) - Number(d.paid_amount || 0) > 0.004 ? d : null;
+  };
   const docEditHref = (type: string, docId: string) => `${DOC_TYPES[type as DocType]?.base ?? "/satislar/faturalar"}/duzenle?id=${docId}`;
   const openTxnEdit = (txnId: string) => {
     const t = (txns.data ?? []).find((x) => x.id === txnId);
@@ -889,6 +895,23 @@ export function ContactDetail({ id }: { id: string }) {
                         </td>
                         <td className="px-3 py-2.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100">
+                            {canWrite && r.kind === "document" && payableDoc(r.ref_id) && (() => {
+                              const pd = payableDoc(r.ref_id)!;
+                              const inFlow = docFlow(pd.doc_type as DocType) === "in";
+                              return (
+                                <button
+                                  type="button"
+                                  className={cn(
+                                    "h-7 w-7 rounded-lg flex items-center justify-center text-white transition",
+                                    inFlow ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
+                                  )}
+                                  title={`${inFlow ? "Tahsilat Al" : "Ödeme Yap"} · kalan ${formatMoney(Number(pd.total) - Number(pd.paid_amount || 0), pd.currency)}`}
+                                  onClick={() => setPayDoc(pd)}
+                                >
+                                  <Coins className="h-3.5 w-3.5" />
+                                </button>
+                              );
+                            })()}
                             {r.kind === "document" && (
                               <button
                                 type="button"
@@ -1690,6 +1713,22 @@ export function ContactDetail({ id }: { id: string }) {
                   }}
                 >
                   <Printer className="size-4" /> Belgeyi Önizle ve Yazdır
+                </Button>
+              )}
+
+              {canWrite && selectedRow?.kind === "document" && payableDoc(selectedRow.ref_id) && (
+                <Button
+                  className={cn(
+                    "w-full justify-center gap-2 font-bold text-white",
+                    docFlow(selectedRow.ref_type as DocType) === "in" ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
+                  )}
+                  onClick={() => {
+                    const pd = payableDoc(selectedRow.ref_id);
+                    setSelectedRow(null);
+                    if (pd) setPayDoc(pd);
+                  }}
+                >
+                  <Coins className="size-4" /> {docFlow(selectedRow.ref_type as DocType) === "in" ? "Tahsilat Al" : "Ödeme Yap"}
                 </Button>
               )}
 

@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.18";
+export const LATEST_VERSION = "2.5.19";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.19",
+    date: "7 Ekim 2026",
+    title: "Son Hareketlerden Tahsilat / Ödeme",
+    badge: "Cari",
+    items: [
+      { type: "yeni", title: "İşlemler sütununda para düğmesi", description: "Cari Özet'indeki Son Hareketler tablosunda kalan tutarı olan faturanın yanında Tahsilat Al / Ödeme Yap düğmesi; hareket penceresinde de aynı düğme var. Ödeme doğrudan o faturaya bağlanır." },
+    ],
+  },
   {
     version: "2.5.18",
     date: "7 Ekim 2026",
