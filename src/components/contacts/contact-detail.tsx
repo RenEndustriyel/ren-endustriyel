@@ -49,7 +49,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
-import { DOC_TYPES, PAYMENT_STATUS, statusLabel, type DocType } from "@/lib/doc-types";
+import { DOC_TYPES, PAYMENT_STATUS, docFlow, statusLabel, type DocType } from "@/lib/doc-types";
+import { PaymentDialog } from "@/components/cash/payment-dialog";
 import { TYPE_LABELS } from "@/components/dashboard/types";
 import { useOrg } from "@/providers/org-provider";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,7 @@ export function ContactDetail({ id }: { id: string }) {
   const [selectedRow, setSelectedRow] = React.useState<StatementRow | null>(null);
   const [printDoc, setPrintDoc] = React.useState<Row<"documents"> | null>(null);
   const [editTxn, setEditTxn] = React.useState<Row<"transactions"> | null>(null);
+  const [payDoc, setPayDoc] = React.useState<Row<"documents"> | null>(null);
 
   // Borç / Alacak Kaydı Form State
   const [adjType, setAdjType] = React.useState<"debit" | "credit">("debit");
@@ -1011,6 +1013,24 @@ export function ContactDetail({ id }: { id: string }) {
                         </td>
                         <td className="px-3 py-2.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
+                            {canWrite &&
+                              DOC_TYPES[d.doc_type as DocType]?.payable &&
+                              d.status !== "draft" &&
+                              d.status !== "cancelled" &&
+                              Number(d.total) - Number(d.paid_amount || 0) > 0.004 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPayDoc(d)}
+                                  className={cn(
+                                    "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold text-white shadow-sm transition",
+                                    docFlow(d.doc_type as DocType) === "in" ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
+                                  )}
+                                  title={`Kalan ${formatMoney(Number(d.total) - Number(d.paid_amount || 0), d.currency)}`}
+                                >
+                                  <Coins className="size-3.5" />
+                                  {docFlow(d.doc_type as DocType) === "in" ? "Tahsilat Al" : "Ödeme Yap"}
+                                </button>
+                              )}
                             <button
                               type="button"
                               onClick={() => setPrintDoc(d)}
@@ -1584,6 +1604,27 @@ export function ContactDetail({ id }: { id: string }) {
           </form>
         </DialogContent>
       </Dialog>
+
+      {payDoc && (
+        <PaymentDialog
+          open={!!payDoc}
+          onOpenChange={(o) => {
+            if (!o) {
+              setPayDoc(null);
+              refreshAfterEdit();
+            }
+          }}
+          flow={docFlow(payDoc.doc_type as DocType) === "in" ? "in" : "out"}
+          contactId={payDoc.contact_id}
+          target={{
+            id: payDoc.id,
+            number: payDoc.number,
+            remaining: Math.max(Number(payDoc.total) - Number(payDoc.paid_amount || 0), 0),
+            currency: payDoc.currency,
+            exchange_rate: Number(payDoc.exchange_rate || 1),
+          }}
+        />
+      )}
 
       <TransactionEditDialog txn={editTxn} onOpenChange={(o) => !o && setEditTxn(null)} onSaved={refreshAfterEdit} />
 

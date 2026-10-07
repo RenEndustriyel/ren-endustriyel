@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.17";
+export const LATEST_VERSION = "2.5.18";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.18",
+    date: "7 Ekim 2026",
+    title: "Faturadan Hızlı Tahsilat / Ödeme",
+    badge: "Cari",
+    items: [
+      { type: "yeni", title: "Listede Tahsilat Al / Ödeme Yap", description: "Cari kartındaki Satışlar ve Alışlar listesinde kalan tutarı olan her faturanın yanında Tahsilat Al (satış) veya Ödeme Yap (alış) düğmesi; ödeme doğrudan o faturaya bağlanır." },
+    ],
+  },
   {
     version: "2.5.17",
     date: "7 Ekim 2026",
