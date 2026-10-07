@@ -108,6 +108,10 @@ export function ContactDetail({ id }: { id: string }) {
   const [editTxn, setEditTxn] = React.useState<Row<"transactions"> | null>(null);
   const [payDoc, setPayDoc] = React.useState<Row<"documents"> | null>(null);
   const [payFlow, setPayFlow] = React.useState<"in" | "out" | null>(null);
+  // Satışlar / Alışlar sekmesi: tarih filtresi
+  const [docPeriod, setDocPeriod] = React.useState<"all" | "month" | "lastmonth" | "year" | "custom">("all");
+  const [docFrom, setDocFrom] = React.useState(isoDate().slice(0, 7) + "-01");
+  const [docTo, setDocTo] = React.useState(isoDate());
 
   // Borç / Alacak Kaydı Form State
   const [adjType, setAdjType] = React.useState<"debit" | "credit">("debit");
@@ -369,6 +373,18 @@ export function ContactDetail({ id }: { id: string }) {
     if (!d || !DOC_TYPES[d.doc_type as DocType]?.payable || d.status === "draft" || d.status === "cancelled") return null;
     return Number(d.total) - Number(d.paid_amount || 0) > 0.004 ? d : null;
   };
+  /** Satışlar / Alışlar sekmesi için seçilen tarih aralığı (null = tümü) */
+  const docRange = ((): [string, string] | null => {
+    const t = new Date();
+    const p2 = (x: number) => String(x).padStart(2, "0");
+    const ymd = (x: Date) => x.getFullYear() + "-" + p2(x.getMonth() + 1) + "-" + p2(x.getDate());
+    if (docPeriod === "month") return [ymd(new Date(t.getFullYear(), t.getMonth(), 1)), ymd(t)];
+    if (docPeriod === "lastmonth") return [ymd(new Date(t.getFullYear(), t.getMonth() - 1, 1)), ymd(new Date(t.getFullYear(), t.getMonth(), 0))];
+    if (docPeriod === "year") return [t.getFullYear() + "-01-01", ymd(t)];
+    if (docPeriod === "custom") return [docFrom || "0000-01-01", docTo || "9999-12-31"];
+    return null;
+  })();
+  const docList = (docs.data ?? []).filter((d) => !docRange || (d.issue_date >= docRange[0] && d.issue_date <= docRange[1]));
   const docEditHref = (type: string, docId: string) => `${DOC_TYPES[type as DocType]?.base ?? "/satislar/faturalar"}/duzenle?id=${docId}`;
   const openTxnEdit = (txnId: string) => {
     const t = (txns.data ?? []).find((x) => x.id === txnId);
@@ -973,7 +989,11 @@ export function ContactDetail({ id }: { id: string }) {
 
         {/* TEDARİKÇİ ANALİZİ */}
         {activeTab === "analiz" &&
-          (isSupplier ? <SupplierInsights contactId={c.id} docs={docs.data ?? []} /> : <CustomerInsights contactId={c.id} docs={docs.data ?? []} termDays={Number(c.payment_term_days ?? 0)} />)}
+          (isSupplier ? (
+            <SupplierInsights contactId={c.id} docs={docs.data ?? []} balance={balance} />
+          ) : (
+            <CustomerInsights contactId={c.id} docs={docs.data ?? []} termDays={Number(c.payment_term_days ?? 0)} balance={balance} />
+          ))}
 
         {/* SEKME 2: SATIŞLAR veya ALIŞLAR */}
         {activeTab === "faturalar" && (
@@ -989,6 +1009,73 @@ export function ContactDetail({ id }: { id: string }) {
                 <Plus className="size-3.5" />
                 <span>Yeni {isSupplier ? "Alış Faturası" : "Satış Faturası"}</span>
               </Link>
+            </div>
+
+            <div className="mb-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 dark:border-[#233144]">
+                  {(
+                    [
+                      ["all", "Tümü"],
+                      ["month", "Bu ay"],
+                      ["lastmonth", "Geçen ay"],
+                      ["year", "Bu yıl"],
+                      ["custom", "Tarih aralığı"],
+                    ] as const
+                  ).map(([v, l], i) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setDocPeriod(v)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-semibold transition",
+                        i > 0 && "border-l border-slate-300 dark:border-[#233144]",
+                        docPeriod === v ? "bg-[#00b49c] text-white" : "bg-white text-slate-700 hover:bg-slate-100 dark:bg-[#16202c] dark:text-slate-200 dark:hover:bg-[#1f2c3d]",
+                      )}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                {docPeriod === "custom" && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-40">
+                      <Input type="date" value={docFrom} onChange={(e) => setDocFrom(e.target.value)} aria-label="Başlangıç" />
+                    </div>
+                    <span className="text-slate-500">–</span>
+                    <div className="w-40">
+                      <Input type="date" value={docTo} onChange={(e) => setDocTo(e.target.value)} aria-label="Bitiş" />
+                    </div>
+                  </div>
+                )}
+              </div>
+              {docRange &&
+                (() => {
+                  const live = docList.filter((d) => d.status !== "draft" && d.status !== "cancelled" && !["quote", "sales_order", "purchase_order"].includes(d.doc_type));
+                  const sg = (d: Row<"documents">) => (d.doc_type.endsWith("_return") ? -1 : 1);
+                  const rate = (d: Row<"documents">) => Number(d.exchange_rate || 1);
+                  const total = live.reduce((a, d) => a + sg(d) * Number(d.total_try ?? Number(d.total) * rate(d)), 0);
+                  const net = live.reduce((a, d) => a + sg(d) * Number(d.net_total ?? 0) * rate(d), 0);
+                  const open = live
+                    .filter((d) => !d.doc_type.endsWith("_return"))
+                    .reduce((a, d) => a + Math.max(Number(d.total) - Number(d.paid_amount || 0), 0) * rate(d), 0);
+                  return (
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {[
+                        ["Belge", String(live.length)],
+                        [isSupplier ? "Toplam alış (KDV dahil)" : "Toplam satış (KDV dahil)", formatMoney(total)],
+                        ["KDV hariç", formatMoney(net)],
+                        [isSupplier ? "Ödenecek (açık)" : "Tahsil edilecek (açık)", formatMoney(open)],
+                      ].map(([k, v]) => (
+                        <div key={k} className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-[#16202c]">
+                          <div className="text-[11px] text-slate-600 dark:text-slate-400">{k}</div>
+                          <div className="font-bold tabular-nums text-slate-900 dark:text-white">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              {docRange && docList.length === 0 && <p className="py-6 text-center text-sm text-slate-600 dark:text-slate-400">Bu tarih aralığında belge yok.</p>}
             </div>
 
             {docs.isPending ? (
@@ -1012,7 +1099,7 @@ export function ContactDetail({ id }: { id: string }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-[#1e2a3a]">
-                    {(docs.data ?? []).map((d) => (
+                    {docList.map((d) => (
                       <tr
                         key={d.id}
                         className="group cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1a2534]/60 transition"

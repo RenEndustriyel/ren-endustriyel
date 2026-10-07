@@ -36,7 +36,7 @@ const pct = (a: number, b: number) => (b ? ((a / b) * 100).toFixed(1).replace(".
 const dayDiff = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 864e5);
 
 /** Müşteri analizi: tahsilat, ödeme/alışveriş alışkanlığı, tekrar alımlar, KDV dağılımı, aylık satış-kâr, en çok alınanlar, son fiyatlar */
-export function CustomerInsights({ contactId, docs, termDays = 0 }: { contactId: string; docs: Row<"documents">[]; termDays?: number }) {
+export function CustomerInsights({ contactId, docs, termDays = 0, balance = 0 }: { contactId: string; docs: Row<"documents">[]; termDays?: number; balance?: number }) {
   const router = useRouter();
   const { canWrite } = useOrg();
   const units = useUnits();
@@ -241,6 +241,25 @@ export function CustomerInsights({ contactId, docs, termDays = 0 }: { contactId:
               </div>
             ))}
           </div>
+          {(() => {
+            const total = Math.max(balance, 0);
+            const openSum = due.rows.reduce((s, x) => s + x.rem, 0);
+            const extra = total - openSum;
+            if (total <= 0.004) return null;
+            return (
+              <div className="mb-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-[#1e2a3a]">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold">Toplam açık hesap</span>
+                  <span className="font-bold tabular-nums">{formatMoney(total)}</span>
+                </div>
+                {extra > 0.004 && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                    {formatMoney(extra)} faturaya bağlı değil (devir / açılış bakiyesi ya da faturasız borç). Tahsilat önce açık faturalara, kalanı bu bakiyeye düşer.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {due.rows.length === 0 ? (
             <p className={cn(muted, "py-4 text-center")}>Açık satış faturası yok.</p>
           ) : (

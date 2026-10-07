@@ -14,9 +14,19 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.22";
+export const LATEST_VERSION = "2.5.23";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.23",
+    date: "7 Ekim 2026",
+    title: "Cari Satışlarında Tarih Filtresi",
+    badge: "Cari",
+    items: [
+      { type: "yeni", title: "Satışlar / Alışlar tarih filtresi", description: "Cari kartındaki Satışlar ve Alışlar listesinde Tümü / Bu ay / Geçen ay / Bu yıl / Tarih aralığı seçimi; seçilen dönemin belge sayısı, toplam (KDV dahil), KDV hariç ve açık tutarı görünür." },
+      { type: "duzeltme", title: "Devir bakiyesi analizde görünür", description: "Tahsil edilecekler / Yaklaşan ödemeler bölümünde toplam açık hesap ve faturaya bağlı olmayan (devir / açılış) bakiye ayrıca gösterilir." },
+    ],
+  },
   {
     version: "2.5.22",
     date: "7 Ekim 2026",

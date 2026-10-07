@@ -33,7 +33,7 @@ const head = "mb-3 flex items-center gap-2 text-sm font-bold text-slate-900 dark
 const muted = "text-xs text-slate-600 dark:text-slate-400";
 
 /** Tedarikçi analizi: zamlar, sipariş verilecekler, en çok alınanlar, aylık alış, KDV dağılımı, yaklaşan ödemeler */
-export function SupplierInsights({ contactId, docs }: { contactId: string; docs: Row<"documents">[] }) {
+export function SupplierInsights({ contactId, docs, balance = 0 }: { contactId: string; docs: Row<"documents">[]; balance?: number }) {
   const router = useRouter();
   const { canWrite } = useOrg();
   const units = useUnits();
@@ -252,6 +252,25 @@ export function SupplierInsights({ contactId, docs }: { contactId: string; docs:
               </div>
             ))}
           </div>
+          {(() => {
+            const total = Math.max(-balance, 0);
+            const openSum = dueList.rows.reduce((s, x) => s + x.rem, 0);
+            const extra = total - openSum;
+            if (total <= 0.004) return null;
+            return (
+              <div className="mb-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-[#1e2a3a]">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold">Toplam açık hesap</span>
+                  <span className="font-bold tabular-nums">{formatMoney(total)}</span>
+                </div>
+                {extra > 0.004 && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                    {formatMoney(extra)} faturaya bağlı değil (devir / açılış bakiyesi ya da faturasız alacak). Ödeme önce açık faturalara, kalanı bu bakiyeye düşer.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {dueList.rows.length === 0 ? (
             <p className={cn(muted, "py-4 text-center")}>Açık alış faturası yok.</p>
           ) : (
