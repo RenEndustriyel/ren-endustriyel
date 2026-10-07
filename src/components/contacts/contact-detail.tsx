@@ -135,6 +135,13 @@ export function ContactDetail({ id }: { id: string }) {
     order: [{ column: "txn_date", ascending: false }],
   });
 
+  const yearStart = `${new Date().getFullYear()}-01-01`;
+  const yearProfit = useRpcQuery<{ key: string | null; net: number; profit: number }[]>(
+    "report_sales",
+    { p_org: org?.id, p_from: yearStart, p_to: isoDate(), p_group: "contact" },
+    { enabled: !!org?.id },
+  );
+
   const cheques = useRows<Row<"cheques">>("cheques", {
     params: ["contact_cheques", id],
     filter: (q) => q.eq("contact_id", id),
@@ -262,7 +269,10 @@ export function ContactDetail({ id }: { id: string }) {
     );
   }
 
-  const isSupplier = c.kind === "supplier";
+  // Tedarikçi görünümü: kart türü tedarikçi ya da bu cariyle yalnızca alış yapılmış (müşteri olarak açılmış tedarikçiler)
+  const hasPurchaseDocs = (docs.data ?? []).some((d) => d.doc_type.startsWith("purchase"));
+  const hasSalesDocs = (docs.data ?? []).some((d) => d.doc_type.startsWith("sales") || d.doc_type === "pos_sale" || d.doc_type === "quote");
+  const isSupplier = c.kind === "supplier" || (hasPurchaseDocs && !hasSalesDocs);
   const balance = Number(balances.data?.find((b) => b.contact_id === id)?.balance ?? c.opening_balance ?? 0);
   const openDocs = (docs.data ?? []).filter((d) => d.payment_status === "unpaid" || d.payment_status === "partial");
   const openDocsTotal = openDocs.reduce(
@@ -270,30 +280,31 @@ export function ContactDetail({ id }: { id: string }) {
     0
   );
 
-  // Pusulam 4 Kart Metrikleri Hesaplama
-  const totalSalesOrPurchases = (docs.data ?? [])
-    .filter((d) => {
-      if (isSupplier) {
-        return (d.doc_type === "purchase_invoice" || d.doc_type === "purchase_order") && d.status !== "cancelled";
-      }
-      return (d.doc_type === "sales_invoice" || d.doc_type === "sales_order" || d.doc_type === "pos_sale") && d.status !== "cancelled";
-    })
-    .reduce((acc, d) => acc + Number(d.total_try ?? Number(d.total) * Number(d.exchange_rate || 1)), 0);
+  // Cari kart metrikleri (TL): taslak / iptal / sipariş hariç, iadeler düşülür
+  const today = isoDate();
+  const live = (docs.data ?? []).filter((d) => d.status !== "draft" && d.status !== "cancelled");
+  const tl = (d: Row<"documents">) => Number(d.total_try ?? Number(d.total) * Number(d.exchange_rate || 1));
+  const mainTypes = isSupplier ? ["purchase_invoice"] : ["sales_invoice", "pos_sale"];
+  const returnType = isSupplier ? "purchase_return" : "sales_return";
+  const mainDocs = live.filter((d) => mainTypes.includes(d.doc_type));
+  const totalSalesOrPurchases =
+    mainDocs.reduce((acc, d) => acc + tl(d), 0) - live.filter((d) => d.doc_type === returnType).reduce((acc, d) => acc + tl(d), 0);
+  const thisYearTotal = mainDocs.filter((d) => d.issue_date >= yearStart).reduce((acc, d) => acc + tl(d), 0);
 
-  const totalCollectedOrPaid = (txns.data ?? [])
-    .filter((t) => {
-      if (isSupplier) {
-        return t.direction === "out" && (t.type === "payment" || t.type === "odeme");
-      }
-      return t.direction === "in" && (t.type === "collection" || t.type === "tahsilat");
-    })
-    .reduce((acc, t) => acc + Number(t.amount_try ?? t.amount ?? 0), 0);
+  const flowTxns = (txns.data ?? []).filter((t) =>
+    isSupplier ? t.direction === "out" && t.type === "payment" : t.direction === "in" && t.type === "collection",
+  );
+  const totalCollectedOrPaid = flowTxns.reduce((acc, t) => acc + Number(t.amount_try ?? t.amount ?? 0), 0);
+  const lastFlow = flowTxns.reduce<string | null>((m, t) => (!m || t.txn_date > m ? t.txn_date : m), null);
 
-  const chequesCount = cheques.data?.length ?? 0;
+  // Vadesi geçen açık belgeler
+  const overdueDocs = openDocs.filter((d) => d.due_date && d.due_date < today && d.status !== "draft" && d.status !== "cancelled");
+  const overdueTotal = overdueDocs.reduce((acc, d) => acc + (Number(d.total) - Number(d.paid_amount || 0)) * Number(d.exchange_rate || 1), 0);
+  const oldestDue = overdueDocs.reduce<string | null>((m, d) => (!m || d.due_date! < m ? d.due_date! : m), null);
+  const daysSince = (iso: string) => Math.max(0, Math.round((Date.parse(today) - Date.parse(iso)) / 864e5));
 
-  const cardAmount = (txns.data ?? [])
-    .filter((t) => t.method === "card" || t.method === "pos" || t.method === "kredi_karti")
-    .reduce((acc, t) => acc + Number(t.amount_try ?? t.amount ?? 0), 0);
+  const profitRow = (yearProfit.data ?? []).find((r) => r.key === id);
+  const lastDoc = mainDocs.reduce<string | null>((m, d) => (!m || d.issue_date > m ? d.issue_date : m), null);
 
   const del = async () => {
     if (
@@ -690,47 +701,62 @@ export function ContactDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 3. DÖRT RENKLİ İSTATİSTİK KARTI (Fotoğraftaki 4 Renk Bloğu) */}
+      {/* 3. CARİ ÖZET KARTLARI: satış/alış, tahsilat/ödeme, vadesi geçen, kâr / son alış */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* 1. Kart: Toplam Satış / Toplam Alış (Koyu Zümrüt Yeşili) */}
-        <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#00b49c] to-[#008f7b] p-4 text-white shadow-sm">
-          <div className="text-xl sm:text-2xl font-black tracking-tight">
+        <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#00b49c] to-[#008f7b] p-4 text-white shadow-sm min-w-0">
+          <div className="text-xl sm:text-2xl font-black tracking-tight truncate">
             {formatMoney(totalSalesOrPurchases)}
           </div>
-          <div className="mt-1 text-xs font-semibold text-emerald-100/90">
-            {isSupplier ? "Toplam Alış" : "Toplam Satış"}
+          <div className="mt-1 text-xs font-semibold text-emerald-50/90">{isSupplier ? "Toplam Alış" : "Toplam Satış"}</div>
+          <div className="mt-0.5 text-[11px] text-emerald-50/90 truncate">
+            {mainDocs.length} fatura · bu yıl {formatMoney(thisYearTotal)}
           </div>
         </div>
 
-        {/* 2. Kart: Tahsilat / Ödeme (Okyanus Mavisi) */}
-        <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#3b82f6] to-[#2563eb] p-4 text-white shadow-sm">
-          <div className="text-xl sm:text-2xl font-black tracking-tight">
+        <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#3b82f6] to-[#2563eb] p-4 text-white shadow-sm min-w-0">
+          <div className="text-xl sm:text-2xl font-black tracking-tight truncate">
             {formatMoney(totalCollectedOrPaid)}
           </div>
-          <div className="mt-1 text-xs font-semibold text-blue-100/90">
-            {isSupplier ? "Ödeme" : "Tahsilat"}
+          <div className="mt-1 text-xs font-semibold text-blue-50/90">{isSupplier ? "Ödeme" : "Tahsilat"}</div>
+          <div className="mt-0.5 text-[11px] text-blue-50/90 truncate">
+            {lastFlow ? `Son: ${formatDate(lastFlow)} · ${daysSince(lastFlow)} gün önce` : "Henüz yok"}
           </div>
         </div>
 
-        {/* 3. Kart: Çek / Senet (Sarı/Turuncu) */}
-        <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#d97706] p-4 text-white shadow-sm">
-          <div className="text-xl sm:text-2xl font-black tracking-tight">
-            {chequesCount}
-          </div>
-          <div className="mt-1 text-xs font-semibold text-amber-100/90">
-            Çek / Senet
+        <div
+          className={cn(
+            "flex flex-col justify-center rounded-xl bg-gradient-to-r p-4 text-white shadow-sm min-w-0",
+            overdueTotal > 0.004 ? "from-[#f43f5e] to-[#e11d48]" : "from-[#64748b] to-[#475569]",
+          )}
+        >
+          <div className="text-xl sm:text-2xl font-black tracking-tight truncate">{formatMoney(overdueTotal)}</div>
+          <div className="mt-1 text-xs font-semibold text-white/90">{isSupplier ? "Vadesi Geçen Borcumuz" : "Vadesi Geçen"}</div>
+          <div className="mt-0.5 text-[11px] text-white/90 truncate">
+            {oldestDue ? `${overdueDocs.length} belge · en eski ${daysSince(oldestDue)} gün` : "Gecikme yok"}
           </div>
         </div>
 
-        {/* 4. Kart: Kartlı Satış / Kartlı Alış (Açık Yeşil / Nane) */}
-        <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#10b981] to-[#059669] p-4 text-white shadow-sm">
-          <div className="text-xl sm:text-2xl font-black tracking-tight">
-            {formatMoney(cardAmount)}
+        {isSupplier ? (
+          <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#8b5cf6] to-[#7c3aed] p-4 text-white shadow-sm min-w-0">
+            <div className="text-xl sm:text-2xl font-black tracking-tight truncate">
+              {lastDoc ? formatDate(lastDoc) : "—"}
+            </div>
+            <div className="mt-1 text-xs font-semibold text-violet-50/90">Son Alış</div>
+            <div className="mt-0.5 text-[11px] text-violet-50/90 truncate">
+              {lastDoc ? `${daysSince(lastDoc)} gün önce` : "Henüz alış yok"}
+            </div>
           </div>
-          <div className="mt-1 text-xs font-semibold text-emerald-100/90">
-            {isSupplier ? "Kartlı Alış" : "Kartlı Satış"}
+        ) : (
+          <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#8b5cf6] to-[#7c3aed] p-4 text-white shadow-sm min-w-0">
+            <div className="text-xl sm:text-2xl font-black tracking-tight truncate">
+              {formatMoney(Number(profitRow?.profit ?? 0))}
+            </div>
+            <div className="mt-1 text-xs font-semibold text-violet-50/90">Bu Yıl Kâr</div>
+            <div className="mt-0.5 text-[11px] text-violet-50/90 truncate">
+              {profitRow && Number(profitRow.net) ? `Marj %${((Number(profitRow.profit) / Number(profitRow.net)) * 100).toFixed(1).replace(".", ",")} · KDV hariç` : "Bu yıl satış yok"}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 4. PUSULAM 7 YATAY SEKME PİLLERİ */}

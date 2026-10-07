@@ -14,9 +14,20 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.14";
+export const LATEST_VERSION = "2.5.15";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.15",
+    date: "7 Ekim 2026",
+    title: "Cari Kartı Özet Kutuları",
+    badge: "Cari",
+    items: [
+      { type: "iyilestirme", title: "Yeni özet kutuları", description: "Çek/senet ve kartlı satış yerine: Toplam Satış/Alış (fatura sayısı, bu yıl), Tahsilat/Ödeme (son tarih), Vadesi Geçen (belge sayısı, en eski gün), müşteride Bu Yıl Kâr (marj), tedarikçide Son Alış." },
+      { type: "duzeltme", title: "Doğru toplamlar", description: "Toplam satış/alış artık sipariş ve taslakları saymaz, iadeleri düşer." },
+      { type: "duzeltme", title: "Tedarikçi görünümü", description: "Müşteri olarak açılmış ama yalnızca alış yapılan cariler tedarikçi gibi gösterilir (Toplam Alış, Ödeme, Son Alış)." },
+    ],
+  },
   {
     version: "2.5.14",
     date: "7 Ekim 2026",
