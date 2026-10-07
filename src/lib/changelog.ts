@@ -25,6 +25,7 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
     items: [
       { type: "iyilestirme", title: "Yeni özet kutuları", description: "Çek/senet ve kartlı satış yerine: Toplam Satış/Alış (fatura sayısı, bu yıl), Tahsilat/Ödeme (son tarih), Vadesi Geçen (belge sayısı, en eski gün), müşteride Bu Yıl Kâr (marj), tedarikçide Son Alış." },
       { type: "duzeltme", title: "Doğru toplamlar", description: "Toplam satış/alış artık sipariş ve taslakları saymaz, iadeleri düşer." },
+      { type: "yeni", title: "Hem müşteri hem tedarikçi", description: "Tedarikçiden tahsilat alınabilir, tedarikçiye satış yapılabilir (Tahsilat Al / Ödeme Yap düğmeleri). Tahsilat ve ödeme formunda tüm cariler listelenir; kutularda karşı yöndeki satış/alış ve tahsilat/ödeme ayrıca görünür." },
       { type: "duzeltme", title: "Tedarikçi görünümü", description: "Müşteri olarak açılmış ama yalnızca alış yapılan cariler tedarikçi gibi gösterilir (Toplam Alış, Ödeme, Son Alış)." },
     ],
   },

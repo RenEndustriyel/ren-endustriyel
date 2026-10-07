@@ -295,6 +295,12 @@ export function ContactDetail({ id }: { id: string }) {
     isSupplier ? t.direction === "out" && t.type === "payment" : t.direction === "in" && t.type === "collection",
   );
   const totalCollectedOrPaid = flowTxns.reduce((acc, t) => acc + Number(t.amount_try ?? t.amount ?? 0), 0);
+  // Hem müşteri hem tedarikçi: karşı yöndeki satış/alış ve tahsilat/ödeme (kutuda ikinci satır)
+  const otherTypes = isSupplier ? ["sales_invoice", "pos_sale"] : ["purchase_invoice"];
+  const otherTotal = live.filter((d) => otherTypes.includes(d.doc_type)).reduce((acc, d) => acc + tl(d), 0);
+  const otherFlow = (txns.data ?? [])
+    .filter((t) => (isSupplier ? t.direction === "in" && t.type === "collection" : t.direction === "out" && t.type === "payment"))
+    .reduce((acc, t) => acc + Number(t.amount_try ?? t.amount ?? 0), 0);
   const lastFlow = flowTxns.reduce<string | null>((m, t) => (!m || t.txn_date > m ? t.txn_date : m), null);
 
   // Vadesi geçen açık belgeler
@@ -591,6 +597,17 @@ export function ContactDetail({ id }: { id: string }) {
             <span>{isSupplier ? "Ödeme Yap" : "Tahsilat Al"}</span>
           </Link>
 
+          {/* Hem müşteri hem tedarikçi: karşı yöndeki para hareketi (tedarikçiden tahsilat / müşteriye ödeme) */}
+          {(isSupplier || hasPurchaseDocs) && (
+            <Link
+              href={`/nakit/hareketler/yeni?tip=${isSupplier ? "tahsilat" : "odeme"}&cari=${c.id}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#00b49c] px-3 py-1.5 text-xs sm:text-sm font-bold text-[#008f7b] dark:text-[#00d4b8] transition hover:bg-[#00b49c]/10"
+            >
+              <Coins className="size-4" />
+              <span>{isSupplier ? "Tahsilat Al" : "Ödeme Yap"}</span>
+            </Link>
+          )}
+
           {/* Borç / Alacak Kaydı */}
           <button
             type="button"
@@ -711,6 +728,11 @@ export function ContactDetail({ id }: { id: string }) {
           <div className="mt-0.5 text-[11px] text-emerald-50/90 truncate">
             {mainDocs.length} fatura · bu yıl {formatMoney(thisYearTotal)}
           </div>
+          {otherTotal > 0.004 && (
+            <div className="text-[11px] font-semibold text-emerald-50/90 truncate">
+              {isSupplier ? "Satışımız" : "Alışımız"}: {formatMoney(otherTotal)}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col justify-center rounded-xl bg-gradient-to-r from-[#3b82f6] to-[#2563eb] p-4 text-white shadow-sm min-w-0">
@@ -721,6 +743,11 @@ export function ContactDetail({ id }: { id: string }) {
           <div className="mt-0.5 text-[11px] text-blue-50/90 truncate">
             {lastFlow ? `Son: ${formatDate(lastFlow)} · ${daysSince(lastFlow)} gün önce` : "Henüz yok"}
           </div>
+          {otherFlow > 0.004 && (
+            <div className="text-[11px] font-semibold text-blue-50/90 truncate">
+              {isSupplier ? "Aldığımız tahsilat" : "Yaptığımız ödeme"}: {formatMoney(otherFlow)}
+            </div>
+          )}
         </div>
 
         <div

@@ -212,7 +212,7 @@ function Inner({
         <Card>
           <CardBody className="grid gap-4 sm:grid-cols-2">
             {(kind === "tahsilat" || kind === "odeme") && (
-              <Field label={kind === "tahsilat" ? "Müşteri *" : "Tedarikçi *"} className="sm:col-span-2">
+              <Field label="Cari *" className="sm:col-span-2">
                 <ContactPicker value={v.contact_id} onChange={(id) => { set("contact_id", id); setAlloc({}); }} kind={kind === "tahsilat" ? "customer" : "supplier"} />
               </Field>
             )}

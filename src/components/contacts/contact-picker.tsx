@@ -26,14 +26,20 @@ export function ContactPicker({
   const bal = React.useMemo(() => new Map((balances.data ?? []).map((b) => [b.contact_id, Number(b.balance)])), [balances.data]);
   const options = React.useMemo(
     () =>
-      (contacts.data ?? [])
-        .filter((c) => !kind || c.kind === kind || c.kind === "both")
+      // Tüm cariler listelenir (tedarikçiye satış / tedarikçiden tahsilat da yapılabilir); uygun türdekiler önce
+      [...(contacts.data ?? [])]
+        .sort((a, b) => {
+          const ra = !kind || a.kind === kind || a.kind === "both" ? 0 : 1;
+          const rb = !kind || b.kind === kind || b.kind === "both" ? 0 : 1;
+          return ra - rb;
+        })
         .map((c) => {
           const b = bal.get(c.id) ?? 0;
+          const other = kind && c.kind !== kind && c.kind !== "both" ? (c.kind === "supplier" ? "Tedarikçi" : "Müşteri") : null;
           return {
             value: c.id,
             label: c.name,
-            sub: [c.tax_number, c.city, b ? `${b > 0 ? "Borçlu" : "Alacaklı"} ${formatMoney(Math.abs(b))}` : null].filter(Boolean).join(" · "),
+            sub: [other, c.tax_number, c.city, b ? `${b > 0 ? "Borçlu" : "Alacaklı"} ${formatMoney(Math.abs(b))}` : null].filter(Boolean).join(" · "),
             keywords: `${c.code ?? ""} ${c.phone ?? ""} ${c.mobile ?? ""}`,
           };
         }),
