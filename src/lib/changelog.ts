@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.13";
+export const LATEST_VERSION = "2.5.14";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.14",
+    date: "7 Ekim 2026",
+    title: "Hızlı Tarih Yazımı",
+    badge: "Pratik",
+    items: [
+      { type: "iyilestirme", title: "Tarihi kısaca yazın", description: "Tüm tarih kutularında: 7 → ayın 7'si, 7.10 → 7 Ekim, 071026 → 07/10/2026, b → bugün, +3 → 3 gün sonra, -2 → 2 gün önce. ↑ ↓ ile gün değişir, Enter onaylayıp sonraki alana geçer. Kutuya girince eski tarih seçili gelir, direkt üstüne yazılır." },
+    ],
+  },
   {
     version: "2.5.13",
     date: "7 Ekim 2026",
