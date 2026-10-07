@@ -125,6 +125,7 @@ const BALANCE_SIGN: Partial<Record<DocType, number>> = {
   purchase_invoice: -1,
   purchase_order: -1,
   sales_return: -1,
+  expense: -1,
 };
 
 /** Belge şu an bakiyeye işliyor mu? (taslak hariç; iptal ve faturalanmış sipariş işlemez) */

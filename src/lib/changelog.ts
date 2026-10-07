@@ -14,9 +14,20 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.12";
+export const LATEST_VERSION = "2.5.13";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.13",
+    date: "7 Ekim 2026",
+    title: "Cari Ekranından Düzenleme ve Ödeme Düzeltme",
+    badge: "Cari",
+    items: [
+      { type: "yeni", title: "Hareketlerde Düzenle", description: "Cari ekranında Özet, Satışlar/Alışlar ve Tahsilatlar listelerinde ve hareket penceresinde Düzenle düğmesi. Alış/satış belgeleri düzenleme penceresinde açılır." },
+      { type: "yeni", title: "Tahsilat / ödeme düzenleme", description: "Tarih, tutar, kasa/hesap ve açıklama değiştirilebilir; faturalarla eşleşmeler korunur, tutar azalırsa eşleşme yeni tutara kadar kırpılır." },
+      { type: "yeni", title: "Düzenlemede Peşin / Vadeli", description: "Fatura düzenlerken de ödeme durumu seçilir. Peşin ödenmiş fatura Peşin ve kasasıyla açılır; kayıt aynı tahsilatı günceller (çift kayıt olmaz). Vadeliye çevrilirse peşin kayıt silinir, fatura açık kalır." },
+    ],
+  },
   {
     version: "2.5.12",
     date: "7 Ekim 2026",

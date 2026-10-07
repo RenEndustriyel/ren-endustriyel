@@ -61,6 +61,7 @@ import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import { ContactForm } from "./contact-form";
 import { DocumentPrintModal } from "@/components/documents/document-print-modal";
+import { TransactionEditDialog, txnEditBlock } from "@/components/cash/transaction-edit-dialog";
 
 type Contact = Row<"contacts">;
 type StatementRow = {
@@ -100,6 +101,7 @@ export function ContactDetail({ id }: { id: string }) {
   const [adjustmentOpen, setAdjustmentOpen] = React.useState(false);
   const [selectedRow, setSelectedRow] = React.useState<StatementRow | null>(null);
   const [printDoc, setPrintDoc] = React.useState<Row<"documents"> | null>(null);
+  const [editTxn, setEditTxn] = React.useState<Row<"transactions"> | null>(null);
 
   // Borç / Alacak Kaydı Form State
   const [adjType, setAdjType] = React.useState<"debit" | "credit">("debit");
@@ -330,6 +332,30 @@ export function ContactDetail({ id }: { id: string }) {
     const { shareStatementPdf } = await import("@/lib/pdf/share");
     await shareStatementPdf({ org: org!, contact: c, rows, carried, from, to, mode });
   };
+
+  const docEditHref = (type: string, docId: string) => `${DOC_TYPES[type as DocType]?.base ?? "/satislar/faturalar"}/duzenle?id=${docId}`;
+  const openTxnEdit = (txnId: string) => {
+    const t = (txns.data ?? []).find((x) => x.id === txnId);
+    if (!t) return toast.error("Hareket bulunamadı, sayfayı yenileyin.");
+    const block = txnEditBlock(t);
+    if (block) return toast.info(block);
+    setEditTxn(t);
+  };
+  const handleEditRow = (r: StatementRow) => {
+    setSelectedRow(null);
+    if (r.kind === "document") router.push(docEditHref(r.ref_type, r.ref_id));
+    else if (r.kind === "transaction") openTxnEdit(r.ref_id);
+  };
+  const refreshAfterEdit = () =>
+    Promise.all([
+      statement.refetch(),
+      docs.refetch(),
+      txns.refetch(),
+      balances.refetch(),
+      qc.invalidateQueries({ queryKey: ["contact_statement"] }),
+      qc.invalidateQueries({ queryKey: ["contact_balances"] }),
+      qc.invalidateQueries({ queryKey: ["dashboard_summary"] }),
+    ]);
 
   const handleDeleteRow = async (r: StatementRow) => {
     if (r.kind === "document") {
@@ -828,6 +854,11 @@ export function ContactDetail({ id }: { id: string }) {
                               <Eye className="h-3.5 w-3.5" />
                             </button>
                             {canWrite && r.kind !== "opening" && (
+                              <button type="button" className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition" title="Düzenle" onClick={() => handleEditRow(r)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            {canWrite && r.kind !== "opening" && (
                               <button
                                 type="button"
                                 className="h-7 w-7 rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-900/40 flex items-center justify-center transition"
@@ -935,6 +966,15 @@ export function ContactDetail({ id }: { id: string }) {
                             >
                               <Eye className="size-3.5" />
                             </Link>
+                            {canWrite && (
+                              <Link
+                                href={docEditHref(d.doc_type, d.id)}
+                                className="rounded-lg border border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] p-1.5 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition"
+                                title="Düzenle"
+                              >
+                                <Pencil className="size-3.5" />
+                              </Link>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -978,6 +1018,7 @@ export function ContactDetail({ id }: { id: string }) {
                       <th className="px-3 py-2.5 text-left">Ödeme Yöntemi</th>
                       <th className="px-3 py-2.5 text-left">Açıklama</th>
                       <th className="px-3 py-2.5 text-right">Tutar</th>
+                      {canWrite && <th className="px-3 py-2.5 text-right">İşlemler</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-[#1e2a3a]">
@@ -998,6 +1039,15 @@ export function ContactDetail({ id }: { id: string }) {
                         <td className={cn("num px-3 py-2.5 text-right font-black", t.direction === "in" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
                           {t.direction === "in" ? "+" : "-"}{formatMoney(t.amount, t.currency)}
                         </td>
+                        {canWrite && (
+                          <td className="px-3 py-2.5 text-right">
+                            <div className="flex justify-end">
+                              <button type="button" className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition" title="Düzenle" onClick={() => openTxnEdit(t.id)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1475,6 +1525,8 @@ export function ContactDetail({ id }: { id: string }) {
         </DialogContent>
       </Dialog>
 
+      <TransactionEditDialog txn={editTxn} onOpenChange={(o) => !o && setEditTxn(null)} onSaved={refreshAfterEdit} />
+
       {/* Modal D: Seçili Hareket İşlem Pop-up */}
       <Dialog open={!!selectedRow} onOpenChange={(o) => !o && setSelectedRow(null)}>
         <DialogContent
@@ -1483,7 +1535,7 @@ export function ContactDetail({ id }: { id: string }) {
               ? "Açılış Bakiyesi"
               : `${(selectedRow && (DOC_TYPES[selectedRow.ref_type as DocType]?.label ?? TYPE_LABELS[selectedRow.ref_type])) || "Hareket İşlemi"} ${selectedRow?.number ? `· ${selectedRow.number}` : ""}`
           }
-          description="Bu hareket üzerinde detay görüntüleme veya silme işlemi yapabilirsiniz."
+          description="Bu hareket üzerinde detay görüntüleme, düzenleme veya silme işlemi yapabilirsiniz."
           className="sm:max-w-md bg-white dark:bg-[#131b26] border-slate-200 dark:border-[#1e2a3a] text-slate-900 dark:text-white"
         >
           <div className="space-y-4">
@@ -1537,6 +1589,16 @@ export function ContactDetail({ id }: { id: string }) {
                   }}
                 >
                   <Printer className="size-4" /> Belgeyi Önizle ve Yazdır
+                </Button>
+              )}
+
+              {canWrite && (selectedRow?.kind === "document" || selectedRow?.kind === "transaction") && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-center gap-2 font-bold"
+                  onClick={() => selectedRow && handleEditRow(selectedRow)}
+                >
+                  <Pencil className="size-4" /> Düzenle
                 </Button>
               )}
 

@@ -4,6 +4,8 @@ import * as React from "react";
 import { DateInput } from "@/components/ui/date-input";
 import { ChevronDown, ChevronUp, Maximize2, Minimize2, Plus, Printer, Save, ScanBarcode, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase/client";
 import { newId, useAccounts, useContacts, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, type Row } from "@/lib/data";
 import { CURRENCY_SYMBOL, formatNumber, formatQty, isoDate } from "@/lib/format";
 import { rateFor, useRates } from "@/lib/rates";
@@ -598,6 +600,7 @@ function QuickDocForm({
   const saveDoc = useRpc("save_document");
   const saveProduct = useSave("products");
   const updateProduct = useUpdate("products");
+  const { remove: removeTxn } = useUpdate("transactions");
 
   const isPurchase = side === "purchase";
   const contactLabel = isPurchase ? "Tedarikçi" : "Müşteri";
@@ -685,9 +688,38 @@ function QuickDocForm({
   const [discountValue, setDiscountValue] = React.useState(fromBase ? Number(base!.discount_value) || 0 : 0);
   const discountRef = React.useRef<HTMLInputElement>(null);
 
-  // Ödeme (peşin ödeme yalnızca yeni faturada; kayıtlı belgenin ödemeleri kendi ekranında yönetilir)
+  // Ödeme: yeni faturada ve düzenlemede Peşin / Vadeli
   const isInvoice = INVOICE_TYPES.includes(docType);
-  const showPayment = isInvoice && !isEdit;
+  // Düzenlemede belgenin kayıtlı ödemeleri: belgeyle birlikte alınan peşin ödeme ("own") ve sonradan alınanlar
+  type PayAlloc = {
+    amount: number;
+    transaction: { id: string; account_id: string | null; amount: number; txn_date: string; description: string | null; reference: string | null; cheque_id: string | null; deleted_at: string | null } | null;
+  };
+  const editPay = useQuery({
+    queryKey: ["belge_odeme", base?.id],
+    enabled: isEdit && isInvoice,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payment_allocations")
+        .select("amount, transaction:transactions(id, account_id, amount, txn_date, description, reference, cheque_id, deleted_at)")
+        .eq("document_id", base!.id);
+      if (error) throw error;
+      return (data ?? []) as unknown as PayAlloc[];
+    },
+  });
+  const payInfo = React.useMemo(() => {
+    const rows = (editPay.data ?? []).filter((a) => a.transaction && !a.transaction.deleted_at);
+    const own = rows.find(
+      (a) =>
+        !a.transaction!.cheque_id &&
+        !String(a.transaction!.reference ?? "").startsWith("oto-mahsup") &&
+        Math.abs(Number(a.transaction!.amount) - Number(a.amount)) < 0.01 &&
+        (a.transaction!.description === base?.number || a.transaction!.txn_date === base?.issue_date),
+    );
+    const other = rows.filter((a) => a !== own).reduce((sum, a) => sum + Number(a.amount), 0);
+    return { own: own?.transaction ?? null, ownAmount: own ? Number(own.amount) : 0, other };
+  }, [editPay.data, base?.number, base?.issue_date]);
+  const showPayment = isInvoice && (!isEdit || editPay.isSuccess);
   const [paid, setPaid] = React.useState(isPurchase && !fromBase);
   const [accountId, setAccountId] = React.useState("");
   const [dueDate, setDueDate] = React.useState(fromBase ? base!.due_date ?? "" : "");
@@ -705,6 +737,9 @@ function QuickDocForm({
   const paymentIdRef = React.useRef<string>(newId());
   const productIds = React.useRef<Record<string, string>>({});
   const productIdFor = (lineId: string) => (productIds.current[lineId] ??= newId());
+  const payLoaded = React.useRef(false);
+  /** Ödeme yüklenince taslak karşılaştırma başlangıcı yenilensin (açar açmaz "taslak" sayılmasın) */
+  const resnap = React.useRef(false);
 
   // --- Otomatik taslak: yazılanlar bu cihazda saklanır, pencere kapansa da kaybolmaz ---
   const draftKey = `ren-belge-taslak:${isEdit ? base!.id : (fixedType ?? side)}`;
@@ -720,6 +755,11 @@ function QuickDocForm({
     } catch {}
   }, [draftKey]);
   React.useEffect(() => {
+    if (resnap.current) {
+      initialSnapshot.current = snapshot;
+      resnap.current = false;
+      return;
+    }
     // yalnızca gerçekten bir şey girildiyse sakla (cari/vade gibi otomatik dolan alanlar taslak sayılmaz)
     const hasContent = lines.some((l) => l.name.trim() || l.product_id) || notes.trim() !== "";
     if (!hasContent || snapshot === initialSnapshot.current || draft) return; // değişiklik yoksa ya da geri yükleme bekleniyorsa yazma
@@ -733,6 +773,19 @@ function QuickDocForm({
     }, 500);
     return () => clearTimeout(t);
   }, [snapshot, draftKey, draft, lines, notes]);
+  // Düzenleme: belgeyle alınmış peşin ödeme varsa Peşin + o hesap seçili gelir; kayıt aynı ödemeyi günceller
+  React.useEffect(() => {
+    if (!isEdit || payLoaded.current || !editPay.isSuccess) return;
+    payLoaded.current = true;
+    const own = payInfo.own;
+    if (own) {
+      paymentIdRef.current = own.id;
+      resnap.current = true;
+      setPaid(true); // eslint-disable-line react-hooks/set-state-in-effect
+      if (own.account_id) setAccountId(own.account_id);
+    }
+  }, [isEdit, editPay.isSuccess, payInfo.own]);
+
   const clearDraft = () => {
     try {
       localStorage.removeItem(draftKey);
@@ -1154,12 +1207,23 @@ function QuickDocForm({
           p_doc: payload,
           p_lines: docLines,
           p_payment:
-            showPayment && paid && effectiveAccountId
-              ? { id: paymentIdRef.current, account_id: effectiveAccountId, method: PAYMENT_METHOD[account?.type ?? "cash"] ?? "cash" }
+            showPayment && paid && effectiveAccountId && !(isEdit && payInfo.other > 0 && totals.total - payInfo.other <= 0.004)
+              ? {
+                  id: paymentIdRef.current,
+                  account_id: effectiveAccountId,
+                  method: PAYMENT_METHOD[account?.type ?? "cash"] ?? "cash",
+                  // düzenlemede daha önce ayrıca alınmış ödemeler düşülür (fazla tahsilat olmasın)
+                  ...(isEdit && payInfo.other > 0 ? { amount: round2(totals.total - payInfo.other) } : {}),
+                }
               : null,
         },
         isEdit ? `${cfg.label} güncellendi` : `${cfg.label} kaydedildi`,
       );
+
+      // Düzenlemede Peşin → Vadeli: belgeyle alınmış peşin ödeme kaydı kaldırılır, fatura açık kalır
+      if (isEdit && !docRes.queued && payInfo.own && (!paid || (payInfo.other > 0 && totals.total - payInfo.other <= 0.004))) {
+        await removeTxn(payInfo.own.id, isPurchase ? "Peşin ödeme kaydı kaldırıldı" : "Peşin tahsilat kaydı kaldırıldı");
+      }
 
       // 3) Alışta ürün kartlarına alış fiyatı, raf fiyatı ve barkodu işle (iadede fiyat değişmez)
       if (isPurchase && docType !== "purchase_return") {
@@ -1425,6 +1489,16 @@ function QuickDocForm({
                       ))}
                     </div>
                   </div>
+                  {isEdit && payInfo.own && !paid && (
+                    <p className="col-span-2 order-last rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 px-3 py-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+                      Kayıtlı peşin {isPurchase ? "ödeme" : "tahsilat"} ({formatNumber(payInfo.ownAmount)} {CURRENCY_SYMBOL[currency] ?? currency}) kaydedince silinecek; belge vadeli (açık) kalacak.
+                    </p>
+                  )}
+                  {isEdit && paid && payInfo.other > 0.004 && (
+                    <p className="col-span-2 order-last text-xs text-slate-600 dark:text-slate-300">
+                      Daha önce ayrıca alınan {formatNumber(payInfo.other)} {CURRENCY_SYMBOL[currency] ?? currency} düşülür; peşin tutar kalan kısım olur.
+                    </p>
+                  )}
                   {paid ? (
                     <label className="block space-y-1.5">
                       <span className={labelCls}>{isPurchase ? "Ödenen hesap" : "Tahsil edilen hesap"}</span>
