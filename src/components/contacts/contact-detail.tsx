@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils";
 import { ContactForm } from "./contact-form";
 import { DocumentPrintModal } from "@/components/documents/document-print-modal";
 import { TransactionEditDialog, txnEditBlock } from "@/components/cash/transaction-edit-dialog";
+import { SupplierInsights } from "./supplier-insights";
 
 type Contact = Row<"contacts">;
 type StatementRow = {
@@ -92,7 +93,7 @@ export function ContactDetail({ id }: { id: string }) {
 
   // Aktif Sekme (Pusulam 7 Sekme)
   const [activeTab, setActiveTab] = React.useState<
-    "ozet" | "faturalar" | "tahsilatlar" | "cek-senet" | "teklifler" | "belgeler" | "kart-nakit"
+    "ozet" | "analiz" | "faturalar" | "tahsilatlar" | "cek-senet" | "teklifler" | "belgeler" | "kart-nakit"
   >("ozet");
 
   // Modallar
@@ -517,6 +518,7 @@ export function ContactDetail({ id }: { id: string }) {
 
   const TABS = [
     { id: "ozet", label: "Özet" },
+    ...(isSupplier ? [{ id: "analiz", label: "Analiz" } as const] : []),
     { id: "faturalar", label: isSupplier ? "Alışlar" : "Satışlar" },
     { id: "tahsilatlar", label: isSupplier ? "Ödemeler" : "Tahsilatlar" },
     { id: "cek-senet", label: "Çek & Senet" },
@@ -931,6 +933,9 @@ export function ContactDetail({ id }: { id: string }) {
             )}
           </div>
         )}
+
+        {/* TEDARİKÇİ ANALİZİ */}
+        {activeTab === "analiz" && <SupplierInsights contactId={c.id} docs={docs.data ?? []} />}
 
         {/* SEKME 2: SATIŞLAR veya ALIŞLAR */}
         {activeTab === "faturalar" && (

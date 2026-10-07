@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.15";
+export const LATEST_VERSION = "2.5.16";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.16",
+    date: "7 Ekim 2026",
+    title: "Tedarikçi Analizi",
+    badge: "Tedarikçi",
+    items: [
+      { type: "yeni", title: "Analiz sekmesi", description: "Tedarikçi kartında yeni Analiz sekmesi: sipariş verilecekler (eksi/kritik stok, tek tuşla satın alma siparişi), yaklaşan ödemeler, son alış fiyatları ve zamlar, aylık alış grafiği, KDV'li/KDV'siz alış dağılımı, en çok alınan ürünler." },
+    ],
+  },
   {
     version: "2.5.15",
     date: "7 Ekim 2026",
