@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.20";
+export const LATEST_VERSION = "2.5.21";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.21",
+    date: "7 Ekim 2026",
+    title: "Ekstrede Doğru Sıra",
+    badge: "Cari",
+    items: [
+      { type: "duzeltme", title: "Aynı günde önce fatura, sonra tahsilat", description: "Cari ekstresinde ve ekstre PDF'inde aynı tarihli hareketler fatura → tahsilat/ödeme sırasıyla gösterilir; yürüyen bakiye bu sıraya göre hesaplanır. Peşin faturada ikisi aynı anda kaydedildiği için sıra karışabiliyordu." },
+    ],
+  },
   {
     version: "2.5.20",
     date: "7 Ekim 2026",

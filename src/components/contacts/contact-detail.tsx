@@ -156,18 +156,17 @@ export function ContactDetail({ id }: { id: string }) {
 
   // Ekstre hesaplamaları ve birleştirme
   const all = React.useMemo(() => {
-    const raw = statement.data ?? [];
-    if (!docs.data || raw.some((r) => r.ref_type === "sales_order" || r.ref_type === "purchase_order")) {
-      return raw;
-    }
-    const orders = docs.data.filter(
-      (d) =>
-        (d.doc_type === "sales_order" || d.doc_type === "purchase_order") &&
-        d.status !== "draft" &&
-        d.status !== "cancelled" &&
-        d.status !== "converted"
-    );
-    if (!orders.length) return raw;
+    const raw = (statement.data ?? []).map((r) => ({ ...r }));
+    const hasOrders = raw.some((r) => r.ref_type === "sales_order" || r.ref_type === "purchase_order");
+    const orders = hasOrders
+      ? []
+      : (docs.data ?? []).filter(
+          (d) =>
+            (d.doc_type === "sales_order" || d.doc_type === "purchase_order") &&
+            d.status !== "draft" &&
+            d.status !== "cancelled" &&
+            d.status !== "converted"
+        );
 
     const merged = [...raw];
     for (const o of orders) {
@@ -187,7 +186,10 @@ export function ContactDetail({ id }: { id: string }) {
       });
     }
 
-    merged.sort((a, b) => a.entry_date.localeCompare(b.entry_date));
+    // Aynı günde önce açılış, sonra belgeler (fatura), sonra tahsilat/ödeme — peşin faturada ikisi aynı anda kaydedilir
+    const rank = (k: string) => (k === "opening" ? 0 : k === "document" ? 1 : 2);
+    const order = new Map(merged.map((r, i) => [r, i]));
+    merged.sort((a, b) => a.entry_date.localeCompare(b.entry_date) || rank(a.kind) - rank(b.kind) || order.get(a)! - order.get(b)!);
     let runBal = 0;
     for (const r of merged) {
       runBal += Number(r.debit) - Number(r.credit);
@@ -216,7 +218,12 @@ export function ContactDetail({ id }: { id: string }) {
   const carried = before.length ? Number(before[before.length - 1].balance) : 0;
 
   const displayRows = React.useMemo(() => {
+    const seq = new Map(rows.map((r, i) => [r, i]));
     return [...rows].sort((a, b) => {
+      if (sortField === "date") {
+        const r = seq.get(a)! - seq.get(b)!;
+        return sortDir === "asc" ? r : -r;
+      }
       let va: any = a.entry_date;
       let vb: any = b.entry_date;
       if (sortField === "type") {
