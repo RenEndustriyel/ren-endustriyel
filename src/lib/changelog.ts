@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.24";
+export const LATEST_VERSION = "2.5.25";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.25",
+    date: "7 Ekim 2026",
+    title: "Açılış Bakiyesi Düzenleme",
+    badge: "Cari",
+    items: [
+      { type: "yeni", title: "Devir bakiyesini düzenle", description: "Cari ekranında açılış (devir) bakiyesi; ekstredeki açılış satırının kalem simgesinden, hareket penceresindeki Düzenle düğmesinden veya kartın üstündeki devir yazısından düzenlenir: tutar, yön (cari bize borçlu / biz borçluyuz) ve tarih." },
+    ],
+  },
   {
     version: "2.5.24",
     date: "7 Ekim 2026",

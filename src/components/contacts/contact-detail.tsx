@@ -65,6 +65,7 @@ import { ContactForm } from "./contact-form";
 import { DocumentPrintModal } from "@/components/documents/document-print-modal";
 import { TransactionEditDialog, txnEditBlock } from "@/components/cash/transaction-edit-dialog";
 import { SupplierInsights } from "./supplier-insights";
+import { OpeningBalanceDialog } from "./opening-balance-dialog";
 import { CustomerInsights } from "./customer-insights";
 
 type Contact = Row<"contacts">;
@@ -108,6 +109,7 @@ export function ContactDetail({ id }: { id: string }) {
   const [editTxn, setEditTxn] = React.useState<Row<"transactions"> | null>(null);
   const [payDoc, setPayDoc] = React.useState<Row<"documents"> | null>(null);
   const [payFlow, setPayFlow] = React.useState<"in" | "out" | null>(null);
+  const [openingOpen, setOpeningOpen] = React.useState(false);
   // Satışlar / Alışlar sekmesi: tarih filtresi
   const [docPeriod, setDocPeriod] = React.useState<"all" | "month" | "lastmonth" | "year" | "custom">("all");
   const [docFrom, setDocFrom] = React.useState(isoDate().slice(0, 7) + "-01");
@@ -395,7 +397,8 @@ export function ContactDetail({ id }: { id: string }) {
   };
   const handleEditRow = (r: StatementRow) => {
     setSelectedRow(null);
-    if (r.kind === "document") router.push(docEditHref(r.ref_type, r.ref_id));
+    if (r.kind === "opening") setOpeningOpen(true);
+    else if (r.kind === "document") router.push(docEditHref(r.ref_type, r.ref_id));
     else if (r.kind === "transaction") openTxnEdit(r.ref_id);
   };
   const refreshAfterEdit = () =>
@@ -748,9 +751,15 @@ export function ContactDetail({ id }: { id: string }) {
               Açık belge: {formatMoney(openDocsTotal)}
             </div>
             {Math.abs(Number(c.opening_balance ?? 0)) > 0.004 && (
-              <div className="mt-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400" title="Cari kartındaki açılış bakiyesi; güncel bakiyeye dahildir">
-                Devir (açılış) bakiyesi: {formatMoney(Math.abs(Number(c.opening_balance)))}
-              </div>
+              <button
+                type="button"
+                disabled={!canWrite}
+                onClick={() => setOpeningOpen(true)}
+                className="mt-0.5 text-xs font-semibold text-amber-700 hover:underline disabled:no-underline dark:text-amber-400"
+                title="Açılış bakiyesini düzenle"
+              >
+                Devir (açılış) bakiyesi: {formatMoney(Math.abs(Number(c.opening_balance)))} ✎
+              </button>
             )}
           </div>
         </div>
@@ -961,7 +970,7 @@ export function ContactDetail({ id }: { id: string }) {
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </button>
-                            {canWrite && r.kind !== "opening" && (
+                            {canWrite && (
                               <button type="button" className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition" title="Düzenle" onClick={() => handleEditRow(r)}>
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
@@ -1757,6 +1766,16 @@ export function ContactDetail({ id }: { id: string }) {
         />
       )}
 
+      <OpeningBalanceDialog
+        contact={c}
+        open={openingOpen}
+        onOpenChange={setOpeningOpen}
+        onSaved={() => {
+          contact.refetch();
+          refreshAfterEdit();
+        }}
+      />
+
       <TransactionEditDialog txn={editTxn} onOpenChange={(o) => !o && setEditTxn(null)} onSaved={refreshAfterEdit} />
 
       {/* Modal D: Seçili Hareket İşlem Pop-up */}
@@ -1840,7 +1859,7 @@ export function ContactDetail({ id }: { id: string }) {
                 </Button>
               )}
 
-              {canWrite && (selectedRow?.kind === "document" || selectedRow?.kind === "transaction") && (
+              {canWrite && (selectedRow?.kind === "document" || selectedRow?.kind === "transaction" || selectedRow?.kind === "opening") && (
                 <Button
                   variant="outline"
                   className="w-full justify-center gap-2 font-bold"
