@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.21";
+export const LATEST_VERSION = "2.5.22";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.22",
+    date: "7 Ekim 2026",
+    title: "Genel Ciro Raporu",
+    badge: "Rapor",
+    items: [
+      { type: "yeni", title: "Raporlar > Ciro", description: "Bugün, dün, bu hafta, geçen hafta, bu ay, geçen ay, bu yıl ve geçen yıl ciroları (KDV dahil ve net, satış sayısı) ve önceki döneme göre değişim. Seçilen dönem için günlük/aylık grafik, satış kanalı (fatura / hızlı satış), KDV'li / KDV'siz dağılım, brüt kâr ve alınan tahsilatlar (nakit, kart, banka)." },
+    ],
+  },
   {
     version: "2.5.21",
     date: "7 Ekim 2026",

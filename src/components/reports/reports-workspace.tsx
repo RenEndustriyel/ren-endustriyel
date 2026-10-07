@@ -38,6 +38,7 @@ import {
 } from "@/lib/data";
 import { formatMoney, formatDate, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
+import { TurnoverReport } from "./turnover";
 import { toast } from "sonner";
 
 const MONTH_NAMES = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
@@ -45,6 +46,7 @@ const FULL_MONTH_NAMES = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran"
 
 export function ReportsWorkspace() {
   const [activeTab, setActiveTab] = React.useState<
+    | "ciro"
     | "genel"
     | "kar"
     | "nakit"
@@ -56,7 +58,7 @@ export function ReportsWorkspace() {
     | "borc"
     | "pos"
     | "tops"
-  >("genel");
+  >("ciro");
 
   const [period, setPeriod] = React.useState<"day" | "week" | "month" | "year">("month");
   const [helpOpen, setHelpOpen] = React.useState(false);
@@ -716,6 +718,7 @@ export function ReportsWorkspace() {
         <div className="mb-5">
           <div className="flex gap-2 flex-wrap">
             {[
+              { id: "ciro", label: "Ciro" },
               { id: "genel", label: "Genel" },
               { id: "kar", label: "Kâr / Zarar" },
               { id: "nakit", label: "Nakit Akışı" },
@@ -780,6 +783,8 @@ export function ReportsWorkspace() {
         )}
 
         {/* 1. GENEL */}
+        {activeTab === "ciro" && <TurnoverReport />}
+
         {activeTab === "genel" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="card p-5 lg:col-span-2">
