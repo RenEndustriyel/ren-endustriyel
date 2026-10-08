@@ -20,6 +20,7 @@ import { formatMoney, formatDate } from "@/lib/format";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExpenseFormPage } from "./expense-form";
+import { textMatches } from "@/lib/search";
 
 type ExpenseDoc = Row<"documents"> & {
   category?: { name: string } | null;
@@ -70,8 +71,7 @@ export function ExpensesList() {
     if (statusFilter === "overdue" && (d.payment_status === "paid" || !d.due_date || new Date(d.due_date) >= now)) return false;
 
     // Search query
-    const searchTarget = `${d.description ?? ""} ${d.category?.name ?? ""} ${d.contact?.name ?? ""}`.toLowerCase();
-    return searchTarget.includes(q.toLowerCase());
+    return textMatches(`${d.description ?? ""} ${d.category?.name ?? ""} ${d.contact?.name ?? ""}`, q);
   });
 
   const handleDelete = async (doc: ExpenseDoc) => {

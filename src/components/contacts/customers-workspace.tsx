@@ -30,6 +30,7 @@ import { ContactImport } from "./contact-import";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ContactForm } from "./contact-form";
 import { cn } from "@/lib/utils";
+import { textMatches } from "@/lib/search";
 
 type FilterStatus = "all" | "has_balance" | "debt" | "credit";
 type SortField = "name" | "balance" | "city";
@@ -111,11 +112,11 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
 
   // Filtering
   const filtered = React.useMemo(() => {
-    const qLower = q.toLowerCase().trim();
+    const qLower = q.trim();
     return rows.filter((c) => {
       if (qLower) {
-        const searchTarget = `${c.name} ${c.code ?? ""} ${c.tax_number ?? ""} ${c.phone ?? ""} ${c.mobile ?? ""} ${c.city ?? ""} ${c.district ?? ""} ${c.contact_person ?? ""} ${c.email ?? ""}`.toLowerCase();
-        if (!searchTarget.includes(qLower)) return false;
+        const searchTarget = `${c.name} ${c.code ?? ""} ${c.tax_number ?? ""} ${c.phone ?? ""} ${c.mobile ?? ""} ${c.city ?? ""} ${c.district ?? ""} ${c.contact_person ?? ""} ${c.email ?? ""}`;
+        if (!textMatches(searchTarget, qLower)) return false;
       }
       if (filterStatus === "has_balance") {
         return Math.abs(c.balance) > 0.004;

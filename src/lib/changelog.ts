@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.25";
+export const LATEST_VERSION = "2.5.26";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.5.26",
+    date: "8 Ekim 2026",
+    title: "Aramada Harf Farkı Yok",
+    badge: "Pratik",
+    items: [
+      { type: "iyilestirme", title: "Büyük/küçük ve Türkçe harf duyarsız arama", description: "Uygulamanın tüm aramalarında (cariler, ürünler, satış/alış listeleri, belge penceresi, hızlı satış, masraflar, açılır listeler, komut paleti) büyük/küçük harf ve Türkçe harf farkı gözetilmez: huseyin = HÜSEYİN, camasir = ÇAMAŞIR, isik = IŞIK." },
+    ],
+  },
   {
     version: "2.5.25",
     date: "7 Ekim 2026",

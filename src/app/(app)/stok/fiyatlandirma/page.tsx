@@ -17,6 +17,7 @@ import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useProducts, useUpdate } from "@/lib/data";
+import { textMatches } from "@/lib/search";
 
 type SelectedProduct = {
   id?: string;
@@ -47,7 +48,7 @@ export default function SmartPricingPage() {
     const q = searchFilter.toLowerCase();
     return hasPrice.filter(
       (p) =>
-        (p.name ?? "").toLowerCase().includes(q) ||
+        textMatches(p.name ?? "", q) ||
         (p.barcode ?? "").includes(q) ||
         (p.code ?? "").includes(q)
     );

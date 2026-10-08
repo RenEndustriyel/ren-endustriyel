@@ -37,6 +37,7 @@ import { exportExcel } from "@/lib/excel";
 import { PaymentDialog, type AllocTarget } from "@/components/cash/payment-dialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import type { DashboardSummary } from "./types";
+import { textMatches } from "@/lib/search";
 
 export interface FinFlowItem {
   id: string;
@@ -388,9 +389,9 @@ export function UpcomingFinancesSection({ dashboardData }: UpcomingFinancesSecti
       // Metin Arama
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchName = item.partyName.toLowerCase().includes(q);
-        const matchNum = item.docNumber.toLowerCase().includes(q);
-        const matchCat = (item.categoryName || "").toLowerCase().includes(q);
+        const matchName = textMatches(item.partyName, q);
+        const matchNum = textMatches(item.docNumber, q);
+        const matchCat = textMatches(item.categoryName || "", q);
         if (!matchName && !matchNum && !matchCat) return false;
       }
 

@@ -6,6 +6,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { inputClass } from "./input";
+import { cmdkFilter } from "@/lib/search";
 
 export type ComboOption = { value: string; label: string; sub?: string; keywords?: string };
 
@@ -84,7 +85,7 @@ export function Combobox({
           sideOffset={4}
           className="z-50 w-[var(--radix-popover-trigger-width)] min-w-64 overflow-hidden rounded-xl border border-border bg-surface shadow-lg"
         >
-          <Command loop>
+          <Command loop filter={cmdkFilter}>
             <Command.Input
               ref={inputRef}
               autoFocus

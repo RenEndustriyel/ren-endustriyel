@@ -4,6 +4,7 @@ import * as React from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { inputClass } from "./input";
+import { textMatches } from "@/lib/search";
 
 export function SearchInput({
   value,
@@ -40,11 +41,5 @@ export function SearchInput({
 
 /** Türkçe duyarlı arama eşleşmesi */
 export function matches(text: string | null | undefined, q: string) {
-  if (!q) return true;
-  const norm = (s: string) => s.toLocaleLowerCase("tr-TR").normalize("NFKD");
-  const hay = norm(text ?? "");
-  return norm(q)
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((w) => hay.includes(w));
+  return textMatches(text, q);
 }

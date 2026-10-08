@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { NumberInput } from "@/components/ui/money-input";
 import { MultiDiscountInput } from "./multi-discount-input";
 import { contactKey, type ContactItem } from "./contact-select-modal";
+import { fold, textMatches } from "@/lib/search";
 
 // ---------------------------------------------------------------------------
 // Tipler ve sabitler
@@ -59,7 +60,7 @@ type Line = {
 type Product = Row<"products">;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const normalize = (s: string) => s.toLocaleLowerCase("tr-TR").trim();
+const normalize = (s: string) => fold(s).trim();
 
 /** KDV dahil/hariç fiyat dönüşümü */
 const convertVat = (price: number, vat: number, fromIncl: boolean, toIncl: boolean) =>
@@ -335,8 +336,7 @@ function ContactCombo({
   const listId = React.useId();
   const current = options.find((o) => o.id === value);
   const typed = (q ?? "").trim();
-  const norm = (s: string) => s.toLocaleLowerCase("tr-TR");
-  const list = typed ? options.filter((o) => norm(o.name).includes(norm(typed))).slice(0, 50) : options.slice(0, 50);
+  const list = typed ? options.filter((o) => textMatches(o.name, typed)).slice(0, 50) : options.slice(0, 50);
   const exact = typed ? options.find((o) => contactKey(o.name) === contactKey(typed)) : undefined;
   const canCreate = !!typed && !exact;
   const total = list.length + (canCreate ? 1 : 0);

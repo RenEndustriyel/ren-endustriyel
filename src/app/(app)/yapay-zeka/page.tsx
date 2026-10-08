@@ -54,6 +54,7 @@ import {
 } from "@/lib/ren-ai-briefing";
 import { DailyBriefingWidget } from "@/components/ai/daily-briefing-widget";
 import { useContacts, useProducts, useAccounts } from "@/lib/data";
+import { textMatches } from "@/lib/search";
 
 export default function RenAiPage() {
   const router = useRouter();
@@ -128,9 +129,9 @@ export default function RenAiPage() {
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchContact = a.contactName?.toLowerCase().includes(q);
-        const matchProduct = a.productName?.toLowerCase().includes(q);
-        const matchDoc = a.docNumber?.toLowerCase().includes(q);
+        const matchContact = textMatches(a.contactName, q);
+        const matchProduct = textMatches(a.productName, q);
+        const matchDoc = textMatches(a.docNumber, q);
         if (!matchContact && !matchProduct && !matchDoc) return false;
       }
       return true;

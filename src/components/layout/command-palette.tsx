@@ -7,6 +7,7 @@ import { Dialog as D } from "radix-ui";
 import { Search, CornerDownLeft } from "lucide-react";
 import { NAV, QUICK_ACTIONS } from "@/lib/nav";
 import { useOrg } from "@/providers/org-provider";
+import { cmdkFilter } from "@/lib/search";
 
 const CommandContext = React.createContext<{ open: () => void }>({ open: () => {} });
 export const useCommandPalette = () => React.useContext(CommandContext);
@@ -46,7 +47,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
           <D.Content className="fixed inset-x-3 top-[10dvh] z-50 mx-auto max-w-xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl focus:outline-none">
             <D.Title className="sr-only">Komut paleti</D.Title>
             <D.Description className="sr-only">Sayfa ve işlem ara</D.Description>
-            <Command loop>
+            <Command loop filter={cmdkFilter}>
               <div className="flex items-center gap-2 border-b border-border px-4">
                 <Search className="size-4 text-muted" />
                 <Command.Input

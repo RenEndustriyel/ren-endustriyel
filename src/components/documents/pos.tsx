@@ -69,6 +69,7 @@ import { ScanButton } from "@/components/shared/barcode-scanner";
 import { BarcodeLabelModal } from "@/components/products/barcode-label-modal";
 import { useLocalStorage } from "@/lib/use-local-storage";
 import { cn } from "@/lib/utils";
+import { fold, textMatches } from "@/lib/search";
 
 // --- SOUND EFFECTS (Web Audio API) ---
 function playPosSound(type: "scan" | "success" | "error" | "click") {
@@ -389,7 +390,7 @@ export function PosPage() {
       (p) =>
         (p.barcode && p.barcode.toLowerCase() === code.toLowerCase()) ||
         (p.code && p.code.toLowerCase() === code.toLowerCase()) ||
-        p.name.toLowerCase() === code.toLowerCase()
+        fold(p.name) === fold(code)
     );
 
     if (matched) {
@@ -948,10 +949,7 @@ export function PosPage() {
     if (!q || q.length < 2) return [];
     return (products.data ?? [])
       .filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.barcode && p.barcode.toLowerCase().includes(q)) ||
-          (p.code && p.code.toLowerCase().includes(q))
+        (p) => textMatches(`${p.name} ${p.barcode ?? ""} ${p.code ?? ""}`, q)
       )
       .slice(0, 7);
   }, [barcodeQuery, products.data]);

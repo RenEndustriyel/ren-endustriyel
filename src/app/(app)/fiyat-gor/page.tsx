@@ -22,6 +22,7 @@ import { useOrg } from "@/providers/org-provider";
 import { convertVat } from "@/lib/doc-calc";
 import { rateFor, useRates } from "@/lib/rates";
 import { cn } from "@/lib/utils";
+import { fold, textMatches } from "@/lib/search";
 
 type DisplayState =
   | { kind: "idle" }
@@ -120,8 +121,8 @@ export default function FiyatGorPage() {
     return (
       list.find((p) => p.barcode && p.barcode.trim().toLowerCase() === clean) ||
       list.find((p) => p.code && p.code.trim().toLowerCase() === clean) ||
-      list.find((p) => p.name.trim().toLowerCase() === clean) ||
-      list.find((p) => p.name.toLowerCase().includes(clean) && clean.length >= 3) ||
+      list.find((p) => fold(p.name.trim()) === fold(clean)) ||
+      list.find((p) => textMatches(p.name, clean) && clean.length >= 3) ||
       null
     );
   };

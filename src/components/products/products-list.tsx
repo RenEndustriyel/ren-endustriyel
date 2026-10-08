@@ -44,6 +44,7 @@ import { ProductForm } from "./product-form";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ui/confirm";
 import { toast } from "sonner";
+import { textMatches } from "@/lib/search";
 
 type Product = Row<"products">;
 
@@ -273,11 +274,7 @@ export function ProductsList() {
     let res = all.filter((p) => {
       if (onlyCritical && !isCritical(p)) return false;
       if (!searchLower) return true;
-      const nameMatch = p.name?.toLowerCase().includes(searchLower);
-      const codeMatch = p.code?.toLowerCase().includes(searchLower);
-      const barcodeMatch = p.barcode?.toLowerCase().includes(searchLower);
-      const categoryMatch = catName(p.category_id)?.toLowerCase().includes(searchLower);
-      return nameMatch || codeMatch || barcodeMatch || categoryMatch;
+      return textMatches(`${p.name ?? ""} ${p.code ?? ""} ${p.barcode ?? ""} ${catName(p.category_id) ?? ""}`, searchLower);
     });
 
     const [field, dir] = (sortBy || "name:asc").split(":");

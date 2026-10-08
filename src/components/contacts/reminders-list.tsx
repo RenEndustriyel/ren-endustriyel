@@ -6,6 +6,7 @@ import { Mail, MessageSquare, Search, CircleHelp, X, Bell } from "lucide-react";
 import { useContacts, useContactBalances, useRows, type Row } from "@/lib/data";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { textMatches } from "@/lib/search";
 
 type OpenInvoice = Row<"documents"> & {
   contact?: { name: string; phone?: string | null; mobile?: string | null; email?: string | null } | null;
@@ -89,7 +90,7 @@ export function RemindersList() {
   }, [contacts.data, balances.data, openInvoicesQuery.data]);
 
   const filtered = reminderItems.filter((item) =>
-    item.contact.name.toLowerCase().includes(q.toLowerCase())
+    textMatches(item.contact.name, q)
   );
 
   const sendWhatsApp = (phone: string | null | undefined, name: string, amount: number) => {

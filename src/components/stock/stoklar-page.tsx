@@ -12,13 +12,14 @@ import { useOrg } from "@/providers/org-provider";
 import { useConfirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import { NumberInput } from "@/components/ui/money-input";
+import { fold } from "@/lib/search";
 
 type Tab = "depolar" | "sayim" | "eksi";
 type Product = Row<"products">;
 type WarehouseRow = Row<"warehouses">;
 
 const PAGE = 200;
-const normalize = (s: string) => s.toLocaleLowerCase("tr-TR");
+const normalize = (s: string) => fold(s);
 
 /** Ürünün birim maliyeti: ortalama maliyet, yoksa alış fiyatı (KDV hariç) */
 const unitCost = (p: Product) => {

@@ -31,6 +31,7 @@ import { NumberInput } from "@/components/ui/money-input";
 import { ContactPicker } from "@/components/contacts/contact-picker";
 import { ScanButton } from "@/components/shared/barcode-scanner";
 import { cn } from "@/lib/utils";
+import { fold, textMatches } from "@/lib/search";
 
 type CartLine = {
   key: string;
@@ -257,7 +258,7 @@ export function QuickSalePage() {
       .filter(
         (p) =>
           p.is_active !== false &&
-          (p.name.toLocaleLowerCase("tr").includes(q) || p.barcode?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q)),
+          textMatches(`${p.name} ${p.barcode ?? ""} ${p.code ?? ""}`, q),
       )
       .slice(0, 8);
   }, [query, products.data]);
@@ -271,7 +272,7 @@ export function QuickSalePage() {
     const qty = m ? Number(m[1].replace(",", ".")) || 1 : 1;
     const code = (m ? m[2] : raw).trim().toLowerCase();
     const exact = (products.data ?? []).find(
-      (p) => p.barcode?.toLowerCase() === code || p.code?.toLowerCase() === code || p.name.toLowerCase() === code,
+      (p) => p.barcode?.toLowerCase() === code || p.code?.toLowerCase() === code || fold(p.name) === fold(code),
     );
     if (exact) return addProduct(exact, qty);
     if (matches.length === 1) return addProduct(matches[0], qty);

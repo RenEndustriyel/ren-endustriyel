@@ -10,6 +10,7 @@ import { rateFor, useRates } from "@/lib/rates";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { textMatches } from "@/lib/search";
 
 // EAN-13 SVG Generator Tabloları
 const L_CODE: Record<string, string> = {
@@ -122,7 +123,7 @@ export function BarcodeLabelModal({
     const list = products.data ?? [];
     if (!q) return list.slice(0, 15);
     return list
-      .filter((p) => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.toLowerCase().includes(q)))
+      .filter((p) => textMatches(`${p.name} ${p.barcode ?? ""}`, q))
       .slice(0, 15);
   }, [products.data, search]);
 

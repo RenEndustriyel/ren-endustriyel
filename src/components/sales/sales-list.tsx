@@ -28,6 +28,7 @@ import {
   type Period,
 } from "@/components/documents/pusulam-doc-list";
 import { toast } from "sonner";
+import { textMatches } from "@/lib/search";
 
 type Doc = Row<"documents"> & {
   contact: { name: string; phone?: string | null; email?: string | null } | null;
@@ -423,7 +424,7 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
 
   const today = isoDate();
   const filteredRows = React.useMemo(() => {
-    const query = q.trim().toLocaleLowerCase("tr-TR");
+    const query = q.trim();
     return allRows.filter((d) => {
       if (activeTab === "invoices") {
         const cancelled = d.status === "cancelled";
@@ -436,7 +437,7 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
       if (rangeFrom && rangeTo && (day < rangeFrom || day > rangeTo)) return false;
       if (!query) return true;
       const text = `${d.contact?.name ?? ""} ${(d.contact_snapshot as { name?: string } | null)?.name ?? ""} ${d.number ?? ""} ${d.description ?? ""}`;
-      return text.toLocaleLowerCase("tr-TR").includes(query);
+      return textMatches(text, query);
     });
   }, [allRows, activeTab, view, period, today, rangeFrom, rangeTo, q]);
 

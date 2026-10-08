@@ -5,6 +5,7 @@ import { useProducts, useUnits, type Row } from "@/lib/data";
 import { formatMoney, formatQty } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Package, Search, X } from "lucide-react";
+import { textMatches } from "@/lib/search";
 
 export type Product = Row<"products">;
 
@@ -74,10 +75,7 @@ export function WritableProductPicker({
     return products.data
       .filter((p) => p.is_active)
       .filter((p) => {
-        const name = (p.name || "").toLowerCase();
-        const code = (p.code || "").toLowerCase();
-        const barcode = (p.barcode || "").toLowerCase();
-        return name.includes(q) || code.includes(q) || barcode.includes(q);
+        return textMatches(`${p.name || ""} ${p.code || ""} ${p.barcode || ""}`, q);
       })
       .slice(0, 8);
   }, [description, products.data]);

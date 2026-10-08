@@ -5,6 +5,7 @@ import { Search, UserPlus, X } from "lucide-react";
 import { Dialog as D } from "radix-ui";
 import { toast } from "sonner";
 import { useContacts, useSave } from "@/lib/data";
+import { fold } from "@/lib/search";
 
 export interface ContactItem {
   id: string;
@@ -18,7 +19,7 @@ export interface ContactItem {
 /** Veritabanında henüz olmayan hazır liste kaydı mı (ör. "sup-akin", "cus-karesi") */
 export const isPresetContact = (c: ContactItem | null | undefined) => !!c && /^(sup|cus)-/.test(c.id);
 
-const normalize = (s: string) => s.toLocaleLowerCase("tr-TR").trim();
+const normalize = (s: string) => fold(s).trim();
 /** Mükerrer kontrolü için: büyük/küçük harf, boşluk ve noktalama farkı yok sayılır */
 export const contactKey = (s: string) => s.toLocaleUpperCase("tr-TR").replace(/[^A-ZÇĞİÖŞÜ0-9]/g, "");
 

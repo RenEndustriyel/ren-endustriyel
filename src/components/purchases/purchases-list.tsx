@@ -28,6 +28,7 @@ import { ProductImport } from "@/components/products/product-import";
 import { SupplierSelectModal, type SupplierItem } from "./supplier-select-modal";
 import { PurchaseInvoiceModal } from "./purchase-invoice-modal";
 import { toast } from "sonner";
+import { textMatches } from "@/lib/search";
 
 type Doc = Row<"documents"> & {
   contact: { name: string; phone?: string | null; email?: string | null } | null;
@@ -461,12 +462,12 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
 
   const today = isoDate();
   const filteredRows = React.useMemo(() => {
-    const query = q.trim().toLocaleLowerCase("tr-TR");
+    const query = q.trim();
     return allRows.filter((d) => {
       if (!inPeriod(d.issue_date, period, today)) return false;
       if (!query) return true;
       const text = `${d.contact?.name ?? ""} ${(d.contact_snapshot as { name?: string } | null)?.name ?? ""} ${d.number ?? ""} ${d.description ?? ""}`;
-      return text.toLocaleLowerCase("tr-TR").includes(query);
+      return textMatches(text, query);
     });
   }, [allRows, q, period, today]);
 
