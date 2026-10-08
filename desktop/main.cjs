@@ -269,8 +269,30 @@ ipcMain.handle("uygulama:yeniden-dene", (_e, url) => mainWindow && mainWindow.lo
 // ---------------------------------------------------------------------------
 // Açılış
 // ---------------------------------------------------------------------------
+/** Masaüstü kısayolu: kurulum oluşturamadıysa ilk açılışta program oluşturur (bir kez; silinirse zorlamaz) */
+function ensureDesktopShortcut() {
+  if (!app.isPackaged || process.platform !== "win32") return;
+  const st = readJson(durumDosyasi()) || {};
+  if (st.kisayol) return;
+  try {
+    const lnk = path.join(app.getPath("desktop"), "Ren Endüstriyel.lnk");
+    if (!fs.existsSync(lnk)) {
+      shell.writeShortcutLink(lnk, "create", {
+        target: process.execPath,
+        cwd: path.dirname(process.execPath),
+        icon: process.execPath,
+        iconIndex: 0,
+        description: "Ren Endüstriyel Ön Muhasebe",
+        appUserModelId: "com.renendustriyel.muhasebe",
+      });
+    }
+    writeJson(durumDosyasi(), { ...st, kisayol: true });
+  } catch {}
+}
+
 app.whenReady().then(() => {
   if (process.env.REN_SMOKE) return smokeTest();
+  ensureDesktopShortcut();
   const r = checkLicense();
   if (!r.ok) return createLicenseWindow(r.reason);
   createMainWindow();
