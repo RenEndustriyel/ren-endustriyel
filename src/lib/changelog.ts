@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.5.26";
+export const LATEST_VERSION = "2.6.0";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.6.0",
+    date: "8 Ekim 2026",
+    title: "Masaüstü Uygulaması ve İnternetsiz Çalışma",
+    badge: "Büyük güncelleme",
+    items: [
+      { type: "yeni", title: "Windows masaüstü uygulaması", description: "Kurulum sihirbazı, masaüstü ve Başlat menüsü kısayolu, Program Ekle/Kaldır desteği. Web ile aynı veriler; web güncellendikçe masaüstü de güncellenir. Bilgisayara bağlı, süreli seri anahtarla etkinleştirilir." },
+      { type: "yeni", title: "Giden kutusu (internetsiz kayıt)", description: "İnternet yokken ya da kayıt sırasında bağlantı koparsa fatura, tahsilat/ödeme, cari ve ürün kartı, stok düzeltme ve durum değişiklikleri bu bilgisayarda kalıcı olarak saklanır; bağlantı gelince sırayla gönderilir. Uygulama kapansa da kaybolmaz, çift kayıt oluşmaz." },
+      { type: "yeni", title: "Bekleyen kayıt göstergesi", description: "Üst çubukta bekleyen / gönderilemeyen kayıt sayısı; listeyi açıp şimdi gönder, tekrar dene veya kuyruktan sil." },
+      { type: "iyilestirme", title: "Çevrimdışı yeni cari ve ürün", description: "Belge penceresinde internet yokken yeni cari ve yeni ürün açılabilir; belgeyle birlikte doğru sırayla gönderilir." },
+    ],
+  },
   {
     version: "2.5.26",
     date: "8 Ekim 2026",

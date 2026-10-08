@@ -46,3 +46,13 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# masaüstü
+/desktop/node_modules
+/desktop/dist
+/desktop-keygen/node_modules
+/desktop-keygen/dist
+/desktop-keygen/keys
+/desktop-keygen/lisans-ortak.cjs
+/desktop/*.log
+/desktop-keygen/*.log

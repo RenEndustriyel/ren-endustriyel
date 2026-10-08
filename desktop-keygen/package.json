@@ -1,0 +1,39 @@
+{
+  "name": "ren-lisans-uretici",
+  "productName": "Ren Lisans Üretici",
+  "version": "1.0.0",
+  "description": "Ren Endüstriyel Ön Muhasebe — lisans anahtarı üretici (YALNIZCA YETKİLİ KULLANIM)",
+  "author": "Ren Endüstriyel",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "ortak": "node -e \"require('fs').copyFileSync('../desktop/lisans-ortak.cjs','lisans-ortak.cjs')\"",
+    "start": "npm run ortak && electron .",
+    "dist": "npm run ortak && electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.renendustriyel.lisansuretici",
+    "productName": "Ren Lisans Üretici",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.cjs", "preload.cjs", "lisans-ortak.cjs", "index.html"],
+    "extraResources": [{ "from": "keys/ren-lisans-ozel.pem", "to": "ren-lisans-ozel.pem" }],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico",
+      "artifactName": "Ren-Lisans-Uretici-Kurulum-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "shortcutName": "Ren Lisans Üretici",
+      "installerLanguages": ["tr_TR"],
+      "language": "1055"
+    }
+  }
+}

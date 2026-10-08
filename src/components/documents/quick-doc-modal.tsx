@@ -846,16 +846,10 @@ function QuickDocForm({
   const createContact = async (name: string): Promise<string | null> => {
     const ex = (contacts.data ?? []).find((c) => contactKey(c.name) === contactKey(name));
     if (ex) return ex.id;
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      toast.error("İnternet yok — cari kaydedilemedi");
-      return null;
-    }
     try {
       const res = await saveContact.save<{ id: string }>({ name: name.trim(), kind: isPurchase ? "supplier" : "customer", is_active: true });
-      if (res.queued) {
-        toast.error("İnternet yok — cari kaydedilemedi");
-        return null;
-      }
+      // çevrimdışıysa cari giden kutusuna yazıldı; belge ondan sonra gönderileceği için kimliği hemen kullanılabilir
+      if (res.queued) return res.data!.id;
       toast.success(`${name.trim()} ${contactLabel.toLocaleLowerCase("tr-TR")} olarak kaydedildi`);
       return res.data!.id;
     } catch {
@@ -1136,7 +1130,7 @@ function QuickDocForm({
           sale_price: isPurchase ? l.shelf_price : round2(convertVat(toTry(l.unit_price / (l.unit_factor || 1)), l.vat_rate, inclVat, true)),
           sale_price_includes_vat: true,
         });
-        if (res.queued) throw new Error("Bağlantı yok — ürün kaydı sıraya alındı, belge kaydedilmedi");
+        // çevrimdışıysa ürün giden kutusunda; belge ondan sonra gönderilir (sıra korunur)
         resolved.push({ ...l, kind: "product", product_id: res.data!.id });
       }
 
@@ -1250,7 +1244,9 @@ function QuickDocForm({
       }
 
       if (docRes.queued) {
-        // çevrimdışı kuyruğa alındı: pencereyi kapatma, taslak dursun (tekrar kaydetmek aynı belgeyi günceller)
+        // giden kutusuna kalıcı olarak yazıldı (uygulama kapansa da kaybolmaz): taslağa gerek yok
+        clearDraft();
+        onOpenChange(false);
         return;
       }
       clearDraft();

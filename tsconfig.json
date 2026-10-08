@@ -38,6 +38,8 @@
   ],
   "exclude": [
     "node_modules",
+    "desktop",
+    "desktop-keygen",
     "supabase/functions",
     "arsiv"
   ]

@@ -82,12 +82,7 @@ export function ContactSelectModal({ kind, open, onOpenChange, onSelect, presets
     setCreating(true);
     try {
       const res = await saveContact.save<{ id: string }>({ name: typed, kind, is_active: true });
-      if (res.queued) {
-        toast.error("İnternet yok — cari kaydedilemedi. Bağlantı gelince tekrar deneyin.");
-        setCreating(false);
-        return;
-      }
-      toast.success(`${typed} ${label.toLocaleLowerCase("tr-TR")} olarak kaydedildi`);
+      if (!res.queued) toast.success(`${typed} ${label.toLocaleLowerCase("tr-TR")} olarak kaydedildi`);
       setCreating(false);
       setQ("");
       onSelect({ id: res.data!.id, name: typed });

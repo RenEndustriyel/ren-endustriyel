@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+<title>Ren Lisans Üretici</title>
+<style>
+  :root { --bg:#f1f5f9; --card:#fff; --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --brand:#00b49c; --brand-d:#008f7b; --err:#e11d48; --soft:#f8fafc; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b1220; --card:#131b26; --ink:#f1f5f9; --muted:#94a3b8; --line:#233144; --soft:#16202c; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--ink); font-size:14px; }
+  header { padding:16px 24px; background:var(--card); border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:18px; margin:0; }
+  header span { color:var(--err); font-size:12px; font-weight:600; margin-left:auto; }
+  main { padding:20px 24px; display:grid; grid-template-columns: 380px 1fr; gap:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  h2 { font-size:14px; margin:0 0 12px; }
+  label { display:block; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:10px 0 5px; }
+  input, select, textarea { width:100%; border:1px solid var(--line); border-radius:9px; padding:9px 10px; font:14px "Segoe UI", sans-serif; background:transparent; color:var(--ink); }
+  input.mono { font-family:Consolas, monospace; letter-spacing:.06em; text-transform:uppercase; }
+  button { font:600 13px "Segoe UI", sans-serif; border-radius:9px; padding:9px 14px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--ink); }
+  button.primary { background:var(--brand); border-color:var(--brand); color:#fff; width:100%; margin-top:14px; padding:11px; }
+  button.primary:hover { background:var(--brand-d); }
+  .msg { color:var(--err); font-weight:600; margin-top:10px; min-height:18px; }
+  .sonuc { display:none; margin-top:14px; padding:12px; border-radius:10px; background:var(--soft); border:1px solid var(--line); }
+  .sonuc code { display:block; font:12px/1.5 Consolas, monospace; word-break:break-all; margin:8px 0; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:8px; border-bottom:1px solid var(--line); }
+  td { padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td.mono { font-family:Consolas, monospace; }
+  .bitti { color:var(--err); font-weight:600; }
+  .top { display:flex; gap:8px; margin-bottom:12px; }
+  .top input { flex:1; }
+  .tablo { max-height:calc(100vh - 210px); overflow:auto; }
+</style>
+</head>
+<body>
+<header><h1>Ren Lisans Üretici</h1><span>Gizli anahtar içerir — bu programı kimseyle paylaşmayın</span></header>
+<main>
+  <section class="card">
+    <h2>Yeni lisans</h2>
+    <label for="musteri">Müşteri adı *</label>
+    <input id="musteri" />
+    <label for="telefon">Telefon</label>
+    <input id="telefon" />
+    <label for="makine">Bilgisayar kodu * (programın lisans ekranında yazar)</label>
+    <input id="makine" class="mono" placeholder="XXXX-XXXX-XXXX-XXXX" maxlength="19" />
+    <label for="sure">Süre</label>
+    <select id="sure">
+      <option value="1">1 ay</option>
+      <option value="3">3 ay</option>
+      <option value="6">6 ay</option>
+      <option value="12" selected>1 yıl</option>
+      <option value="24">2 yıl</option>
+      <option value="0">Süresiz</option>
+      <option value="tarih">Tarih seç…</option>
+    </select>
+    <input id="tarih" type="date" style="display:none; margin-top:8px" />
+    <label for="not">Not</label>
+    <input id="not" />
+    <button class="primary" id="uret">Anahtar üret</button>
+    <div class="msg" id="mesaj"></div>
+    <div class="sonuc" id="sonuc">
+      <b id="sonucBaslik"></b>
+      <code id="anahtar"></code>
+      <div class="row"><button id="kopyala">Kopyala</button><button id="kaydet">Dosya olarak kaydet (.lic)</button></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="top">
+      <input id="ara" placeholder="Müşteri, telefon, bilgisayar kodu, lisans no ara…" />
+      <button id="csv">Excel'e aktar (CSV)</button>
+    </div>
+    <div class="tablo">
+      <table>
+        <thead><tr><th>No</th><th>Müşteri</th><th>Bilgisayar kodu</th><th>Bitiş</th><th></th></tr></thead>
+        <tbody id="liste"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script>
+  const api = window.uretici;
+  const $ = (id) => document.getElementById(id);
+  let son = null;
+  let liste = [];
+  const trTarih = (iso) => (iso ? iso.split("-").reverse().join(".") : "Süresiz");
+  const fold = (s) => String(s ?? "").toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
+  const bugun = () => new Date().toISOString().slice(0, 10);
+
+  function bitis() {
+    const v = $("sure").value;
+    if (v === "tarih") return $("tarih").value || null;
+    if (v === "0") return null;
+    const d = new Date();
+    d.setMonth(d.getMonth() + Number(v));
+    return d.toISOString().slice(0, 10);
+  }
+  $("sure").onchange = () => ($("tarih").style.display = $("sure").value === "tarih" ? "block" : "none");
+  $("makine").oninput = (e) => {
+    const raw = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 16);
+    e.target.value = raw.match(/.{1,4}/g)?.join("-") ?? "";
+  };
+
+  function goster(rec, baslik) {
+    son = rec;
+    $("sonuc").style.display = "block";
+    $("sonucBaslik").textContent = baslik || `Lisans no ${rec.id} · ${rec.musteri} · bitiş ${trTarih(rec.expires)}`;
+    $("anahtar").textContent = rec.key;
+  }
+
+  async function yukle() {
+    liste = await api.liste();
+    ciz();
+  }
+  function ciz() {
+    const q = fold($("ara").value);
+    const rows = liste.filter((x) => !q || fold(`${x.id} ${x.musteri} ${x.telefon} ${x.machine} ${x.not}`).includes(q));
+    $("liste").innerHTML = "";
+    for (const x of rows) {
+      const tr = document.createElement("tr");
+      const bitti = x.expires && x.expires < bugun();
+      tr.innerHTML = `<td>${x.id}</td><td></td><td class="mono"></td><td class="${bitti ? "bitti" : ""}">${trTarih(x.expires)}${bitti ? " (doldu)" : ""}</td><td class="row"></td>`;
+      tr.children[1].textContent = x.musteri + (x.telefon ? " · " + x.telefon : "");
+      tr.children[2].textContent = x.machine;
+      const goster1 = document.createElement("button"); goster1.textContent = "Anahtar"; goster1.onclick = () => goster(x);
+      const uzat = document.createElement("button"); uzat.textContent = "Süre uzat";
+      uzat.onclick = () => {
+        $("musteri").value = x.musteri; $("telefon").value = x.telefon || ""; $("makine").value = x.machine; $("not").value = `Uzatma (önceki no ${x.id})`;
+        $("mesaj").textContent = "Süreyi seçip Anahtar üret'e basın."; $("sure").focus();
+      };
+      tr.children[4].append(goster1, uzat);
+      $("liste").append(tr);
+    }
+    if (!rows.length) $("liste").innerHTML = `<tr><td colspan="5" style="color:var(--muted)">Kayıt yok.</td></tr>`;
+  }
+  $("ara").oninput = ciz;
+
+  $("uret").onclick = async () => {
+    $("mesaj").textContent = "";
+    if ($("sure").value === "tarih" && !$("tarih").value) { $("mesaj").textContent = "Bitiş tarihini seçin."; return; }
+    const r = await api.uret({ musteri: $("musteri").value, telefon: $("telefon").value, machine: $("makine").value, expires: bitis(), not: $("not").value });
+    if (!r.ok) { $("mesaj").textContent = r.mesaj; return; }
+    goster(r.kayit);
+    await yukle();
+  };
+  $("kopyala").onclick = async () => { if (son) { await api.kopyala(son.key); $("kopyala").textContent = "Kopyalandı"; setTimeout(() => ($("kopyala").textContent = "Kopyala"), 1500); } };
+  $("kaydet").onclick = () => son && api.dosyaKaydet(son);
+  $("csv").onclick = () => api.csv();
+  yukle();
+</script>
+</body>
+</html>

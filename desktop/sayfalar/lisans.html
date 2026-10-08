@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+<title>Lisans Etkinleştirme</title>
+<style>
+  :root { --bg:#f8fafc; --card:#fff; --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --brand:#00b49c; --brand-d:#008f7b; --err:#e11d48; --ok:#059669; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#131b26; --ink:#f1f5f9; --muted:#94a3b8; --line:#233144; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  .wrap { padding:28px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p { margin:0; color:var(--muted); font-size:13px; line-height:1.5; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-top:16px; }
+  label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px; }
+  .code { display:flex; gap:8px; align-items:center; }
+  .code b { font: 700 20px/1.2 Consolas, monospace; letter-spacing:.06em; flex:1; }
+  textarea { width:100%; height:110px; resize:none; border:1px solid var(--line); border-radius:10px; padding:10px; font: 13px/1.5 Consolas, monospace; background:transparent; color:var(--ink); }
+  textarea:focus { outline:2px solid var(--brand); border-color:transparent; }
+  button { font: 600 13px "Segoe UI", sans-serif; border-radius:9px; padding:9px 14px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--ink); }
+  button.primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+  button.primary:hover { background:var(--brand-d); }
+  button:disabled { opacity:.6; cursor:default; }
+  .row { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+  .msg { margin-top:12px; font-size:13px; font-weight:600; min-height:18px; }
+  .msg.err { color:var(--err); } .msg.ok { color:var(--ok); }
+  .warn { margin-top:12px; padding:10px 12px; border-radius:10px; background:#fef3c7; color:#92400e; font-size:13px; display:none; }
+  @media (prefers-color-scheme: dark) { .warn { background:#451a03; color:#fcd34d; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ren Endüstriyel Ön Muhasebe</h1>
+  <p>Programı kullanmak için bu bilgisayara ait lisans anahtarını girin.</p>
+  <div class="warn" id="neden"></div>
+
+  <div class="card">
+    <label>1 · Bilgisayar kodu</label>
+    <div class="code"><b id="makine">…</b><button id="kopyala">Kopyala</button></div>
+    <p style="margin-top:6px">Bu kodu Ren Endüstriyel'e iletin; size bu bilgisayara özel lisans anahtarı verilecek.</p>
+  </div>
+
+  <div class="card">
+    <label for="anahtar">2 · Lisans anahtarı</label>
+    <textarea id="anahtar" placeholder="REN-XXXXX-XXXXX-…" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="dosya">Dosyadan yükle…</button>
+      <button class="primary" id="etkinlestir">Etkinleştir</button>
+    </div>
+    <div class="msg" id="mesaj"></div>
+  </div>
+</div>
+<script>
+  const api = window.renMasaustu;
+  const $ = (id) => document.getElementById(id);
+  const NEDEN = {
+    sure: "Lisans süreniz dolmuş. Yeni anahtar girin.",
+    bilgisayar: "Kayıtlı anahtar bu bilgisayara ait değil.",
+    imza: "Kayıtlı anahtar geçersiz.",
+    bozuk: "Kayıtlı anahtar okunamadı.",
+    saat: "Bilgisayarın tarihi geri alınmış görünüyor. Tarih ve saati düzeltip programı yeniden açın.",
+  };
+  const neden = new URLSearchParams(location.search).get("neden");
+  if (neden && NEDEN[neden]) { $("neden").textContent = NEDEN[neden]; $("neden").style.display = "block"; }
+  const tr = (iso) => iso ? iso.split("-").reverse().join(".") : "Süresiz";
+
+  api.makineKodu().then((k) => ($("makine").textContent = k));
+  $("kopyala").onclick = async () => { await api.kopyala($("makine").textContent); $("kopyala").textContent = "Kopyalandı"; setTimeout(() => ($("kopyala").textContent = "Kopyala"), 1500); };
+  $("dosya").onclick = async () => { const t = await api.dosyadanOku(); if (t) $("anahtar").value = t; };
+  $("etkinlestir").onclick = async () => {
+    const m = $("mesaj");
+    const key = $("anahtar").value.trim();
+    if (!key) { m.className = "msg err"; m.textContent = "Lisans anahtarını yapıştırın."; return; }
+    $("etkinlestir").disabled = true;
+    const r = await api.etkinlestir(key);
+    if (!r.ok) { m.className = "msg err"; m.textContent = r.mesaj; $("etkinlestir").disabled = false; return; }
+    m.className = "msg ok";
+    m.textContent = `Lisans etkinleştirildi (no ${r.lic.id}, bitiş: ${tr(r.lic.expires)}). Program açılıyor…`;
+    setTimeout(() => api.baslat(), 900);
+  };
+</script>
+</body>
+</html>

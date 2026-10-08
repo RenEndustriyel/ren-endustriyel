@@ -9,6 +9,7 @@ import { useOrg } from "@/providers/org-provider";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { AutoReconcileRunner } from "./auto-reconcile-runner";
+import { OutboxRunner } from "./outbox-status";
 import { MobileNav } from "./mobile-nav";
 import { OfflineBanner } from "./online-status";
 import { InstallBanner } from "./install-banner";
@@ -83,6 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <CommandPaletteProvider>
         <Warmup />
         <AutoReconcileRunner />
+        <OutboxRunner />
         <div className="min-h-dvh flex w-full max-w-[100vw] overflow-x-hidden bg-slate-100 dark:bg-slate-950">
           <div className="contents">
             <Sidebar />

@@ -6,8 +6,9 @@
  * - Okuma: `useRows` bir firmanın tablosunu (silinmemiş satırlar) çeker; sonuç IndexedDB'de
  *   saklandığı için çevrimdışıyken de ekranda kalır.
  * - Yazma: tüm yazmalar üç mutasyon türünden biriyle yapılır (upsert / update / rpc).
- *   Çevrimdışıyken mutasyon "duraklatılır", IndexedDB'ye yazılır ve bağlantı gelince
- *   sırayla (scope: sync) gönderilir. Kimlikler istemcide üretildiği için sunucu tarafı idempotenttir.
+ *   Çevrimdışıyken ya da gönderim sırasında bağlantı koparsa işlem GİDEN KUTUSUNA (IndexedDB,
+ *   lib/outbox.ts) hemen yazılır ve bağlantı gelince sırayla gönderilir. Kimlikler istemcide
+ *   üretildiği için tekrar gönderim çift kayıt oluşturmaz.
  */
 
 import * as React from "react";
@@ -24,6 +25,8 @@ import { supabase } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/database.types";
 import { errorMessage } from "@/lib/errors";
 import { useOrg } from "@/providers/org-provider";
+import { enqueue, flushOutbox, hasPending, isNetworkError as isNetErr, outbox, setOutboxExecutor, type OutboxOp } from "@/lib/outbox";
+import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 
 export type TableName = keyof Database["public"]["Tables"];
 export type Row<T extends TableName> = Database["public"]["Tables"][T]["Row"];
@@ -64,14 +67,27 @@ async function doRpc({ fn, args }: RpcVars) {
   return data;
 }
 
-const isNetworkError = (e: unknown) => /Failed to fetch|NetworkError|Load failed|fetch failed/i.test(String((e as Error)?.message ?? e));
+const isNetworkError = isNetErr;
+
+/** Giden kutusundaki işlemi çalıştırır */
+async function execOp(op: OutboxOp) {
+  if (op.kind === "upsert") return doUpsert({ table: op.table as TableName, row: op.row });
+  if (op.kind === "update") return doUpdate({ table: op.table as TableName, id: op.id, patch: op.patch, idColumn: op.idColumn });
+  return doRpc({ fn: op.fn as FnName, args: op.args });
+}
+
+/** Tekrar gönderildiğinde çift kayıt oluşturmayan (kimlikli) işlemler kuyruğa alınabilir */
+const QUEUEABLE_RPC = new Set(["save_document", "save_transaction", "adjust_stock", "set_document_status", "delete_document"]);
+const queueable = (op: OutboxOp) => op.kind !== "rpc" || QUEUEABLE_RPC.has(op.fn);
 
 export function registerMutationDefaults(qc: QueryClient) {
   const common = {
     scope: { id: "sync" }, // sırayla gönder
-    retry: (count: number, err: unknown) => isNetworkError(err) && count < 5,
-    retryDelay: (n: number) => Math.min(1000 * 2 ** n, 15000),
+    // bağlantı hatasında kısa bir tekrar; sonra giden kutusu devralır (kullanıcı beklemesin)
+    retry: (count: number, err: unknown) => isNetworkError(err) && count < 1,
+    retryDelay: 800,
   };
+  setOutboxExecutor(execOp, () => qc.invalidateQueries());
   qc.setMutationDefaults(["upsert"], { mutationFn: (v: UpsertVars) => doUpsert(v), ...common });
   qc.setMutationDefaults(["update"], { mutationFn: (v: UpdateVars) => doUpdate(v), ...common });
   qc.setMutationDefaults(["rpc"], { mutationFn: (v: RpcVars) => doRpc(v), ...common });
@@ -176,28 +192,107 @@ function patchListCaches(qc: QueryClient, table: TableName, row: Record<string, 
 
 export type SaveResult<T> = { data?: T; queued: boolean };
 
-/**
- * Çevrimiçiyse sonucu bekler (hata gösterilir); çevrimdışıysa işlemi kuyruğa alır ve hemen döner.
- */
-async function runOrQueue<T>(mutateAsync: () => Promise<T>, mutate: () => void, successMsg?: string): Promise<SaveResult<T>> {
-  if (!onlineManager.isOnline()) {
-    mutate();
-    toast.info("Çevrimdışı kaydedildi", { description: "Bağlantı gelince otomatik gönderilecek." });
-    return { queued: true };
+const TABLE_LABEL: Record<string, string> = {
+  contacts: "Cari kartı",
+  products: "Ürün kartı",
+  documents: "Belge",
+  transactions: "Tahsilat / ödeme",
+  categories: "Kategori",
+  accounts: "Hesap",
+};
+const tl = (n: unknown) => (Number(n) || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " TL";
+
+function opLabel(op: OutboxOp): string {
+  if (op.kind === "rpc") {
+    const a = op.args as Record<string, Record<string, unknown> | unknown>;
+    if (op.fn === "save_document") {
+      const d = (a.p_doc ?? {}) as Record<string, unknown>;
+      return `${DOC_TYPES[d.doc_type as DocType]?.label ?? "Belge"}${d.number ? " " + d.number : ""}`;
+    }
+    if (op.fn === "save_transaction") {
+      const t = (a.p_txn ?? {}) as Record<string, unknown>;
+      return `${t.direction === "in" ? "Tahsilat" : "Ödeme"} ${tl(t.amount)}`;
+    }
+    if (op.fn === "adjust_stock") return "Stok düzeltme";
+    if (op.fn === "set_document_status") return "Belge durumu";
+    if (op.fn === "delete_document") return "Belge silme";
+    return op.fn;
   }
+  const name = op.kind === "upsert" ? (op.row.name as string) || "" : "";
+  return `${TABLE_LABEL[op.table] ?? op.table}${name ? " · " + name : ""}${op.kind === "update" && op.patch.deleted_at ? " (silme)" : ""}`;
+}
+
+/** Çevrimdışı kaydedilen belge listelerde hemen görünsün (yaklaşık toplamlarla, "numara bekliyor") */
+function offlineOptimistic(qc: QueryClient, op: OutboxOp) {
+  if (op.kind !== "rpc") return;
+  if (op.fn === "save_document") {
+    const d = (op.args.p_doc ?? {}) as Record<string, unknown>;
+    const lines = (op.args.p_lines ?? []) as Record<string, unknown>[];
+    const incl = !!d.prices_include_vat;
+    let net = 0;
+    let vat = 0;
+    for (const l of lines) {
+      const base = Number(l.quantity || 0) * Number(l.unit_price || 0) * (1 - Number(l.discount_rate || 0) / 100);
+      const r = Number(l.vat_rate || 0) / 100;
+      const n = incl ? base / (1 + r) : base;
+      net += n;
+      vat += n * r;
+    }
+    const total = Math.round((net + vat) * 100) / 100;
+    patchListCaches(qc, "documents", {
+      paid_amount: 0,
+      payment_status: "unpaid",
+      created_at: new Date().toISOString(),
+      ...d,
+      subtotal: net,
+      net_total: Math.round(net * 100) / 100,
+      vat_total: Math.round(vat * 100) / 100,
+      total,
+      total_try: Math.round(total * Number(d.exchange_rate || 1) * 100) / 100,
+      deleted_at: null,
+    });
+  } else if (op.fn === "save_transaction") {
+    const t = (op.args.p_txn ?? {}) as Record<string, unknown>;
+    patchListCaches(qc, "transactions", { created_at: new Date().toISOString(), amount_try: Number(t.amount || 0) * Number(t.exchange_rate || 1), ...t, deleted_at: null });
+  }
+}
+
+
+
+/**
+ * Çevrimiçiyse sonucu bekler (hata gösterilir). Çevrimdışıysa, gönderimde bağlantı koparsa ya da
+ * giden kutusunda bekleyen kayıt varsa (sıra bozulmasın) işlem giden kutusuna YAZILIR ve döner.
+ */
+async function runOrQueue<T>(
+  qc: QueryClient,
+  op: OutboxOp,
+  mutateAsync: () => Promise<T>,
+  optimistic: () => void,
+  successMsg?: string,
+): Promise<SaveResult<T>> {
+  const toQueue = async (why: "offline" | "dropped") => {
+    if (!queueable(op)) {
+      toast.error("Bu işlem için internet bağlantısı gerekli", { description: "Bağlantı gelince tekrar deneyin." });
+      throw new Error("Çevrimdışı — bu işlem kuyruğa alınamaz");
+    }
+    await enqueue(op, opLabel(op)); // depoya yazılana kadar bekler
+    optimistic();
+    offlineOptimistic(qc, op);
+    toast.info(why === "dropped" ? "Bağlantı koptu — kayıt bu bilgisayarda saklandı" : "Çevrimdışı kaydedildi", {
+      description: "İnternet gelince otomatik gönderilecek. Durumu üst çubuktaki bulut simgesinden izleyebilirsiniz.",
+      duration: 6000,
+    });
+    void flushOutbox();
+    return { queued: true } as SaveResult<T>;
+  };
+
+  if (!onlineManager.isOnline() || hasPending()) return toQueue("offline");
   try {
     const data = await mutateAsync();
     if (successMsg) toast.success(successMsg);
     return { data, queued: false };
   } catch (e) {
-    if (isNetworkError(e)) {
-      // Yeniden denemeler de başarısız oldu: işlem kuyrukta DEĞİL. Hata fırlat ki form kapanmasın, girilenler kaybolmasın.
-      toast.error("İnternet bağlantısı koptu — kayıt YAPILAMADI", {
-        description: "Girdiğiniz bilgiler ekranda duruyor. Bağlantı gelince tekrar Kaydet'e basın.",
-        duration: 10000,
-      });
-      throw e;
-    }
+    if (isNetworkError(e)) return toQueue("dropped");
     toast.error(errorMessage(e));
     throw e;
   }
@@ -221,8 +316,10 @@ export function useSave(table: TableName) {
     save: <T = Record<string, unknown>>(row: Record<string, unknown>, successMsg?: string) => {
       const full = { id: newId(), org_id: org?.id, ...row };
       return runOrQueue<T>(
+        qc,
+        { kind: "upsert", table, row: full },
         () => m.mutateAsync({ table, row: full }) as Promise<T>,
-        () => m.mutate({ table, row: full }),
+        () => patchListCaches(qc, table, full),
         successMsg,
       ).then((r) => ({ ...r, data: (r.data ?? full) as T }));
     },
@@ -240,17 +337,23 @@ export function useUpdate(table: TableName) {
     isPending: m.isPending,
     update: (id: string, patch: Record<string, unknown>, successMsg?: string) =>
       runOrQueue(
+        qc,
+        { kind: "update", table, id, patch },
         () => m.mutateAsync({ table, id, patch }),
-        () => m.mutate({ table, id, patch }),
+        () => patchListCaches(qc, table, { id, ...patch }),
         successMsg,
       ),
     /** yumuşak silme */
-    remove: (id: string, successMsg = "Silindi") =>
-      runOrQueue(
-        () => m.mutateAsync({ table, id, patch: { deleted_at: new Date().toISOString() } }),
-        () => m.mutate({ table, id, patch: { deleted_at: new Date().toISOString() } }),
+    remove: (id: string, successMsg = "Silindi") => {
+      const patch = { deleted_at: new Date().toISOString() };
+      return runOrQueue(
+        qc,
+        { kind: "update", table, id, patch },
+        () => m.mutateAsync({ table, id, patch }),
+        () => patchListCaches(qc, table, { id, ...patch }),
         successMsg,
-      ),
+      );
+    },
   };
 }
 
@@ -263,12 +366,17 @@ export function useRpc<T = unknown>(fn: FnName, optimistic?: (qc: QueryClient, a
   });
   return {
     isPending: m.isPending,
-    call: (args: Record<string, unknown>, successMsg?: string) =>
-      runOrQueue<T>(
-        () => m.mutateAsync({ fn, args }) as Promise<T>,
-        () => m.mutate({ fn, args }),
+    call: (args: Record<string, unknown>, successMsg?: string) => {
+      // stok düzeltme tekrar gönderilirse çift hareket olmasın: kimliği burada sabitle
+      const a = fn === "adjust_stock" && !args.p_id ? { ...args, p_id: newId() } : args;
+      return runOrQueue<T>(
+        qc,
+        { kind: "rpc", fn, args: a },
+        () => m.mutateAsync({ fn, args: a }) as Promise<T>,
+        () => optimistic?.(qc, a),
         successMsg,
-      ),
+      );
+    },
   };
 }
 
@@ -276,13 +384,16 @@ export { patchListCaches };
 
 /** Bekleyen (gönderilmemiş) değişiklik sayısı */
 export function usePendingSync() {
-  const qc = useQueryClient();
-  return React.useSyncExternalStore(
-    (cb) => qc.getMutationCache().subscribe(cb),
-    () => qc.getMutationCache().getAll().filter((m) => m.state.isPaused || m.state.status === "pending").length,
-    () => 0,
-  );
+  return React.useSyncExternalStore(outbox.subscribe, () => outbox.snapshot().length, () => 0);
 }
+
+/** Giden kutusundaki kayıtlar (durum göstergesi için) */
+export function useOutbox() {
+  const items = React.useSyncExternalStore(outbox.subscribe, outbox.snapshot, () => EMPTY);
+  const flushing = React.useSyncExternalStore(outbox.subscribe, outbox.flushing, () => false);
+  return { items, flushing };
+}
+const EMPTY: never[] = [];
 
 // ---------------------------------------------------------------------------
 // Sık kullanılan listeler

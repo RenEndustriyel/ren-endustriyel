@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown";
 import { formatLongDate } from "@/lib/format";
 import { NotificationsMenu } from "./notifications-menu";
+import { OutboxStatus } from "./outbox-status";
 
 function getInitials(name: string) {
   return name
@@ -150,6 +151,7 @@ export function Topbar() {
         </button>
 
         {/* Bildirimler (Pusulam: kritik stok, vadesi geçenler) */}
+        <OutboxStatus />
         <NotificationsMenu />
 
         {/* Koyu / Açık Mod Geçişi */}
