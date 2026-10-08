@@ -31,6 +31,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ContactForm } from "./contact-form";
 import { cn } from "@/lib/utils";
 import { textMatches } from "@/lib/search";
+import { useScrollRestore, useSessionState } from "@/lib/use-session-state";
 
 type FilterStatus = "all" | "has_balance" | "debt" | "credit";
 type SortField = "name" | "balance" | "city";
@@ -42,8 +43,9 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
   const balancesQuery = useContactBalances();
   const updateContact = useUpdate("contacts");
 
-  const [q, setQ] = React.useState("");
-  const [limit, setLimit] = React.useState(50);
+  const [q, setQ] = useSessionState(`cariler:${kind}:arama`, "");
+  const [limit, setLimit] = useSessionState(`cariler:${kind}:limit`, 50);
+  useScrollRestore(`cariler:${kind}`, !!contactsQuery.data);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const [newModalOpen, setNewModalOpen] = React.useState(false);
@@ -70,7 +72,7 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
     }
   };
 
-  const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("all");
+  const [filterStatus, setFilterStatus] = useSessionState<FilterStatus>(`cariler:${kind}:filtre`, "all");
   const [sortField, setSortField] = React.useState<SortField>("name");
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
 

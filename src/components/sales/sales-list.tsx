@@ -29,6 +29,7 @@ import {
 } from "@/components/documents/pusulam-doc-list";
 import { toast } from "sonner";
 import { textMatches } from "@/lib/search";
+import { useSessionState } from "@/lib/use-session-state";
 
 type Doc = Row<"documents"> & {
   contact: { name: string; phone?: string | null; email?: string | null } | null;
@@ -367,8 +368,8 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
     tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices" ? tabFromUrl : initialTab,
   );
   const [view, setView] = React.useState<SalesView>("documents");
-  const [q, setQ] = React.useState("");
-  const [period, setPeriod] = React.useState<Period>("all");
+  const [q, setQ] = useSessionState(`satislar:${initialTab}:arama`, "");
+  const [period, setPeriod] = useSessionState<Period>(`satislar:${initialTab}:donem`, "all");
 
   // Panelden gelen tarih aralığı (?baslangic=YYYY-MM-DD&bitis=YYYY-MM-DD)
   const isDay = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);

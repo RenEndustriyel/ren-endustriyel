@@ -29,6 +29,7 @@ import { SupplierSelectModal, type SupplierItem } from "./supplier-select-modal"
 import { PurchaseInvoiceModal } from "./purchase-invoice-modal";
 import { toast } from "sonner";
 import { textMatches } from "@/lib/search";
+import { useSessionState } from "@/lib/use-session-state";
 
 type Doc = Row<"documents"> & {
   contact: { name: string; phone?: string | null; email?: string | null } | null;
@@ -406,8 +407,8 @@ export function PurchasesList({ initialTab = "invoices" }: { initialTab?: AlisTa
     tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices" ? tabFromUrl : initialTab,
   );
 
-  const [q, setQ] = React.useState("");
-  const [period, setPeriod] = React.useState<Period>("all");
+  const [q, setQ] = useSessionState(`alislar:${initialTab}:arama`, "");
+  const [period, setPeriod] = useSessionState<Period>(`alislar:${initialTab}:donem`, "all");
 
   // Yeni belge akışı: Tedarikçi seç → Yeni Alış Belgesi
   const [supplierModalOpen, setSupplierModalOpen] = React.useState(false);

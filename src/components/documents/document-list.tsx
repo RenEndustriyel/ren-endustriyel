@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Stat } from "@/components/ui/stat";
 import { cn } from "@/lib/utils";
+import { useSessionState } from "@/lib/use-session-state";
 
 type Doc = Row<"documents"> & { contact: { name: string } | null; category: { name: string } | null };
 
@@ -47,8 +48,8 @@ export function DocumentList({ type, title, newLabel }: { type: DocType; title?:
   const router = useRouter();
   const cfg = DOC_TYPES[type];
   const { org, canWrite } = useOrg();
-  const [q, setQ] = React.useState("");
-  const [period, setPeriod] = React.useState<Period>("year");
+  const [q, setQ] = useSessionState(`belgeler:${type}:arama`, "");
+  const [period, setPeriod] = useSessionState<Period>(`belgeler:${type}:donem`, "year");
   const [custom, setCustom] = React.useState({ from: `${new Date().getFullYear()}-01-01`, to: isoDate() });
   const [status, setStatus] = React.useState<string>("all");
   const range = periodRange(period, custom);

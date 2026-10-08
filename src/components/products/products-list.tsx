@@ -45,6 +45,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ui/confirm";
 import { toast } from "sonner";
 import { textMatches } from "@/lib/search";
+import { useScrollRestore, useSessionState } from "@/lib/use-session-state";
 
 type Product = Row<"products">;
 
@@ -120,7 +121,7 @@ export function ProductsList() {
 
   // Tabs: "products" | "brands" | "catalogs"
   const tabParam = searchParams?.get("tab");
-  const [activeTab, setActiveTab] = React.useState<"products" | "brands" | "catalogs">("products");
+  const [activeTab, setActiveTab] = useSessionState<"products" | "brands" | "catalogs">("urunler:sekme", "products");
 
   React.useEffect(() => {
     if (tabParam === "brands" || tabParam === "catalogs" || tabParam === "products") {
@@ -183,12 +184,14 @@ export function ProductsList() {
   }, []);
 
   // View: "list" | "card"
-  const [viewMode, setViewMode] = React.useState<"list" | "card">("list");
+  const [viewMode, setViewMode] = useSessionState<"list" | "card">("urunler:gorunum", "list");
 
   // Search & Filter
-  const [q, setQ] = React.useState("");
-  const [sortBy, setSortBy] = React.useState<string>("name:asc");
-  const [pageCount, setPageCount] = React.useState(1);
+  // Ürüne girip geri dönünce arama, sıralama ve sayfa aynı kalsın
+  const [q, setQ] = useSessionState("urunler:arama", "");
+  const [sortBy, setSortBy] = useSessionState<string>("urunler:siralama", "name:asc");
+  const [pageCount, setPageCount] = useSessionState("urunler:sayfa", 1);
+  useScrollRestore("urunler", !!products.data);
   const pageSize = 50;
 
   // Slide Selection Mode

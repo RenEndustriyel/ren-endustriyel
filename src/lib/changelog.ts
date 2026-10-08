@@ -14,9 +14,18 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.6.0";
+export const LATEST_VERSION = "2.6.1";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.6.1",
+    date: "8 Ekim 2026",
+    title: "Listeler Kaldığı Yerden Açılır",
+    badge: "Pratik",
+    items: [
+      { type: "iyilestirme", title: "Arama ve filtre korunur", description: "Ürünler, müşteriler/tedarikçiler, satış/alış ve belge listelerinde arama, filtre, dönem, sıralama ve görünüm; bir kayda girip geri dönünce aynı kalır. Ürün ve cari listelerinde kaydırma konumu da korunur. Program kapanınca sıfırlanır." },
+    ],
+  },
   {
     version: "2.6.0",
     date: "8 Ekim 2026",
