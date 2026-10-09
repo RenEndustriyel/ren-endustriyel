@@ -492,6 +492,11 @@ export function ProductsList() {
                   <span>Toplu Resim</span>
                 </button>
 
+                <button type="button" onClick={() => router.push("/urunler/resim-onerileri")} className="btn-ghost">
+                  <Images size={16} />
+                  <span>Resim Önerileri</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setImportOpen(true)}

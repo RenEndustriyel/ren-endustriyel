@@ -14,9 +14,16 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.1";
+export const LATEST_VERSION = "2.7.2";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.2",
+    date: "9 Ekim 2026",
+    title: "Ürün Resmi Önerileri",
+    badge: "Ürünler",
+    items: [{ type: "yeni", title: "Resim önerileri ekranı", description: "Ürünler > Resim Önerileri: üreticinin resmi sitesinden bulunan ürün görselleri onayınıza sunulur; Onayla ile ürün kartına ve kataloğa eklenir, Uygun değil ile gizlenir. İlk parti: Domestos, Cif, Yumoş, Omo profesyonel ürünleri (13 ürün)." }],
+  },
   {
     version: "2.7.1",
     date: "9 Ekim 2026",
