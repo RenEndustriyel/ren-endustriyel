@@ -14,9 +14,19 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.6.3";
+export const LATEST_VERSION = "2.7.0";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.0",
+    date: "9 Ekim 2026",
+    title: "Yeni Tanıtım Sayfası",
+    badge: "Web sitesi",
+    items: [
+      { type: "yeni", title: "Ren Endüstriyel tanıtım sayfası", description: "Ana sayfa toptan ve perakende endüstriyel temizlik ve kağıt ürünleri için yenilendi: ürün grupları, markalar, hizmet verilen kurumlar, neden Ren, teklif formu, telefon / WhatsApp / e-posta. Mobil uyumlu, arama motorlarına uygun." },
+      { type: "iyilestirme", title: "Fiyatsız katalog", description: "Ürün kataloğunda fiyatlar gösterilmez; Stok durumu (stokta var / tükendi) de gösterilmez. WhatsApp sipariş mesajı fiyat ve stok bilgisi ister ve doğrudan firma numarasına gider." },
+    ],
+  },
   {
     version: "2.6.3",
     date: "9 Ekim 2026",

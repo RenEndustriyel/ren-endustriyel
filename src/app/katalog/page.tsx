@@ -4,7 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { Package, Search, Phone, Mail, MapPin, MessageCircle, ExternalLink, Share2, Check, ArrowLeft } from "lucide-react";
 import { useCategories, useProducts, useUnits, type Row } from "@/lib/data";
-import { formatMoney, formatQty } from "@/lib/format";
+import { formatQty } from "@/lib/format";
+import { CONTACT } from "@/components/landing/contact";
 import { matches } from "@/components/ui/search-input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -45,9 +46,9 @@ export default function PublicCatalogPage() {
 
   const handleWhatsAppOrder = (p: Row<"products">) => {
     const text = encodeURIComponent(
-      `Merhaba Ren Endüstriyel,\nOnline kataloğunuzdan ürün siparişi vermek istiyorum:\n\n*Ürün:* ${p.name}\n*Kod/Barkod:* ${p.code || p.barcode || "—"}\n*Fiyat:* ${formatMoney(p.sale_price, p.sale_currency)} (KDV ${p.sale_price_includes_vat ? "Dahil" : "Hariç"})\n\nStok ve teslimat durumu hakkında bilgi alabilir miyim?`
+      `Merhaba Ren Endüstriyel,\nOnline kataloğunuzdan ürün siparişi vermek istiyorum:\n\n*Ürün:* ${p.name}\n*Kod/Barkod:* ${p.code || p.barcode || "—"}\n\nFiyat, stok ve teslimat bilgisi alabilir miyim?`
     );
-    window.open(`https://wa.me/?text=${text}`, "_blank");
+    window.open(`https://wa.me/${CONTACT.whatsapp}?text=${text}`, "_blank");
   };
 
   return (
@@ -168,8 +169,6 @@ export default function PublicCatalogPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {filtered.map((p) => {
-              const inStock = !p.track_stock || p.type === "service" || Number(p.stock_qty) > 0;
-              const price = Number(p.sale_price) || 0;
               const catTitle = catName(p.category_id);
 
               return (
@@ -183,7 +182,7 @@ export default function PublicCatalogPage() {
                       <Package className="size-12 opacity-40 text-slate-600 dark:text-slate-300" />
                     </div>
 
-                    {/* Kategori ve Stok Rozeti */}
+                    {/* Kategori */}
                     <div className="mb-1.5 flex items-center justify-between gap-1 text-[11px]">
                       {catTitle ? (
                         <span className="truncate rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 font-medium text-slate-600 dark:text-slate-300">
@@ -191,16 +190,6 @@ export default function PublicCatalogPage() {
                         </span>
                       ) : (
                         <span className="text-slate-400">Ürün</span>
-                      )}
-
-                      {inStock ? (
-                        <span className="rounded bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-[10.5px] font-bold text-slate-800 dark:text-slate-200">
-                          Stokta Var
-                        </span>
-                      ) : (
-                        <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-rose-600 dark:text-rose-400">
-                          Tükendi
-                        </span>
                       )}
                     </div>
 
@@ -218,14 +207,6 @@ export default function PublicCatalogPage() {
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                    <div className="mb-2.5 flex items-baseline justify-between">
-                      <span className="text-lg font-black text-slate-900 dark:text-slate-100 tabular-nums">
-                        {formatMoney(price, p.sale_currency)}
-                      </span>
-                      <span className="text-[10.5px] text-slate-400">
-                        {p.sale_price_includes_vat ? "KDV Dahil" : "KDV Hariç"}
-                      </span>
-                    </div>
 
                     <button
                       type="button"
