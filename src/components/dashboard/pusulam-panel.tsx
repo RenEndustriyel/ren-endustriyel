@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useCiroCompare } from "@/components/reports/turnover";
 import {
   ArrowLeftRight,
   CalendarClock,
@@ -197,6 +198,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
   const { hidden, formatMoney, formatCompact } = useFmt();
   const router = useRouter();
   const [mode, setMode] = React.useState<ChartMode>("daily");
+  const compare = useCiroCompare();
 
   const points = React.useMemo<ChartPoint[]>(() => {
     const daily = (data?.sales_daily ?? []).map((d) => ({ date: String(d.date).slice(0, 10), amount: Number(d.amount) || 0 }));
@@ -284,11 +286,43 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </Link>
         </div>
       </div>
-      <div className={cn("h-[220px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
+      {/* Dün / geçen hafta / geçen ay / geçen yıla göre artış-azalış */}
+      <div className={cn("mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4", hidden && "blur-md select-none")}>
+        {compare.items.map((c) => {
+          const up = c.change != null && c.change >= 0;
+          return (
+            <Link
+              key={c.key}
+              href="/raporlar"
+              className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40"
+              title={`Önceki dönem: ${formatMoney(c.prev)}`}
+            >
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">{c.label}</div>
+              <div className="text-base font-extrabold tabular-nums">{compare.ready ? formatMoney(c.cur) : "…"}</div>
+              <div
+                className={cn(
+                  "flex items-center gap-1 text-xs font-semibold",
+                  c.change == null ? "text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                )}
+              >
+                {c.change == null ? (
+                  "karşılaştırma yok"
+                ) : (
+                  <>
+                    <span aria-hidden>{up ? "▲" : "▼"}</span>%{Math.abs(c.change).toFixed(1).replace(".", ",")}
+                    <span className="truncate font-normal text-slate-500 dark:text-slate-400">{c.vs}</span>
+                  </>
+                )}
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+      <div className={cn("h-[240px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={points}
-            margin={{ top: 6, right: 8, bottom: 0, left: 0 }}
+            margin={{ top: 22, right: 16, bottom: 0, left: 0 }}
             onClick={(state) => {
               const idx = Number((state as { activeTooltipIndex?: number | string } | null)?.activeTooltipIndex);
               if (Number.isFinite(idx)) openPoint(points[idx]);
@@ -308,7 +342,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
               tick={{ fontSize: 11, fill: "#94a3b8" }}
               axisLine={false}
               tickLine={false}
-              width={44}
+              width={62}
               allowDecimals={false}
             />
             <Tooltip
@@ -332,7 +366,18 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
               fill="url(#salesFill)"
               fillOpacity={0.6}
               activeDot={{ r: 5, onClick: (_e: unknown, p: unknown) => openPoint((p as { payload?: ChartPoint })?.payload) }}
-            />
+              dot={{ r: 2.5, fill: "#0f9b8e", strokeWidth: 0 }}
+            >
+              {/* noktaların üstünde tutar (kısa biçim) */}
+              <LabelList
+                dataKey="amount"
+                position="top"
+                offset={8}
+                className="fill-slate-600 dark:fill-slate-300"
+                style={{ fontSize: 10, fontWeight: 600 }}
+                formatter={(v: unknown) => (Number(v) > 0 ? formatCompact(Number(v)) : "")}
+              />
+            </Area>
           </AreaChart>
         </ResponsiveContainer>
       </div>

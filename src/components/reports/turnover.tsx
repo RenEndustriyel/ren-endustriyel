@@ -51,19 +51,41 @@ const sgn = (d: { doc_type: string }) => (d.doc_type === "sales_return" ? -1 : 1
 const gross = (d: Doc) => Number(d.total_try ?? Number(d.total) * Number(d.exchange_rate || 1));
 const netOf = (d: Doc) => Number(d.net_total ?? 0) * Number(d.exchange_rate || 1);
 
-/** Genel ciro: dönem kartları + seçili dönemin ayrıntısı */
-export function TurnoverReport() {
-  const { org } = useOrg();
+/** Ciro belgeleri ve dönemler (rapor ve ana sayfa aynı sorguyu paylaşır) */
+function useCiroDocs() {
   const ranges = React.useMemo(() => buildRanges(new Date()), []);
-  const [sel, setSel] = React.useState("month");
-  const r = ranges.find((x) => x.key === sel)!;
   const earliest = ranges[ranges.length - 1].prevFrom;
-
   const docs = useRows<Doc>("documents", {
     select: "id, doc_type, issue_date, total, total_try, net_total, exchange_rate",
     params: ["ciro", earliest],
     filter: (q) => q.in("doc_type", ["sales_invoice", "pos_sale", "sales_return"]).gte("issue_date", earliest).not("status", "in", '("draft","cancelled")'),
   });
+  return { ranges, docs };
+}
+
+/** Ana sayfa: bugün / bu hafta / bu ay / bu yıl cirosu ve önceki aynı döneme göre değişim (KDV dahil, iadeler düşülür) */
+export function useCiroCompare() {
+  const { ranges, docs } = useCiroDocs();
+  return React.useMemo(() => {
+    const sum = (from: string, to: string) =>
+      (docs.data ?? []).filter((d) => d.issue_date >= from && d.issue_date <= to).reduce((s, d) => s + sgn(d) * gross(d), 0);
+    const items = ranges
+      .filter((r) => ["today", "week", "month", "year"].includes(r.key))
+      .map((r) => {
+        const cur = sum(r.from, r.to);
+        const prev = sum(r.prevFrom, r.prevTo);
+        return { key: r.key, label: r.label, vs: r.vs, cur, prev, change: prev ? ((cur - prev) / Math.abs(prev)) * 100 : null };
+      });
+    return { ready: !!docs.data, items };
+  }, [docs.data, ranges]);
+}
+
+/** Genel ciro: dönem kartları + seçili dönemin ayrıntısı */
+export function TurnoverReport() {
+  const { org } = useOrg();
+  const { ranges, docs } = useCiroDocs();
+  const [sel, setSel] = React.useState("month");
+  const r = ranges.find((x) => x.key === sel)!;
   const lines = useRows<Line>("document_lines", {
     select: "net_amount, vat_amount, vat_rate, document:documents!inner(doc_type, issue_date, exchange_rate, status, deleted_at)",
     softDelete: false,

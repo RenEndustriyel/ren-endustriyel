@@ -23,13 +23,14 @@ export async function reconcileContactAllocations(orgId: string): Promise<number
     const txnIds = txns.map((t) => t.id);
     const { data: existingAllocs, error: allocErr } = await supabase
       .from("payment_allocations")
-      .select("transaction_id, amount")
+      .select("transaction_id, document_id, amount")
       .eq("org_id", orgId)
       .in("transaction_id", txnIds);
 
     if (allocErr) return 0;
 
     const allocatedMap = new Map<string, number>();
+    const pairs = new Set((existingAllocs || []).map((a) => a.transaction_id + ":" + a.document_id));
     for (const a of existingAllocs || []) {
       allocatedMap.set(a.transaction_id, (allocatedMap.get(a.transaction_id) ?? 0) + Number(a.amount));
     }
@@ -102,7 +103,7 @@ export async function reconcileContactAllocations(orgId: string): Promise<number
       for (const doc of contactDocs) {
         if (unallocated <= 0.009) break;
         const currentRemaining = docRemainingMap.get(doc.id) ?? 0;
-        if (currentRemaining <= 0.009) continue;
+        if (currentRemaining <= 0.009 || pairs.has(txn.id + ":" + doc.id)) continue;
 
         const toAllocate = Math.round(Math.min(unallocated, currentRemaining) * 100) / 100;
         if (toAllocate > 0) {
@@ -122,7 +123,10 @@ export async function reconcileContactAllocations(orgId: string): Promise<number
     if (newAllocations.length === 0) return 0;
 
     // Eşleştirmeleri kaydet (DB trigger'ı otomatik olarak documents.paid_amount günceller)
-    const { error: insertErr } = await supabase.from("payment_allocations").insert(newAllocations);
+    // aynı hareket–belge çifti zaten varsa atla (benzersiz kısıt); diğer eşleşmeler yine kaydedilir
+    const { error: insertErr } = await supabase
+      .from("payment_allocations")
+      .upsert(newAllocations, { onConflict: "transaction_id,document_id", ignoreDuplicates: true });
     if (insertErr) {
       console.warn("Otomatik tahsilat/ödeme eşleştirmesi kaydedilemedi:", insertErr);
       return 0;

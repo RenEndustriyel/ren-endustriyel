@@ -102,7 +102,57 @@ export function ExportMenu({ items }: { items: MenuItem[] }) {
   );
 }
 
-export type Period = "all" | "today" | "7" | "30";
+export type Period = "all" | "today" | "yesterday" | "week" | "lastweek" | "7" | "30" | "month" | "lastmonth" | "year" | "lastyear";
+
+const PERIOD_OPTIONS: { value: Period; label: string }[] = [
+  { value: "all", label: "Tüm tarihler" },
+  { value: "today", label: "Bugün" },
+  { value: "yesterday", label: "Dün" },
+  { value: "week", label: "Bu hafta" },
+  { value: "lastweek", label: "Geçen hafta" },
+  { value: "7", label: "Son 7 gün" },
+  { value: "30", label: "Son 30 gün" },
+  { value: "month", label: "Bu ay" },
+  { value: "lastmonth", label: "Geçen ay" },
+  { value: "year", label: "Bu yıl" },
+  { value: "lastyear", label: "Geçen yıl" },
+];
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Dönemin tarih aralığı [başlangıç, bitiş] (YYYY-MM-DD); "all" için null */
+export function periodRange(period: Period, today: string): [string, string] | null {
+  const [y, m, d] = today.split("-").map(Number);
+  const t = new Date(y, m - 1, d);
+  const add = (n: number) => new Date(y, m - 1, d + n);
+  const mon = add(-((t.getDay() + 6) % 7)); // Pazartesi
+  switch (period) {
+    case "all":
+      return null;
+    case "today":
+      return [today, today];
+    case "yesterday":
+      return [ymd(add(-1)), ymd(add(-1))];
+    case "week":
+      return [ymd(mon), today];
+    case "lastweek":
+      return [ymd(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() - 7)), ymd(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() - 1))];
+    case "7":
+      return [ymd(add(-6)), today];
+    case "30":
+      return [ymd(add(-29)), today];
+    case "month":
+      return [ymd(new Date(y, m - 1, 1)), today];
+    case "lastmonth":
+      return [ymd(new Date(y, m - 2, 1)), ymd(new Date(y, m - 1, 0))];
+    case "year":
+      return [`${y}-01-01`, today];
+    case "lastyear":
+      return [`${y - 1}-01-01`, `${y - 1}-12-31`];
+    default:
+      return null;
+  }
+}
 
 export function PeriodSelect({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
   return (
@@ -112,23 +162,21 @@ export function PeriodSelect({ value, onChange }: { value: Period; onChange: (p:
       value={value}
       onChange={(e) => onChange(e.target.value as Period)}
     >
-      <option value="all">Tüm tarihler</option>
-      <option value="today">Bugün</option>
-      <option value="7">Son 7 gün</option>
-      <option value="30">Son 30 gün</option>
+      {PERIOD_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
     </select>
   );
 }
 
 /** "YYYY-MM-DD" seçilen döneme giriyor mu */
 export function inPeriod(date: string, period: Period, today: string): boolean {
-  if (period === "all") return true;
+  const r = periodRange(period, today);
+  if (!r) return true;
   const day = String(date).slice(0, 10);
-  if (period === "today") return day === today;
-  const d = new Date(today);
-  d.setDate(d.getDate() - Number(period) + 1);
-  const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return day >= from && day <= today;
+  return day >= r[0] && day <= r[1];
 }
 
 export function TypeTabs<T extends string>({

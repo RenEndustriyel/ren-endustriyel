@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.6.1";
+export const LATEST_VERSION = "2.6.2";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.6.2",
+    date: "9 Ekim 2026",
+    title: "Satış Grafiği ve Satış Listesi",
+    badge: "Satış",
+    items: [
+      { type: "yeni", title: "Grafikte rakamlar ve karşılaştırma", description: "Ana sayfadaki satış grafiğinde her noktanın tutarı yazar; üstte bugün (düne göre), bu hafta (geçen haftanın aynı günlerine göre), bu ay (geçen ayın aynı günlerine göre) ve bu yıl (geçen yılın aynı dönemine göre) artış/azalış gösterilir." },
+      { type: "iyilestirme", title: "Satışlarda Tümü / Faturalar / Perakende", description: "Belgeler yerine Faturalar, Kasa fişleri yerine Perakende; yeni Tümü görünümü fatura ve perakende satışları birlikte gösterir. Listenin üstünde kayıt sayısı ve toplam tutar." },
+      { type: "iyilestirme", title: "Daha fazla tarih seçeneği", description: "Satış ve alış listelerinde Bugün, Dün, Bu hafta, Geçen hafta, Son 7/30 gün, Bu ay, Geçen ay, Bu yıl, Geçen yıl. Satışlar her açılışta Bugün ile başlar." },
+      { type: "duzeltme", title: "Otomatik eşleştirme takılması", description: "Zaten var olan tahsilat–fatura eşleşmesi yeniden eklenmeye çalışıldığında tüm eşleştirme turu kaydedilemiyordu; artık atlanır." },
+    ],
+  },
   {
     version: "2.6.1",
     date: "8 Ekim 2026",

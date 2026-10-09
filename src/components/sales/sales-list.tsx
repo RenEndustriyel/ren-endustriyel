@@ -354,7 +354,7 @@ const DEFAULT_SALES_DOCS: Doc[] = [
   } as any,
 ];
 
-type SalesView = "documents" | "pos" | "cancelled";
+type SalesView = "all" | "documents" | "pos" | "cancelled";
 
 export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }) {
   const router = useRouter();
@@ -367,9 +367,9 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
   const [activeTab, setActiveTab] = React.useState<SatisTab>(
     tabFromUrl === "orders" || tabFromUrl === "waybills" || tabFromUrl === "invoices" ? tabFromUrl : initialTab,
   );
-  const [view, setView] = React.useState<SalesView>("documents");
+  const [view, setView] = useSessionState<SalesView>("satislar:gorunum", "all");
   const [q, setQ] = useSessionState(`satislar:${initialTab}:arama`, "");
-  const [period, setPeriod] = useSessionState<Period>(`satislar:${initialTab}:donem`, "all");
+  const [period, setPeriod] = useSessionState<Period>(`satislar:${initialTab}:tarih`, "today");
 
   // Panelden gelen tarih aralığı (?baslangic=YYYY-MM-DD&bitis=YYYY-MM-DD)
   const isDay = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
@@ -429,6 +429,7 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
     return allRows.filter((d) => {
       if (activeTab === "invoices") {
         const cancelled = d.status === "cancelled";
+        if (view === "all" && cancelled) return false;
         if (view === "cancelled" && !cancelled) return false;
         if (view === "documents" && (cancelled || d.doc_type === "pos_sale")) return false;
         if (view === "pos" && (cancelled || d.doc_type !== "pos_sale")) return false;
@@ -454,7 +455,7 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
     (d.doc_type === "pos_sale" ? "Perakende Müşteri" : "Cari seçilmedi");
   const kindOf = (d: Doc) =>
     d.doc_type === "pos_sale"
-      ? "Kasa Fişi"
+      ? "Perakende Satış"
       : d.doc_type === "sales_delivery" || d.doc_type === "sales_waybill"
         ? "İrsaliye"
         : "Sipariş Fişi";
@@ -572,8 +573,9 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
   };
 
   const views: { id: SalesView; label: string }[] = [
-    { id: "documents", label: "Belgeler" },
-    { id: "pos", label: "Kasa fişleri (gün gün)" },
+    { id: "all", label: "Tümü" },
+    { id: "documents", label: "Faturalar" },
+    { id: "pos", label: "Perakende" },
     { id: "cancelled", label: "İptal edilenler" },
   ];
 
@@ -642,6 +644,15 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
           </button>
         )}
       </div>
+
+      {filteredRows.length > 0 && (
+        <div className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+          <b className="text-slate-900 dark:text-white">{filteredRows.length}</b> kayıt · toplam{" "}
+          <b className="text-slate-900 dark:text-white tabular-nums">
+            {formatMoney(filteredRows.filter((d) => d.status !== "cancelled").reduce((t, d) => t + Number(d.total_try ?? Number(d.total) * Number(d.exchange_rate || 1)), 0))}
+          </b>
+        </div>
+      )}
 
       <div className="space-y-2.5">
         {filteredRows.length === 0 ? (
