@@ -14,9 +14,16 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.6.2";
+export const LATEST_VERSION = "2.6.3";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.6.3",
+    date: "9 Ekim 2026",
+    title: "Çıktıda Kalem Numarası",
+    badge: "Çıktı",
+    items: [{ type: "iyilestirme", title: "Numaradan sonra tire", description: "Satış notu / fiş çıktısında kalemler \"1 - ÜRÜN ADI\" biçiminde numaralanır." }],
+  },
   {
     version: "2.6.2",
     date: "9 Ekim 2026",

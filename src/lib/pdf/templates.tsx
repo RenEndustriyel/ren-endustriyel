@@ -505,7 +505,7 @@ export function SalesNotePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg }) {
         </View>
         {doc.lines.map((l, i) => (
           <View key={i} style={{ flexDirection: "row" }} wrap={false}>
-            <Text style={[sn.td, { width: "44%" }]}>{i + 1} {l.description}</Text>
+            <Text style={[sn.td, { width: "44%" }]}>{i + 1} - {l.description}</Text>
             <Text style={[sn.td, { width: "14%", textAlign: "right" }]}>{qf(l.quantity)} {l.unit || "ad"}</Text>
             <Text style={[sn.td, { width: "14%", textAlign: "right" }]}>{nf(l.unit_price)} ₺</Text>
             <Text style={[sn.td, { width: "12%", textAlign: "right" }]}>%{Number(l.discount_rate || 0).toFixed(2)}</Text>
