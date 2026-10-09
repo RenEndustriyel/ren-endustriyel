@@ -14,9 +14,16 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.2";
+export const LATEST_VERSION = "2.7.3";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.3",
+    date: "9 Ekim 2026",
+    title: "Kurumsal Web Sitesi",
+    badge: "Web",
+    items: [{ type: "yeni", title: "renendustriyel.com.tr kurumsal site", description: "Ana sayfa, Kurumsal, Ürün Grupları, Sektörel Çözümler (8 sektör), Markalar, Hijyen Rehberi (blog) ve İletişim/Teklif sayfaları; adres ve harita, site haritası ve Google için arama ayarları." }],
+  },
   {
     version: "2.7.2",
     date: "9 Ekim 2026",
