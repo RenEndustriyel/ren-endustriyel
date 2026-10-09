@@ -178,8 +178,13 @@ export default function PublicCatalogPage() {
                 >
                   <div>
                     {/* Ürün Görseli veya İkon */}
-                    <div className="mb-3 flex h-36 w-full items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:scale-[1.02] transition-transform">
-                      <Package className="size-12 opacity-40 text-slate-600 dark:text-slate-300" />
+                    <div className="mb-3 flex h-36 w-full items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-slate-800 text-slate-400 group-hover:scale-[1.02] transition-transform">
+                      {p.image_path ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.image_path} alt={p.name} loading="lazy" className="h-full w-full object-contain p-2" />
+                      ) : (
+                        <Package className="size-12 opacity-40 text-slate-600 dark:text-slate-300" />
+                      )}
                     </div>
 
                     {/* Kategori */}

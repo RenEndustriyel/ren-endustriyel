@@ -14,9 +14,16 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.0";
+export const LATEST_VERSION = "2.7.1";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.1",
+    date: "9 Ekim 2026",
+    title: "Katalogda Ürün Resimleri",
+    badge: "Katalog",
+    items: [{ type: "yeni", title: "Ürün resimleri", description: "Resmi eklenen ürünler katalogda resimleriyle görünür. İlk resim: Domestos Pro Çamaşır Suyu 5 L (üreticinin resmi sitesinden)." }],
+  },
   {
     version: "2.7.0",
     date: "9 Ekim 2026",
