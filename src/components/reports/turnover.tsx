@@ -63,8 +63,37 @@ function useCiroDocs() {
   return { ranges, docs };
 }
 
-/** Ana sayfa: bugün / bu hafta / bu ay / bu yıl cirosu ve önceki aynı döneme göre değişim (KDV dahil, iadeler düşülür) */
-export function useCiroCompare() {
+export type DailyAverageItem = {
+  key: string;
+  label: string;
+  days: number;
+  totalSales: number;
+  dailyAvg: number;
+  compLabel?: string;
+  compDailyAvg?: number;
+  change?: number | null;
+  projected?: number;
+  from: string;
+  to: string;
+};
+
+export type CiroDailyAverages = {
+  thisMonth: DailyAverageItem;
+  lastMonth: DailyAverageItem;
+  thisWeek: DailyAverageItem;
+  lastWeek: DailyAverageItem;
+  today: { total: number; diffFromMonthAvg: number | null };
+  yesterday: { total: number };
+};
+
+export type CiroCompareData = {
+  ready: boolean;
+  items: Array<{ key: string; label: string; vs: string; cur: number; prev: number; change: number | null }>;
+  dailyAverages: CiroDailyAverages;
+};
+
+/** Ana sayfa: bugün / bu hafta / bu ay / bu yıl cirosu, karşılaştırmalar ve günlük satış ortalamaları */
+export function useCiroCompare(): CiroCompareData {
   const { ranges, docs } = useCiroDocs();
   return React.useMemo(() => {
     const sum = (from: string, to: string) =>
@@ -76,7 +105,97 @@ export function useCiroCompare() {
         const prev = sum(r.prevFrom, r.prevTo);
         return { key: r.key, label: r.label, vs: r.vs, cur, prev, change: prev ? ((cur - prev) / Math.abs(prev)) * 100 : null };
       });
-    return { ready: !!docs.data, items };
+
+    const now = new Date();
+    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dow = (t.getDay() + 6) % 7;
+    const dayOfMonth = t.getDate();
+    const daysInFullMonth = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+    const daysInLastMonth = new Date(t.getFullYear(), t.getMonth(), 0).getDate();
+    const daysInWeek = dow + 1;
+
+    const rMonth = ranges.find((r) => r.key === "month")!;
+    const rLastMonth = ranges.find((r) => r.key === "lastmonth")!;
+    const rWeek = ranges.find((r) => r.key === "week")!;
+    const rLastWeek = ranges.find((r) => r.key === "lastweek")!;
+    const rToday = ranges.find((r) => r.key === "today")!;
+    const rYesterday = ranges.find((r) => r.key === "yesterday")!;
+
+    const mSales = sum(rMonth.from, rMonth.to);
+    const mDaily = mSales / Math.max(1, dayOfMonth);
+    const mProjected = mDaily * daysInFullMonth;
+
+    const lmSales = sum(rLastMonth.from, rLastMonth.to);
+    const lmDaily = lmSales / Math.max(1, daysInLastMonth);
+    const mChange = lmDaily > 0 ? ((mDaily - lmDaily) / lmDaily) * 100 : null;
+
+    const wSales = sum(rWeek.from, rWeek.to);
+    const wDaily = wSales / Math.max(1, daysInWeek);
+
+    const lwSales = sum(rLastWeek.from, rLastWeek.to);
+    const lwDaily = lwSales / 7;
+    const wChange = lwDaily > 0 ? ((wDaily - lwDaily) / lwDaily) * 100 : null;
+
+    const tSales = sum(rToday.from, rToday.to);
+    const ySales = sum(rYesterday.from, rYesterday.to);
+    const tDiff = mDaily > 0 ? ((tSales - mDaily) / mDaily) * 100 : null;
+
+    const dailyAverages: CiroDailyAverages = {
+      thisMonth: {
+        key: "this_month",
+        label: "Bu Ay",
+        days: dayOfMonth,
+        totalSales: mSales,
+        dailyAvg: mDaily,
+        compLabel: "Geçen aya göre",
+        compDailyAvg: lmDaily,
+        change: mChange,
+        projected: mProjected,
+        from: rMonth.from,
+        to: rMonth.to,
+      },
+      lastMonth: {
+        key: "last_month",
+        label: "Geçen Ay",
+        days: daysInLastMonth,
+        totalSales: lmSales,
+        dailyAvg: lmDaily,
+        compLabel: "Aylık net ortalama",
+        from: rLastMonth.from,
+        to: rLastMonth.to,
+      },
+      thisWeek: {
+        key: "this_week",
+        label: "Bu Hafta",
+        days: daysInWeek,
+        totalSales: wSales,
+        dailyAvg: wDaily,
+        compLabel: "Geçen haftaya göre",
+        compDailyAvg: lwDaily,
+        change: wChange,
+        from: rWeek.from,
+        to: rWeek.to,
+      },
+      lastWeek: {
+        key: "last_week",
+        label: "Geçen Hafta",
+        days: 7,
+        totalSales: lwSales,
+        dailyAvg: lwDaily,
+        compLabel: "Haftalık net ortalama",
+        from: rLastWeek.from,
+        to: rLastWeek.to,
+      },
+      today: {
+        total: tSales,
+        diffFromMonthAvg: tDiff,
+      },
+      yesterday: {
+        total: ySales,
+      },
+    };
+
+    return { ready: !!docs.data, items, dailyAverages };
   }, [docs.data, ranges]);
 }
 

@@ -14,9 +14,27 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.3";
+export const LATEST_VERSION = "2.7.4";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.4",
+    date: "10 Ekim 2026",
+    title: "Tahsilat/Ödeme Önceliği & Günlük Ciro Akışı",
+    badge: "Panel",
+    items: [
+      {
+        type: "yeni",
+        title: "Ciroda Günlük Satış Ortalamaları & Bilgi Akışı",
+        description: "Ana sayfa ciro ve satış grafiği bölümüne Bu Ay, Geçen Ay, Bu Hafta ve Geçen Hafta için günlük satış ortalamaları (TL/gün), tempo kıyaslaması, ay sonu ciro projeksiyonu ve bugün karşılaştırma akışı eklendi.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Tahsilatlar ve Ödemeler En Üste Alındı",
+        description: "Ana sayfa panelinde yaklaşan ve geciken tahsilat ile ödemeler üst sıraya taşındı; vadesi geçmiş alacak ve borçlar için dikkat çekici uyarı şeridi, acil rozetler ve hızlı filtre eklendi.",
+      },
+    ],
+  },
   {
     version: "2.7.3",
     date: "9 Ekim 2026",

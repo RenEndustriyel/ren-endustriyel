@@ -73,6 +73,14 @@ const shiftDay = (s: string, days: number) => {
   return isoDate(dt);
 };
 
+const dayDiff = (from: string, to: string) => {
+  const [a, b] = [from, to].map((s) => {
+    const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  });
+  return Math.round((b - a) / 86400000);
+};
+
 const monthRange = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
   return { from: isoDate(new Date(y, m - 1, 1)), to: isoDate(new Date(y, m, 0)) };
@@ -105,18 +113,25 @@ const METHOD_LABELS: Record<string, string> = {
 // Alt bileşenler
 // ---------------------------------------------------------------------------
 
-function KpiCard({ href, value, label, gradient }: { href: string; value: number; label: string; gradient: string }) {
+function KpiCard({ href, value, label, gradient, sub }: { href: string; value: number; label: string; gradient: string; sub?: string }) {
   const { formatMoney } = useFmt();
   return (
     <Link
       href={href}
       className={cn(
-        "rounded-2xl px-4 py-3 text-white bg-gradient-to-br shadow-soft min-w-0 overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md",
+        "rounded-2xl px-4 py-3 text-white bg-gradient-to-br shadow-soft min-w-0 overflow-hidden transition hover:-translate-y-0.5 hover:shadow-md flex flex-col justify-between",
         gradient,
       )}
     >
-      <div className="text-lg sm:text-xl font-bold tabular-nums truncate">{formatMoney(value)}</div>
-      <div className="text-xs font-medium opacity-90 mt-0.5 truncate">{label}</div>
+      <div>
+        <div className="text-lg sm:text-xl font-bold tabular-nums truncate">{formatMoney(value)}</div>
+        <div className="text-xs font-medium opacity-90 mt-0.5 truncate">{label}</div>
+      </div>
+      {sub && (
+        <div className="text-[11px] font-semibold opacity-95 mt-1.5 pt-1 border-t border-white/20 truncate">
+          {sub}
+        </div>
+      )}
     </Link>
   );
 }
@@ -252,13 +267,15 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
     { id: "monthly", label: "Aylık" },
   ];
 
+  const [metricView, setMetricView] = React.useState<"average" | "totals">("average");
+
   return (
     <div className="card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <h2 className="font-semibold flex items-center gap-2">
             <ChartColumn size={17} className="text-brand-500" />
-            Satış Grafiği
+            Satış Grafiği & Ciro Temposu
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             {periodLabel} (TL) · Toplam{" "}
@@ -286,38 +303,242 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </Link>
         </div>
       </div>
-      {/* Dün / geçen hafta / geçen ay / geçen yıla göre artış-azalış */}
-      <div className={cn("mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4", hidden && "blur-md select-none")}>
-        {compare.items.map((c) => {
-          const up = c.change != null && c.change >= 0;
-          return (
-            <Link
-              key={c.key}
-              href="/raporlar"
-              className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40"
-              title={`Önceki dönem: ${formatMoney(c.prev)}`}
-            >
-              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">{c.label}</div>
-              <div className="text-base font-extrabold tabular-nums">{compare.ready ? formatMoney(c.cur) : "…"}</div>
-              <div
-                className={cn(
-                  "flex items-center gap-1 text-xs font-semibold",
-                  c.change == null ? "text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
-                )}
+
+      {/* Ciro ve Günlük Satış Ortalamaları Seçimi */}
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 p-0.5 text-xs font-semibold">
+          <button
+            type="button"
+            onClick={() => setMetricView("average")}
+            className={cn(
+              "px-3 py-1 rounded-md transition flex items-center gap-1.5",
+              metricView === "average"
+                ? "bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-300 font-bold shadow-xs"
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200",
+            )}
+          >
+            <span>⚡ Günlük Satış Ortalamaları</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMetricView("totals")}
+            className={cn(
+              "px-3 py-1 rounded-md transition flex items-center gap-1.5",
+              metricView === "totals"
+                ? "bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-300 font-bold shadow-xs"
+                : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200",
+            )}
+          >
+            <span>📊 Dönem Ciroları</span>
+          </button>
+        </div>
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+          {metricView === "average" ? "Günde ortalama yapılan ciro ve tempo" : "Dönem toplamları ve artış/azalış"}
+        </span>
+      </div>
+
+      {/* Metrik Kartları */}
+      {metricView === "average" ? (
+        <div className={cn("mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4", hidden && "blur-md select-none")}>
+          {/* 1. Bu Ay Günlük Ort. */}
+          {compare.dailyAverages && (() => {
+            const m = compare.dailyAverages.thisMonth;
+            const up = m.change != null && m.change >= 0;
+            return (
+              <Link
+                href={salesUrl(m.from, m.to)}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40 min-w-0"
+                title={`Bu ay ${m.days} günde toplam ${formatMoney(m.totalSales)}`}
               >
-                {c.change == null ? (
-                  "karşılaştırma yok"
-                ) : (
-                  <>
-                    <span aria-hidden>{up ? "▲" : "▼"}</span>%{Math.abs(c.change).toFixed(1).replace(".", ",")}
-                    <span className="truncate font-normal text-slate-500 dark:text-slate-400">{c.vs}</span>
-                  </>
+                <div className="flex items-center justify-between gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  <span className="truncate">Bu Ay (Günlük Ort.)</span>
+                  <span className="text-[10px] text-slate-400 tabular-nums shrink-0">{m.days} gün</span>
+                </div>
+                <div className="text-base sm:text-lg font-extrabold tabular-nums mt-0.5 text-brand-600 dark:text-brand-400 truncate">
+                  {compare.ready ? formatMoney(m.dailyAvg) : "…"}
+                  <span className="text-[11px] font-normal text-slate-500 ml-1">/ gün</span>
+                </div>
+                <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                  Toplam: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatMoney(m.totalSales)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-xs font-semibold">
+                  {m.change != null ? (
+                    <span className={cn("flex items-center gap-0.5", up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                      <span aria-hidden>{up ? "▲" : "▼"}</span>%{Math.abs(m.change).toFixed(1).replace(".", ",")}
+                      <span className="font-normal text-slate-500 dark:text-slate-400 ml-0.5">{m.compLabel}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-normal text-slate-400">Karşılaştırma yok</span>
+                  )}
+                </div>
+              </Link>
+            );
+          })()}
+
+          {/* 2. Geçen Ay Günlük Ort. */}
+          {compare.dailyAverages && (() => {
+            const lm = compare.dailyAverages.lastMonth;
+            return (
+              <Link
+                href={salesUrl(lm.from, lm.to)}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40 min-w-0"
+                title={`Geçen ay ${lm.days} günde toplam ${formatMoney(lm.totalSales)}`}
+              >
+                <div className="flex items-center justify-between gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  <span className="truncate">Geçen Ay (Günlük Ort.)</span>
+                  <span className="text-[10px] text-slate-400 tabular-nums shrink-0">{lm.days} gün</span>
+                </div>
+                <div className="text-base sm:text-lg font-extrabold tabular-nums mt-0.5 text-slate-800 dark:text-slate-200 truncate">
+                  {compare.ready ? formatMoney(lm.dailyAvg) : "…"}
+                  <span className="text-[11px] font-normal text-slate-500 ml-1">/ gün</span>
+                </div>
+                <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                  Toplam: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatMoney(lm.totalSales)}</span>
+                </div>
+                <div className="mt-1 text-[11px] font-medium text-slate-500 truncate">
+                  {lm.compLabel}
+                </div>
+              </Link>
+            );
+          })()}
+
+          {/* 3. Bu Hafta Günlük Ort. */}
+          {compare.dailyAverages && (() => {
+            const w = compare.dailyAverages.thisWeek;
+            const up = w.change != null && w.change >= 0;
+            return (
+              <Link
+                href={salesUrl(w.from, w.to)}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40 min-w-0"
+                title={`Bu hafta ${w.days} günde toplam ${formatMoney(w.totalSales)}`}
+              >
+                <div className="flex items-center justify-between gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  <span className="truncate">Bu Hafta (Günlük Ort.)</span>
+                  <span className="text-[10px] text-slate-400 tabular-nums shrink-0">{w.days} gün</span>
+                </div>
+                <div className="text-base sm:text-lg font-extrabold tabular-nums mt-0.5 text-brand-600 dark:text-brand-400 truncate">
+                  {compare.ready ? formatMoney(w.dailyAvg) : "…"}
+                  <span className="text-[11px] font-normal text-slate-500 ml-1">/ gün</span>
+                </div>
+                <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                  Toplam: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatMoney(w.totalSales)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-xs font-semibold">
+                  {w.change != null ? (
+                    <span className={cn("flex items-center gap-0.5", up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                      <span aria-hidden>{up ? "▲" : "▼"}</span>%{Math.abs(w.change).toFixed(1).replace(".", ",")}
+                      <span className="font-normal text-slate-500 dark:text-slate-400 ml-0.5">{w.compLabel}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-normal text-slate-400">Karşılaştırma yok</span>
+                  )}
+                </div>
+              </Link>
+            );
+          })()}
+
+          {/* 4. Geçen Hafta Günlük Ort. */}
+          {compare.dailyAverages && (() => {
+            const lw = compare.dailyAverages.lastWeek;
+            return (
+              <Link
+                href={salesUrl(lw.from, lw.to)}
+                className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40 min-w-0"
+                title={`Geçen hafta 7 günde toplam ${formatMoney(lw.totalSales)}`}
+              >
+                <div className="flex items-center justify-between gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  <span className="truncate">Geçen Hafta (Günlük Ort.)</span>
+                  <span className="text-[10px] text-slate-400 tabular-nums shrink-0">7 gün</span>
+                </div>
+                <div className="text-base sm:text-lg font-extrabold tabular-nums mt-0.5 text-slate-800 dark:text-slate-200 truncate">
+                  {compare.ready ? formatMoney(lw.dailyAvg) : "…"}
+                  <span className="text-[11px] font-normal text-slate-500 ml-1">/ gün</span>
+                </div>
+                <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                  Toplam: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatMoney(lw.totalSales)}</span>
+                </div>
+                <div className="mt-1 text-[11px] font-medium text-slate-500 truncate">
+                  {lw.compLabel}
+                </div>
+              </Link>
+            );
+          })()}
+        </div>
+      ) : (
+        <div className={cn("mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4", hidden && "blur-md select-none")}>
+          {compare.items.map((c) => {
+            const up = c.change != null && c.change >= 0;
+            return (
+              <Link
+                key={c.key}
+                href="/raporlar"
+                className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40"
+                title={`Önceki dönem: ${formatMoney(c.prev)}`}
+              >
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">{c.label}</div>
+                <div className="text-base font-extrabold tabular-nums">{compare.ready ? formatMoney(c.cur) : "…"}</div>
+                <div
+                  className={cn(
+                    "flex items-center gap-1 text-xs font-semibold",
+                    c.change == null ? "text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                  )}
+                >
+                  {c.change == null ? (
+                    "karşılaştırma yok"
+                  ) : (
+                    <>
+                      <span aria-hidden>{up ? "▲" : "▼"}</span>%{Math.abs(c.change).toFixed(1).replace(".", ",")}
+                      <span className="truncate font-normal text-slate-500 dark:text-slate-400">{c.vs}</span>
+                    </>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Bilgi Akışı Bandı (Smart Insight Flow Bar) */}
+      {compare.ready && compare.dailyAverages && (
+        <div className={cn("mb-4 rounded-xl border border-brand-200/80 bg-gradient-to-r from-brand-50/80 via-emerald-50/40 to-brand-50/80 dark:border-brand-900/40 dark:from-brand-950/20 dark:via-emerald-950/10 dark:to-brand-950/20 px-3.5 py-2.5 text-xs shadow-xs", hidden && "blur-md select-none")}>
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand-500 text-white font-bold shrink-0 shadow-xs">
+                ⚡
+              </span>
+              <div className="text-slate-700 dark:text-slate-300 leading-snug">
+                <span className="font-bold text-slate-900 dark:text-white">Satış Temposu & Projeksiyon: </span>
+                Bu ay günde ortalama <strong className="text-brand-700 dark:text-brand-300 tabular-nums">{formatMoney(compare.dailyAverages.thisMonth.dailyAvg)}</strong> ciro yapıyorsunuz.
+                {compare.dailyAverages.thisMonth.change != null && (
+                  <span className={cn("ml-1 font-bold", compare.dailyAverages.thisMonth.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                    ({compare.dailyAverages.thisMonth.change >= 0 ? "▲" : "▼"}%{Math.abs(compare.dailyAverages.thisMonth.change).toFixed(1).replace(".", ",")} geçen aya göre)
+                  </span>
+                )}
+                {compare.dailyAverages.thisMonth.projected && (
+                  <span className="text-slate-600 dark:text-slate-300 ml-1">
+                    · Mevcut tempoyla ay sonu tahmini ciro: <strong className="text-slate-900 dark:text-white tabular-nums">{formatMoney(compare.dailyAverages.thisMonth.projected)}</strong>
+                  </span>
                 )}
               </div>
-            </Link>
-          );
-        })}
-      </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-slate-600 dark:text-slate-400">
+                Bugün: <strong className="text-slate-900 dark:text-white tabular-nums">{formatMoney(compare.dailyAverages.today.total)}</strong>
+              </span>
+              {compare.dailyAverages.today.diffFromMonthAvg != null && (
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-[11px] font-bold shadow-xs",
+                  compare.dailyAverages.today.diffFromMonthAvg >= 0
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                    : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                )}>
+                  {compare.dailyAverages.today.diffFromMonthAvg >= 0 ? "Ortalama üstü 🚀" : "Ortalama altı"}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div className={cn("h-[240px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
@@ -762,78 +983,202 @@ function RecentCard({ data }: { data: DashboardSummary | undefined }) {
 
 function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undefined }) {
   const { blur, formatMoney } = useFmt();
+  const [filterMode, setFilterMode] = React.useState<"all" | "overdue">("all");
   const isIn = flow === "in";
   const rows = items ?? [];
   const total = rows.reduce((s, r) => s + r.amount, 0);
-  const overdueCount = rows.filter((r) => r.days_overdue > 0).length;
-  const accent = isIn ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500";
+  const overdueItems = rows.filter((r) => r.days_overdue > 0);
+  const overdueCount = overdueItems.length;
+  const overdueTotal = overdueItems.reduce((s, r) => s + r.amount, 0);
+  const accent = isIn ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
+  const today = isoDate();
+
+  const displayRows = filterMode === "overdue" ? overdueItems : rows;
 
   return (
-    <div className="card p-5">
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div>
-          <h2 className="font-semibold flex items-center gap-2">
-            <CalendarClock size={17} className={isIn ? "text-emerald-500" : "text-rose-500"} />
-            {isIn ? "Yaklaşan / Geciken Tahsilatlar" : "Yaklaşan / Geciken Ödemeler"}
-          </h2>
-          {rows.length > 0 && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {rows.length} kayıt · <span className={cn("font-semibold", accent)}>{formatMoney(total)}</span>
-              {overdueCount > 0 && <span className="text-rose-500 font-semibold"> · {overdueCount} gecikmiş</span>}
-            </p>
-          )}
+    <div
+      className={cn(
+        "card p-5 transition-all shadow-soft",
+        isIn
+          ? "border-t-4 border-t-emerald-500"
+          : "border-t-4 border-t-rose-500",
+        overdueCount > 0 && "ring-1 ring-rose-300 dark:ring-rose-900/60",
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className={cn(
+              "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
+              isIn
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300"
+                : "bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300",
+            )}
+          >
+            <CalendarClock size={20} />
+          </div>
+          <div className="min-w-0">
+            <h2 className="font-bold text-base flex items-center gap-2 truncate">
+              {isIn ? "Tahsilatlar (Müşteri Alacakları)" : "Ödemeler (Tedarikçi Borçları)"}
+            </h2>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <span>{rows.length} kayıt ·</span>
+              <span className={cn("font-bold text-sm tabular-nums", accent)}>{formatMoney(total)}</span>
+              {overdueCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-100 text-rose-700 dark:bg-rose-950/90 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse">
+                  <TriangleAlert size={11} /> {overdueCount} gecikmiş ({formatMoney(overdueTotal)})
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <Link href={isIn ? "/musteriler" : "/tedarikciler"} className="text-xs font-semibold text-brand-600 hover:underline shrink-0">
-          Tümü →
-        </Link>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {overdueCount > 0 && (
+            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-semibold p-0.5 bg-slate-50 dark:bg-slate-800/80">
+              <button
+                type="button"
+                onClick={() => setFilterMode("all")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md transition",
+                  filterMode === "all"
+                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900",
+                )}
+              >
+                Tümü ({rows.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterMode("overdue")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md transition flex items-center gap-1",
+                  filterMode === "overdue"
+                    ? "bg-rose-600 text-white shadow-xs font-bold"
+                    : "text-rose-600 dark:text-rose-400 hover:text-rose-700 font-bold",
+                )}
+              >
+                <TriangleAlert size={11} />
+                Gecikenler ({overdueCount})
+              </button>
+            </div>
+          )}
+          <Link
+            href={isIn ? "/musteriler" : "/tedarikciler"}
+            className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline shrink-0"
+          >
+            {isIn ? "Müşteriler →" : "Tedarikçiler →"}
+          </Link>
+        </div>
       </div>
+
       {!items ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">Yükleniyor…</p>
-      ) : rows.length === 0 ? (
+      ) : displayRows.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
-          {isIn ? "Bekleyen tahsilat yok." : "Bekleyen ödeme yok."}
+          {filterMode === "overdue"
+            ? (isIn ? "Gecikmiş tahsilat bulunmuyor. Harika!" : "Gecikmiş ödeme bulunmuyor. Harika!")
+            : (isIn ? "Bekleyen tahsilat yok." : "Bekleyen ödeme yok.")}
         </p>
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          {rows.slice(0, 8).map((t) => {
+          {displayRows.slice(0, 8).map((t) => {
             const overdue = t.days_overdue > 0;
+            const isDueToday = !overdue && t.due === today;
+            const daysLeft = t.due ? dayDiff(today, t.due) : null;
             return (
               <Link
                 key={t.key}
                 href={t.href}
-                className="flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition"
+                className={cn(
+                  "group flex items-center gap-3 py-2.5 px-2.5 rounded-xl transition my-0.5",
+                  overdue
+                    ? "bg-rose-50/80 hover:bg-rose-100/90 dark:bg-rose-950/35 dark:hover:bg-rose-900/50 border border-rose-200/90 dark:border-rose-900/70 shadow-xs"
+                    : isDueToday
+                      ? "bg-amber-50/80 hover:bg-amber-100/90 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 border border-amber-200/90 dark:border-amber-900/70 shadow-xs"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                )}
               >
                 <div
                   className={cn(
-                    "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
+                    "h-9 w-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
                     overdue
-                      ? "bg-rose-50 dark:bg-rose-900/30 text-rose-500"
-                      : isIn
-                        ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500"
-                        : "bg-amber-50 dark:bg-amber-900/30 text-amber-500",
+                      ? "bg-rose-600 text-white"
+                      : isDueToday
+                        ? "bg-amber-500 text-white"
+                        : isIn
+                          ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600"
+                          : "bg-blue-50 dark:bg-blue-900/30 text-blue-600",
                   )}
                 >
-                  {t.offset ? <ArrowLeftRight size={17} /> : <CalendarClock size={17} />}
+                  {overdue ? (
+                    <TriangleAlert size={17} />
+                  ) : isDueToday ? (
+                    <Clock size={17} />
+                  ) : t.offset ? (
+                    <ArrowLeftRight size={17} />
+                  ) : (
+                    <CalendarClock size={17} />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className={cn("text-sm font-medium truncate", blur)}>{t.title}</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{t.subtitle}</div>
+                  <div
+                    className={cn(
+                      "text-sm font-semibold truncate",
+                      overdue && "text-rose-950 dark:text-rose-100 font-bold",
+                      isDueToday && "text-amber-950 dark:text-amber-100 font-bold",
+                      blur,
+                    )}
+                  >
+                    {t.title}
+                  </div>
+                  <div
+                    className={cn(
+                      "text-xs truncate",
+                      overdue
+                        ? "text-rose-700/90 dark:text-rose-300/90 font-medium"
+                        : isDueToday
+                          ? "text-amber-700/90 dark:text-amber-300/90 font-medium"
+                          : "text-slate-500 dark:text-slate-400",
+                    )}
+                  >
+                    {t.subtitle}
+                  </div>
                   {t.offset && (
-                    <div className="text-[11px] text-slate-600 dark:text-slate-300 truncate" title="Aynı carideki alış ve satışlar mahsup edildi">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate" title="Aynı carideki alış ve satışlar mahsup edildi">
                       Mahsup: satış {formatMoney(t.offset.receivable)} − alış {formatMoney(t.offset.payable)}
                     </div>
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <div className={cn("font-semibold text-sm", accent)}>{formatMoney(t.amount)}</div>
-                  {overdue && <span className="text-[10px] text-rose-500 font-semibold">{t.days_overdue} gün gecikmiş</span>}
+                  <div
+                    className={cn(
+                      "font-extrabold text-sm tabular-nums",
+                      overdue ? "text-rose-600 dark:text-rose-400" : isDueToday ? "text-amber-600 dark:text-amber-400" : accent,
+                    )}
+                  >
+                    {formatMoney(t.amount)}
+                  </div>
+                  {overdue ? (
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-600 text-white shadow-xs">
+                      <TriangleAlert size={10} /> {t.days_overdue} gün gecikti
+                    </span>
+                  ) : isDueToday ? (
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-500 text-white shadow-xs">
+                      <Clock size={10} /> Bugün vadeli
+                    </span>
+                  ) : daysLeft !== null && daysLeft > 0 && daysLeft <= 3 ? (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      {daysLeft === 1 ? "Yarın" : `${daysLeft} gün kaldı`}
+                    </span>
+                  ) : null}
                 </div>
               </Link>
             );
           })}
         </div>
       )}
-      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+      <p className="mt-2.5 text-[11px] text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/60 pt-2">
         Aynı carideki alış/satış faturaları ve yapılan tahsilat/ödemeler otomatik eşleştirilir; yalnızca net bakiye gösterilir.
       </p>
     </div>
@@ -892,6 +1237,13 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
   const { from: monthFrom } = monthRange(today.slice(0, 7));
   const kpi = data?.kpi;
   const { data: dues } = useNettedDues();
+  const compare = useCiroCompare();
+  const inOverdue = (dues?.incoming ?? []).filter((r) => r.days_overdue > 0);
+  const outOverdue = (dues?.outgoing ?? []).filter((r) => r.days_overdue > 0);
+  const inOverdueTotal = inOverdue.reduce((s, r) => s + r.amount, 0);
+  const outOverdueTotal = outOverdue.reduce((s, r) => s + r.amount, 0);
+  const totalOverdueCount = inOverdue.length + outOverdue.length;
+  const fmtAlertMoney = (n: number) => (hidden ? "•••••• TL" : formatMoney(n));
 
   return (
     <MaskContext.Provider value={hidden}>
@@ -929,6 +1281,7 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
           value={Number(kpi?.month_sales) || 0}
           label={`${thisMonth} Cirosu`}
           gradient="from-amber-400 to-amber-500"
+          sub={compare.ready && compare.dailyAverages ? `Ort. ${formatMoney(compare.dailyAverages.thisMonth.dailyAvg)} / gün` : undefined}
         />
         <KpiCard
           href="/masraflar"
@@ -956,16 +1309,54 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
         />
       </div>
 
-      <SalesChartCard data={data} />
-      <TopProductsCard data={data} />
-      <BalanceCards data={data} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DueCard flow="in" items={dues?.incoming} />
-        <DueCard flow="out" items={dues?.outgoing} />
-      </div>
-
+      {/* Kritik Stok Uyarısı (varsa hemen dikkat çeksin) */}
       <CriticalStockCard data={data} />
+
+      {/* ----------------------------------------------------------------- */}
+      {/* TAHSİLATLAR VE ÖDEMELER (Göz Önünde - Vurgulu)                   */}
+      {/* ----------------------------------------------------------------- */}
+      <section aria-label="Tahsilatlar ve Ödemeler" className="space-y-3">
+        {totalOverdueCount > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:px-4 rounded-2xl bg-gradient-to-r from-rose-500/15 via-amber-500/10 to-rose-500/15 border-2 border-rose-300 dark:border-rose-700/60 shadow-soft">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-10 w-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <TriangleAlert size={20} className="animate-bounce" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-bold text-slate-900 dark:text-white flex flex-wrap items-center gap-2">
+                  <span>Dikkat: Vadesi Geçmiş Kayıtlar Var!</span>
+                  {inOverdue.length > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-600 text-white shadow-xs">
+                      {inOverdue.length} Tahsilat · {fmtAlertMoney(inOverdueTotal)}
+                    </span>
+                  )}
+                  {outOverdue.length > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-600 text-white shadow-xs">
+                      {outOverdue.length} Ödeme · {fmtAlertMoney(outOverdueTotal)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-rose-700 dark:text-rose-300 mt-0.5 truncate">
+                  Geciken alacak ve borçlar dikkatten kaçmaması için aşağıda öncelikli olarak listelenmiştir.
+                </p>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-rose-700 dark:text-rose-400 shrink-0">
+              Öncelikli Takip Gerekli
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <DueCard flow="in" items={dues?.incoming} />
+          <DueCard flow="out" items={dues?.outgoing} />
+        </div>
+      </section>
+
+      <SalesChartCard data={data} />
+      <BalanceCards data={data} />
+      <TopProductsCard data={data} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
         <RecentCard data={data} />
         <PendingDocsCard />
