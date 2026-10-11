@@ -14,9 +14,45 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.4";
+export const LATEST_VERSION = "2.7.6";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.6",
+    date: "11 Ekim 2026",
+    title: "Son Hareketlerde Saat",
+    badge: "Panel",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Son Hareketlerde İşlem Saati",
+        description: "Ana sayfa Son Hareketler listesinde her işlemin kaydedildiği saat (SS:DD) tarih yanında küçük yazıyla gösterilir.",
+      },
+    ],
+  },
+  {
+    version: "2.7.5",
+    date: "11 Ekim 2026",
+    title: "Günlük Ortalama Satış, Kritik Stok Ayarı & Çek/Senet Gizleme",
+    badge: "Raporlar",
+    items: [
+      {
+        type: "yeni",
+        title: "Günlük Ortalama Satış",
+        description: "Raporlar → Ciro ekranında bugün, dün, geçen hafta, bu ay, geçen ay ve son 1 ay için günlük ortalama satış (TL/gün), toplam, gün ve satış sayısı ile önceki döneme göre değişim gösterilir.",
+      },
+      {
+        type: "yeni",
+        title: "Kritik Stok Kontrolü Ayarı",
+        description: "Ayarlar → Stok ve Depolar bölümünden kritik stok uyarılarını açıp kapatabilirsiniz. Kapalıyken ana sayfadaki kritik stok kartı ve bildirimler gösterilmez.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Çek & Senet Gizlendi",
+        description: "Çek & Senet menüden, ana sayfadan, ajandadan, bildirimlerden ve raporlardan kaldırıldı. Kayıtlar silinmedi.",
+      },
+    ],
+  },
   {
     version: "2.7.4",
     date: "10 Ekim 2026",

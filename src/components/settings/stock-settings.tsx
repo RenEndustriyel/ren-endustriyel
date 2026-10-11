@@ -8,6 +8,7 @@ import { errorMessage } from "@/lib/errors";
 import { useOrg } from "@/providers/org-provider";
 import { Card, CardHeader, CardBody } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { criticalStockEnabled } from "@/lib/features";
 import { Badge } from "@/components/ui/badge";
 
 export function StockWarningSettings() {
@@ -171,6 +172,54 @@ export function StockWarningSettings() {
           <div className="leading-relaxed">
             <strong>İpucu:</strong> Eğer firmanız sipariş üzerine çalışıyor ve fiziksel ürün depoya girmeden önce fatura/sipariş kesiyorsanız, eksi stok uyarısını açık bırakıp engellemeyi kapalı tutabilir veya uyarıyı tamamen kapatabilirsiniz.
           </div>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+/** Kritik stok seviyesi kontrolü: kapalıyken ana sayfa ve bildirimlerde kritik stok uyarısı gösterilmez */
+export function CriticalStockSettings() {
+  const { org, isAdmin, canWrite, refresh } = useOrg();
+  const canManage = isAdmin || canWrite;
+  const [saving, setSaving] = React.useState(false);
+  const enabled = criticalStockEnabled(org?.settings);
+
+  const toggle = async (val: boolean) => {
+    if (!org) return;
+    setSaving(true);
+    try {
+      const current = (org.settings && typeof org.settings === "object" ? org.settings : {}) as Record<string, unknown>;
+      const { error } = await supabase
+        .from("organizations")
+        .update({ settings: { ...current, critical_stock_check: val }, updated_at: new Date().toISOString() })
+        .eq("id", org.id);
+      if (error) throw error;
+      await refresh();
+      toast.success(val ? "Kritik stok kontrolü açıldı" : "Kritik stok kontrolü kapatıldı");
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="col-span-full">
+      <CardHeader
+        icon={<AlertTriangle className="size-5 text-primary" />}
+        title="Kritik Stok Kontrolü"
+        action={<Badge tone={enabled ? "warning" : "neutral"}>{enabled ? "Açık" : "Kapalı"}</Badge>}
+      />
+      <CardBody className="flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-surface-2/40 p-4">
+          <div>
+            <div className="font-semibold text-text">Kritik stok uyarılarını göster</div>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              Açıkken ürünün stoğu kritik seviyeye düştüğünde ana sayfada &quot;Kritik Stok Uyarısı&quot; kartı ve bildirim menüsünde uyarı çıkar. Kapalıyken bu uyarılar gösterilmez; ürün kartlarındaki kritik stok değerleri korunur.
+            </p>
+          </div>
+          <Switch checked={enabled} disabled={!canManage || saving} onCheckedChange={toggle} aria-label="Kritik stok kontrolü" />
         </div>
       </CardBody>
     </Card>

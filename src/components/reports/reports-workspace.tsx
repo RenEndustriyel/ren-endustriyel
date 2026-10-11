@@ -1,5 +1,6 @@
 "use client";
 
+import { CHEQUES_ENABLED } from "@/lib/features";
 import * as React from "react";
 import { DateInput } from "@/components/ui/date-input";
 import Link from "next/link";
@@ -725,7 +726,7 @@ export function ReportsWorkspace() {
               { id: "kdv", label: "KDV Takibi" },
               { id: "karlilik", label: "Kârlılık" },
               { id: "kasa", label: "Kasa Gün Sonu" },
-              { id: "ceksenet", label: "Çek & Senet" },
+              ...(CHEQUES_ENABLED ? [{ id: "ceksenet", label: "Çek & Senet" }] : []),
               { id: "yaslandirma", label: "Yaşlandırma" },
               { id: "borc", label: "Borç / Alacak" },
               { id: "pos", label: "POS Satış" },

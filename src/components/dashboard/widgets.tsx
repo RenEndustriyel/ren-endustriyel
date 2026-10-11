@@ -23,6 +23,8 @@ import { formatDate, formatMoney, formatNumber, formatQty } from "@/lib/format";
 import { triggerLiveRatesRefresh, useRates } from "@/lib/rates";
 import { cn } from "@/lib/utils";
 import { TYPE_LABELS, type DashboardSummary } from "./types";
+import { useOrg } from "@/providers/org-provider";
+import { criticalStockEnabled } from "@/lib/features";
 
 /** Pusulam tarzı 4 sütunlu En Çok Satan Ürünler kartı */
 export function TopProducts({ data }: { data: DashboardSummary }) {
@@ -329,7 +331,8 @@ export function UpcomingPaymentsCard({ data }: { data: DashboardSummary }) {
 
 /** Pusulam tarzı Kritik Stok Uyarısı */
 export function CriticalStock({ data }: { data: DashboardSummary }) {
-  if (data.critical_stock.length === 0) return null;
+  const { org } = useOrg();
+  if (!criticalStockEnabled(org?.settings) || data.critical_stock.length === 0) return null;
 
   return (
     <Card className="border-l-4 border-l-amber-500 p-3 sm:p-3.5">

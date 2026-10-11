@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDownRight, ArrowUpRight, BarChart3, Coins, Percent, Receipt, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, Coins, Percent, Receipt, TrendingUp } from "lucide-react";
 import { useRows, useRpcQuery } from "@/lib/data";
 import { formatMoney } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
@@ -19,6 +19,13 @@ const box = "rounded-xl border border-slate-200 dark:border-[#1e2a3a] bg-white d
 const head = "mb-3 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white";
 const muted = "text-xs text-slate-600 dark:text-slate-400";
 const pctText = (a: number, b: number) => (b ? `%${((a / b) * 100).toFixed(1).replace(".", ",")}` : "%0");
+
+const parseDay = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+/** İki tarih arasındaki gün sayısı (iki uç dahil) */
+const dayCount = (from: string, to: string) => Math.max(1, Math.round((parseDay(to).getTime() - parseDay(from).getTime()) / 864e5) + 1);
 
 type Range = { key: string; label: string; from: string; to: string; prevFrom: string; prevTo: string; vs: string };
 
@@ -306,6 +313,42 @@ export function TurnoverReport() {
     return { ...m, total: m.cash + m.card + m.bank + m.other };
   }, [txns.data]);
 
+  // Günlük ortalama satış: seçimden bağımsız sabit altı dönem
+  const dailyPeriods = React.useMemo(() => {
+    const now = new Date();
+    const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const rng = (key: string) => ranges.find((x) => x.key === key)!;
+    const last30 = { from: iso(addDays(t0, -29)), to: iso(t0), prevFrom: iso(addDays(t0, -59)), prevTo: iso(addDays(t0, -30)) };
+    const defs = [
+      { key: "today", label: "Bugün", span: rng("today"), prevLabel: "dün", vs: "düne göre" },
+      { key: "yesterday", label: "Dün", span: rng("yesterday"), prevLabel: "önceki gün", vs: "önceki güne göre" },
+      { key: "lastweek", label: "Geçen hafta", span: rng("lastweek"), prevLabel: "önceki hafta", vs: "önceki haftaya göre" },
+      { key: "month", label: "Bu ay", span: rng("month"), prevLabel: "geçen ayın aynı günleri", vs: "geçen ayın aynı günlerine göre" },
+      { key: "lastmonth", label: "Geçen ay", span: rng("lastmonth"), prevLabel: "önceki ay", vs: "önceki aya göre" },
+      { key: "last30", label: "Son 1 ay", span: last30, prevLabel: "önceki 30 gün", vs: "önceki 30 güne göre" },
+    ];
+    return defs.map((d) => {
+      const cur = sum(d.span.from, d.span.to);
+      const prev = sum(d.span.prevFrom, d.span.prevTo);
+      const days = dayCount(d.span.from, d.span.to);
+      const prevDays = dayCount(d.span.prevFrom, d.span.prevTo);
+      const avg = cur.gross / days;
+      const prevAvg = prev.gross / prevDays;
+      return {
+        key: d.key,
+        label: d.label,
+        prevLabel: d.prevLabel,
+        vs: d.vs,
+        days,
+        total: cur.gross,
+        count: cur.count,
+        avg,
+        prevAvg,
+        change: prev.gross ? ((avg - prevAvg) / Math.abs(prevAvg)) * 100 : null,
+      };
+    });
+  }, [ranges, sum]);
+
   const pr = (profit.data ?? []).reduce((s, x) => ({ net: s.net + Number(x.net), profit: s.profit + Number(x.profit) }), { net: 0, profit: 0 });
   const [hover, setHover] = React.useState<string | null>(null);
   const max = Math.max(...series.buckets.map((b) => Math.max(b.value, 0)), 1);
@@ -356,6 +399,43 @@ export function TurnoverReport() {
           );
         })}
       </div>
+
+      {/* Günlük ortalama satış: sabit dönemler */}
+      <section className={box}>
+        <h3 className={head}>
+          <CalendarDays size={16} className="text-brand-600" /> Günlük ortalama satış
+          <span className="ml-auto text-xs font-normal text-slate-600 dark:text-slate-400">KDV dahil · iadeler düşülmüş</span>
+        </h3>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {dailyPeriods.map((p) => (
+            <div key={p.key} className="min-w-0 rounded-lg bg-amber-50 px-3 py-2.5 dark:bg-amber-900/20">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">{p.label}</div>
+              <div className="mt-1 truncate text-lg font-extrabold tabular-nums text-slate-900 dark:text-white sm:text-xl">
+                {formatMoney(p.avg)} <span className="text-xs font-normal text-slate-500">/ gün</span>
+              </div>
+              <div className={cn(muted, "truncate")}>
+                Toplam {formatMoney(p.total)} · {p.days} gün · {p.count} satış
+              </div>
+              <div
+                className={cn(
+                  "mt-1 flex items-center gap-1 text-xs font-semibold",
+                  p.change == null ? "text-slate-500" : p.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                )}
+                title={`${p.prevLabel} günlük ortalama: ${formatMoney(p.prevAvg)}`}
+              >
+                {p.change == null ? (
+                  "karşılaştırma yok"
+                ) : (
+                  <>
+                    {p.change >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}%{Math.abs(p.change).toFixed(1).replace(".", ",")}
+                    <span className="truncate font-normal text-slate-500 dark:text-slate-400">{p.vs}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Seçili dönem: grafik */}
       <section className={box}>
