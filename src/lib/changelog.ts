@@ -20,13 +20,23 @@ export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
     version: "2.7.5",
     date: "11 Ekim 2026",
-    title: "Raporlarda Günlük Satış Hacmi",
+    title: "Günlük Ortalama Satış, Kritik Stok Ayarı & Çek/Senet Gizleme",
     badge: "Raporlar",
     items: [
       {
         type: "yeni",
-        title: "Ciro Raporunda Günlük Ortalama Satış",
-        description: "Raporlar → Ciro ekranında seçili dönem için günlük ortalama satış tutarı, önceki döneme göre değişim, satış yapılan gün başına ortalama, en yüksek gün ve hafta/ay/yıl sonu tahmini gösterilir. Günlük grafikte ortalama çizgisi eklendi.",
+        title: "Günlük Ortalama Satış",
+        description: "Raporlar → Ciro ekranında bugün, dün, geçen hafta, bu ay, geçen ay ve son 1 ay için günlük ortalama satış (TL/gün), toplam, gün ve satış sayısı ile önceki döneme göre değişim gösterilir.",
+      },
+      {
+        type: "yeni",
+        title: "Kritik Stok Kontrolü Ayarı",
+        description: "Ayarlar → Stok ve Depolar bölümünden kritik stok uyarılarını açıp kapatabilirsiniz. Kapalıyken ana sayfadaki kritik stok kartı ve bildirimler gösterilmez.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Çek & Senet Gizlendi",
+        description: "Çek & Senet menüden, ana sayfadan, ajandadan, bildirimlerden ve raporlardan kaldırıldı. Kayıtlar silinmedi.",
       },
     ],
   },

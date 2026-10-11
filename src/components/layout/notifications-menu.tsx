@@ -9,6 +9,7 @@ import { useRows, type Row } from "@/lib/data";
 import { formatMoney, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
 import { cn } from "@/lib/utils";
+import { CHEQUES_ENABLED, criticalStockEnabled } from "@/lib/features";
 import { useDashboard } from "@/components/dashboard/use-dashboard";
 import { useNettedDues, type DueItem } from "@/components/dashboard/use-netted-dues";
 
@@ -38,6 +39,7 @@ type Section = { key: string; title: string; icon: React.ReactNode; items: Item[
 export function NotificationsMenu() {
   const router = useRouter();
   const { org } = useOrg();
+  const criticalStockOn = criticalStockEnabled(org?.settings);
   const { data } = useDashboard(org?.id || "");
   const { data: dues } = useNettedDues();
   const [open, setOpen] = React.useState(false);
@@ -107,7 +109,7 @@ export function NotificationsMenu() {
       });
     }
 
-    const stock = data?.critical_stock ?? [];
+    const stock = criticalStockOn ? data?.critical_stock ?? [] : [];
     if (stock.length) {
       list.push({
         key: "stock",
@@ -133,7 +135,7 @@ export function NotificationsMenu() {
       list.push({ key: "in", title: `Vadesi Geçen Tahsilatlar (${ins.length})`, icon: <CalendarClock size={13} />, items: ins.map(toItem) });
     }
 
-    const ch = cheques.data ?? [];
+    const ch = CHEQUES_ENABLED ? cheques.data ?? [] : [];
     if (ch.length) {
       list.push({
         key: "cheque",
@@ -148,7 +150,7 @@ export function NotificationsMenu() {
       });
     }
     return list;
-  }, [data?.critical_stock, dues, cheques.data, dueOrders, today]);
+  }, [criticalStockOn, data?.critical_stock, dues, cheques.data, dueOrders, today]);
 
   const allIds = sections.flatMap((s) => s.items.map((it) => itemId(s.key, it)));
   const count = allIds.length;

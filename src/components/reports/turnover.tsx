@@ -26,19 +26,6 @@ const parseDay = (s: string) => {
 };
 /** İki tarih arasındaki gün sayısı (iki uç dahil) */
 const dayCount = (from: string, to: string) => Math.max(1, Math.round((parseDay(to).getTime() - parseDay(from).getTime()) / 864e5) + 1);
-/** Devam eden dönemin tam uzunluğu (hafta 7, ay ayın gün sayısı, yıl 365/366); biten dönemlerde yok */
-const periodLength = (key: string, from: string) => {
-  const f = parseDay(from);
-  if (key === "week") return 7;
-  if (key === "month") return new Date(f.getFullYear(), f.getMonth() + 1, 0).getDate();
-  if (key === "year") return dayCount(`${f.getFullYear()}-01-01`, `${f.getFullYear()}-12-31`);
-  return null;
-};
-const PROJECTION_LABEL: Record<string, string> = { week: "Hafta sonu tahmini", month: "Ay sonu tahmini", year: "Yıl sonu tahmini" };
-const formatDay = (s: string) => {
-  const d = parseDay(s);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-};
 
 type Range = { key: string; label: string; from: string; to: string; prevFrom: string; prevTo: string; vs: string };
 
@@ -326,35 +313,41 @@ export function TurnoverReport() {
     return { ...m, total: m.cash + m.card + m.bank + m.other };
   }, [txns.data]);
 
-  // Günlük satış hacmi: seçili dönemin günlük ortalaması, önceki dönemle kıyas, en iyi gün ve dönem sonu tahmini
-  const daily = React.useMemo(() => {
-    const days = dayCount(r.from, r.to);
-    const prevDays = dayCount(r.prevFrom, r.prevTo);
-    const perDay = new Map<string, number>();
-    for (const d of docs.data ?? []) {
-      if (d.issue_date < r.from || d.issue_date > r.to) continue;
-      perDay.set(d.issue_date, (perDay.get(d.issue_date) ?? 0) + sgn(d) * gross(d));
-    }
-    let activeDays = 0;
-    let best: { date: string; value: number } | null = null;
-    for (const [date, value] of perDay) {
-      if (value > 0) activeDays++;
-      if (!best || value > best.value) best = { date, value };
-    }
-    const avg = cur.cur.gross / days;
-    const prevAvg = cur.prev.gross / prevDays;
-    const fullDays = periodLength(sel, r.from);
-    return {
-      days,
-      avg,
-      prevAvg,
-      change: prevAvg ? ((avg - prevAvg) / Math.abs(prevAvg)) * 100 : null,
-      activeDays,
-      activeAvg: activeDays ? cur.cur.gross / activeDays : 0,
-      best,
-      projection: fullDays && fullDays > days ? { total: avg * fullDays, label: PROJECTION_LABEL[sel] } : null,
-    };
-  }, [docs.data, r.from, r.to, r.prevFrom, r.prevTo, sel, cur.cur.gross, cur.prev.gross]);
+  // Günlük ortalama satış: seçimden bağımsız sabit altı dönem
+  const dailyPeriods = React.useMemo(() => {
+    const now = new Date();
+    const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const rng = (key: string) => ranges.find((x) => x.key === key)!;
+    const last30 = { from: iso(addDays(t0, -29)), to: iso(t0), prevFrom: iso(addDays(t0, -59)), prevTo: iso(addDays(t0, -30)) };
+    const defs = [
+      { key: "today", label: "Bugün", span: rng("today"), prevLabel: "dün", vs: "düne göre" },
+      { key: "yesterday", label: "Dün", span: rng("yesterday"), prevLabel: "önceki gün", vs: "önceki güne göre" },
+      { key: "lastweek", label: "Geçen hafta", span: rng("lastweek"), prevLabel: "önceki hafta", vs: "önceki haftaya göre" },
+      { key: "month", label: "Bu ay", span: rng("month"), prevLabel: "geçen ayın aynı günleri", vs: "geçen ayın aynı günlerine göre" },
+      { key: "lastmonth", label: "Geçen ay", span: rng("lastmonth"), prevLabel: "önceki ay", vs: "önceki aya göre" },
+      { key: "last30", label: "Son 1 ay", span: last30, prevLabel: "önceki 30 gün", vs: "önceki 30 güne göre" },
+    ];
+    return defs.map((d) => {
+      const cur = sum(d.span.from, d.span.to);
+      const prev = sum(d.span.prevFrom, d.span.prevTo);
+      const days = dayCount(d.span.from, d.span.to);
+      const prevDays = dayCount(d.span.prevFrom, d.span.prevTo);
+      const avg = cur.gross / days;
+      const prevAvg = prev.gross / prevDays;
+      return {
+        key: d.key,
+        label: d.label,
+        prevLabel: d.prevLabel,
+        vs: d.vs,
+        days,
+        total: cur.gross,
+        count: cur.count,
+        avg,
+        prevAvg,
+        change: prev.gross ? ((avg - prevAvg) / Math.abs(prevAvg)) * 100 : null,
+      };
+    });
+  }, [ranges, sum]);
 
   const pr = (profit.data ?? []).reduce((s, x) => ({ net: s.net + Number(x.net), profit: s.profit + Number(x.profit) }), { net: 0, profit: 0 });
   const [hover, setHover] = React.useState<string | null>(null);
@@ -407,6 +400,43 @@ export function TurnoverReport() {
         })}
       </div>
 
+      {/* Günlük ortalama satış: sabit dönemler */}
+      <section className={box}>
+        <h3 className={head}>
+          <CalendarDays size={16} className="text-brand-600" /> Günlük ortalama satış
+          <span className="ml-auto text-xs font-normal text-slate-600 dark:text-slate-400">KDV dahil · iadeler düşülmüş</span>
+        </h3>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {dailyPeriods.map((p) => (
+            <div key={p.key} className="min-w-0 rounded-lg bg-amber-50 px-3 py-2.5 dark:bg-amber-900/20">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">{p.label}</div>
+              <div className="mt-1 truncate text-lg font-extrabold tabular-nums text-slate-900 dark:text-white sm:text-xl">
+                {formatMoney(p.avg)} <span className="text-xs font-normal text-slate-500">/ gün</span>
+              </div>
+              <div className={cn(muted, "truncate")}>
+                Toplam {formatMoney(p.total)} · {p.days} gün · {p.count} satış
+              </div>
+              <div
+                className={cn(
+                  "mt-1 flex items-center gap-1 text-xs font-semibold",
+                  p.change == null ? "text-slate-500" : p.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                )}
+                title={`${p.prevLabel} günlük ortalama: ${formatMoney(p.prevAvg)}`}
+              >
+                {p.change == null ? (
+                  "karşılaştırma yok"
+                ) : (
+                  <>
+                    {p.change >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}%{Math.abs(p.change).toFixed(1).replace(".", ",")}
+                    <span className="truncate font-normal text-slate-500 dark:text-slate-400">{p.vs}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Seçili dönem: grafik */}
       <section className={box}>
         <h3 className={head}>
@@ -415,12 +445,7 @@ export function TurnoverReport() {
             {hovered ? `${hovered.label}${series.daily && series.buckets.length > 7 ? ". gün" : ""}: ${formatMoney(hovered.value)}` : `Toplam ${formatMoney(cur.cur.gross)}`}
           </span>
         </h3>
-        <div className="relative flex h-44 items-end gap-[2px] border-b border-slate-200 dark:border-[#1e2a3a]" onMouseLeave={() => setHover(null)}>
-          {series.daily && series.buckets.length > 1 && daily.avg > 0 && (
-            <div className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-dashed border-amber-500" style={{ bottom: `${Math.min(daily.avg / max, 1) * 100}%` }}>
-              <span className="absolute -top-5 right-0 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">Ort. {formatMoney(daily.avg)}</span>
-            </div>
-          )}
+        <div className="flex h-44 items-end gap-[2px] border-b border-slate-200 dark:border-[#1e2a3a]" onMouseLeave={() => setHover(null)}>
           {series.buckets.map((b) => (
             <div key={b.key} className="flex h-full flex-1 flex-col justify-end px-[1px] sm:px-[2px]" onMouseEnter={() => setHover(b.key)} title={`${b.key}: ${formatMoney(b.value)}`}>
               <div
@@ -436,63 +461,6 @@ export function TurnoverReport() {
               {series.buckets.length > 16 && i % 2 === 1 && hover !== b.key ? "" : b.label}
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Günlük satış hacmi */}
-      <section className={box}>
-        <h3 className={head}>
-          <CalendarDays size={16} className="text-brand-600" /> {cur.label} — günlük satış hacmi
-          <span className="ml-auto text-xs font-normal text-slate-600 dark:text-slate-400">{daily.days} gün · KDV dahil, iadeler düşülmüş</span>
-        </h3>
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <div className="rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-900/20">
-            <div className={muted}>Günlük ortalama satış</div>
-            <div className="text-lg font-extrabold tabular-nums text-slate-900 dark:text-white">{formatMoney(daily.avg)}</div>
-            <div
-              className={cn(
-                "flex items-center gap-1 text-xs font-semibold",
-                daily.change == null ? "text-slate-500" : daily.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
-              )}
-              title={`Önceki dönem günlük ortalama: ${formatMoney(daily.prevAvg)}`}
-            >
-              {daily.change == null ? (
-                "karşılaştırma yok"
-              ) : (
-                <>
-                  {daily.change >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}%{Math.abs(daily.change).toFixed(1).replace(".", ",")}
-                  <span className="truncate font-normal text-slate-500 dark:text-slate-400">{cur.vs}</span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-[#16202c]">
-            <div className={muted}>Satış yapılan gün başına</div>
-            <div className="text-lg font-bold tabular-nums">{formatMoney(daily.activeAvg)}</div>
-            <div className={muted}>
-              {daily.activeDays} / {daily.days} günde satış var
-            </div>
-          </div>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-[#16202c]">
-            <div className={muted}>En yüksek gün</div>
-            <div className="text-lg font-bold tabular-nums">{daily.best && daily.best.value > 0 ? formatMoney(daily.best.value) : "—"}</div>
-            <div className={muted}>{daily.best && daily.best.value > 0 ? formatDay(daily.best.date) : "satış yok"}</div>
-          </div>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-[#16202c]">
-            {daily.projection ? (
-              <>
-                <div className={muted}>{daily.projection.label}</div>
-                <div className="text-lg font-bold tabular-nums">{formatMoney(daily.projection.total)}</div>
-                <div className={muted}>bu tempoyla devam ederse</div>
-              </>
-            ) : (
-              <>
-                <div className={muted}>Önceki dönem günlük ortalama</div>
-                <div className="text-lg font-bold tabular-nums">{formatMoney(daily.prevAvg)}</div>
-                <div className={cn(muted, "truncate")}>{formatDay(r.prevFrom)} – {formatDay(r.prevTo)}</div>
-              </>
-            )}
-          </div>
         </div>
       </section>
 

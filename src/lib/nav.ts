@@ -1,3 +1,4 @@
+import { CHEQUES_ENABLED } from "@/lib/features";
 import {
   LayoutDashboard,
   FileText,
@@ -91,7 +92,7 @@ export const NAV: NavGroup[] = [
     items: [
       { title: "Kasa ve Bankalar", href: "/nakit/hesaplar", icon: Landmark, keywords: "hesap kredi kartı" },
       { title: "Tahsilat / Ödemeler", href: "/nakit/hareketler", icon: Wallet, keywords: "virman" },
-      { title: "Çek & Senet", href: "/nakit/cek-senet", icon: ScrollText },
+      ...(CHEQUES_ENABLED ? [{ title: "Çek & Senet", href: "/nakit/cek-senet", icon: ScrollText }] : []),
       { title: "Banka Ekstresi", href: "/nakit/ekstre", icon: FileSpreadsheet, hideFor: ["staff"] },
     ],
   },

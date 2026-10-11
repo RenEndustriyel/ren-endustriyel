@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { CHEQUES_ENABLED } from "@/lib/features";
 
 export const DASHBOARD_MODULES = [
   {
@@ -105,12 +106,9 @@ export const DASHBOARD_MODULES = [
     icon: FileText,
     color: "text-purple-500",
   },
-  {
-    to: "/nakit/cek-senet",
-    label: "Çek & Senet",
-    icon: CreditCard,
-    color: "text-orange-600",
-  },
+  ...(CHEQUES_ENABLED
+    ? [{ to: "/nakit/cek-senet", label: "Çek & Senet", icon: CreditCard, color: "text-orange-600" }]
+    : []),
   {
     to: "/nakit/hesaplar",
     label: "Hesaplar",

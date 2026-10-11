@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { useNettedDues, type DueItem } from "./use-netted-dues";
 import { useRows } from "@/lib/data";
+import { useOrg } from "@/providers/org-provider";
+import { criticalStockEnabled } from "@/lib/features";
 import { useRates, rateFor, triggerLiveRatesRefresh } from "@/lib/rates";
 import { DOC_TYPES, normalizeStatus, statusLabel, statusTone, type DocType } from "@/lib/doc-types";
 import { Badge } from "@/components/ui/badge";
@@ -1186,7 +1188,8 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
 }
 
 function CriticalStockCard({ data }: { data: DashboardSummary | undefined }) {
-  const rows = data?.critical_stock ?? [];
+  const { org } = useOrg();
+  const rows = criticalStockEnabled(org?.settings) ? data?.critical_stock ?? [] : [];
   if (rows.length === 0) return null;
   return (
     <div className="card p-5 border-l-4 border-l-amber-400">

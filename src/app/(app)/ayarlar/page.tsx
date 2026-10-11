@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanyForm } from "@/components/settings/company-form";
 import { NumberSeriesSettings } from "@/components/settings/number-series";
 import { UnitsSettings, WarehousesSettings } from "@/components/settings/simple-lists";
-import { StockWarningSettings } from "@/components/settings/stock-settings";
+import { CriticalStockSettings, StockWarningSettings } from "@/components/settings/stock-settings";
 import { UsersSettings } from "@/components/settings/users";
 import { CategorySettings } from "@/components/settings/categories";
 import { NotificationSettings, RatesSettings } from "@/components/settings/notifications";
@@ -47,6 +47,7 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="stok" className="flex flex-col gap-4">
           <StockWarningSettings />
+          <CriticalStockSettings />
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <UnitsSettings />
             <WarehousesSettings />

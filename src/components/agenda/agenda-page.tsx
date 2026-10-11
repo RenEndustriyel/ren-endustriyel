@@ -1,5 +1,6 @@
 "use client";
 
+import { CHEQUES_ENABLED } from "@/lib/features";
 import * as React from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Plus, Bell, CheckCircle2, Circle, Trash2, FileText, ScrollText, StickyNote } from "lucide-react";
@@ -113,7 +114,7 @@ export function AgendaPage() {
         href: `${DOC_TYPES[d.doc_type as DocType].base}/detay?id=${d.id}`,
       };
     }),
-    ...(cheques.data ?? []).map((c) => ({
+    ...(CHEQUES_ENABLED ? cheques.data ?? [] : []).map((c) => ({
       id: c.id,
       date: c.due_date,
       title: `${c.direction === "received" ? "Alınan" : "Verilen"} ${c.kind === "note" ? "senet" : "çek"}: ${formatMoney(c.amount, c.currency)}`,
@@ -221,7 +222,7 @@ export function AgendaPage() {
                 ["note", "Not"],
                 ["doc-in", "Tahsilat vadesi"],
                 ["doc-out", "Ödeme vadesi"],
-                ["cheque", "Çek / senet"],
+                ...(CHEQUES_ENABLED ? [["cheque", "Çek / senet"] as const] : []),
               ] as const
             ).map(([k, l]) => (
               <span key={k} className="flex items-center gap-1.5">
