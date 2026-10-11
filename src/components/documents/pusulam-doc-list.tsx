@@ -222,7 +222,7 @@ function WhatsAppIcon() {
   );
 }
 
-export type DocStatus = "paid" | "open" | "cancelled";
+export type DocStatus = "paid" | "partial" | "open" | "cancelled";
 
 /** Belge kartı (Belge · WhatsApp · E-posta · Kopyala · Düzenle · Diğer) */
 export function DocCard({
@@ -235,6 +235,8 @@ export function DocCard({
   total,
   currency,
   status,
+  paidAmount,
+  remainingAmount,
   dueDate,
   overdue,
   extraInfo,
@@ -257,6 +259,8 @@ export function DocCard({
   total: number;
   currency?: string | null;
   status: DocStatus;
+  paidAmount?: number;
+  remainingAmount?: number;
   dueDate?: string | null;
   overdue?: boolean;
   extraInfo?: string | null;
@@ -297,6 +301,11 @@ export function DocCard({
 
       <div className="order-2 sm:order-3 shrink-0 flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 sm:gap-1 text-right sm:min-w-[120px] md:min-w-[150px] border-t sm:border-t-0 border-slate-100 dark:border-slate-800 pt-2.5 sm:pt-0">
         <div className="font-bold text-sm sm:text-base tabular-nums">{formatMoney(total, currency || "TRY")}</div>
+        {remainingAmount !== undefined && remainingAmount > 0.009 && paidAmount !== undefined && paidAmount > 0.009 && (
+          <div className="text-[11px] font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+            Kalan: {formatMoney(remainingAmount, currency || "TRY")}
+          </div>
+        )}
         {stage && status !== "cancelled" ? (
           <span className="flex items-center gap-1.5 text-xs font-semibold justify-end select-none mt-1">
             <span
@@ -324,6 +333,11 @@ export function DocCard({
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             <span className="text-emerald-600 dark:text-emerald-400">Ödendi</span>
           </span>
+        ) : status === "partial" ? (
+          <span className="flex items-center gap-1.5 text-xs font-semibold justify-end select-none mt-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <span className="text-amber-600 dark:text-amber-400">Kısmi Ödendi</span>
+          </span>
         ) : status === "cancelled" ? (
           <span className="flex items-center gap-1.5 text-xs font-semibold justify-end select-none mt-1">
             <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
@@ -331,11 +345,11 @@ export function DocCard({
           </span>
         ) : (
           <span className="flex items-center gap-1.5 text-xs font-semibold justify-end select-none mt-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-amber-600 dark:text-amber-500">Açık</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            <span className="text-rose-600 dark:text-rose-400">Ödenmedi</span>
           </span>
         )}
-        {status === "open" && dueDate && (
+        {(status === "open" || status === "partial") && dueDate && (
           <span className={cn("text-[11px] font-medium", overdue ? "text-rose-600 dark:text-rose-400" : "text-slate-500 dark:text-slate-400")}>
             Vade: {formatDate(dueDate)}
             {overdue && " · gecikti"}

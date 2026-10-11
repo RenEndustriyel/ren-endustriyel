@@ -1,5 +1,5 @@
-import { ComingSoon } from "@/components/shared/coming-soon";
+import { StoreAdmin } from "@/components/store-admin/store-admin";
 
 export default function Page() {
-  return <ComingSoon title="E-Ticaret" description="Ürünlerinizi online mağazanızla ve pazaryerleriyle eşitleyin." />;
+  return <StoreAdmin />;
 }

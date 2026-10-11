@@ -1,14 +1,26 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { ArrowRight, ArrowUp, ChevronRight, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { CONTACT, NAV, PRODUCT_GROUPS, WA_LINK } from "./site-data";
+
+export function SiteWordmark({ inverse = false }: { inverse?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <Image src="/images/ren-logo-3d.png" alt="" width={44} height={44} sizes="44px" className="h-11 w-11 shrink-0 object-contain" />
+      <span className="flex flex-col gap-1 leading-none">
+        <span className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${inverse ? "text-white" : "text-[#293a30]"}`}>Endüstriyel</span>
+        <span className={`text-[8px] font-semibold uppercase tracking-[0.12em] ${inverse ? "text-white/65" : "text-[#768077]"}`}>Temizlik · Hijyen · Kağıt</span>
+      </span>
+    </span>
+  );
+}
 
 /** Bölüm başlığı */
 export function SectionTitle({ kicker, title, text, dark, align = "center" }: { kicker: string; title: string; text?: string; dark?: boolean; align?: "center" | "left" }) {
   return (
     <div className={align === "center" ? "mx-auto max-w-2xl text-center" : "max-w-2xl"}>
-      <p className={`text-xs font-extrabold uppercase tracking-[0.2em] ${dark ? "text-[#5eead4]" : "text-[#0e9f9a]"}`}>{kicker}</p>
-      <h2 className={`mt-2 text-2xl font-extrabold tracking-tight sm:text-[34px] sm:leading-tight ${dark ? "text-white" : "text-[#0b2559]"}`}>{title}</h2>
+      <p className={`text-xs font-extrabold uppercase tracking-[0.16em] ${dark ? "text-[#e1c85b]" : "text-[#9c4f38]"}`}>{kicker}</p>
+      <h2 className={`mt-2 text-2xl font-bold sm:text-[34px] sm:leading-tight ${dark ? "text-white" : "text-[#293a30]"}`}>{title}</h2>
       {text && <p className={`mt-3 text-[15px] leading-relaxed sm:text-base ${dark ? "text-white/75" : "text-slate-600"}`}>{text}</p>}
     </div>
   );
@@ -17,10 +29,8 @@ export function SectionTitle({ kicker, title, text, dark, align = "center" }: { 
 /** İç sayfa başlık bandı (breadcrumb ile) */
 export function PageHero({ title, text, crumbs }: { title: string; text?: string; crumbs: { href?: string; label: string }[] }) {
   return (
-    <section className="relative overflow-hidden bg-[#0b2559] text-white">
-      <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[#0e9f9a]/30 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 left-1/3 h-40 w-96 rounded-full bg-[#1d4ed8]/30 blur-3xl" />
-      <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
+    <section className="bg-[#253b30] text-white">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
         <nav className="mb-4 flex flex-wrap items-center gap-1 text-xs text-white/60" aria-label="Sayfa yolu">
           <Link href="/" className="hover:text-white">
             Ana Sayfa
@@ -50,15 +60,14 @@ export function CtaBand({ title = "Kurumunuza özel teklif alın", text = "İhti
   return (
     <section className="bg-white py-14 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0b2559] via-[#0f3a7a] to-[#0e9f9a] px-6 py-10 text-white sm:px-12 sm:py-12">
-          <div className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+        <div className="rounded-md bg-[#253b30] px-6 py-10 text-white sm:px-12 sm:py-12">
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-2xl font-extrabold sm:text-3xl">{title}</h2>
               <p className="mt-2 max-w-xl text-white/80">{text}</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href="/iletisim#teklif" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 font-bold text-[#0b2559] transition hover:bg-slate-100">
+              <Link href="/iletisim#teklif" className="inline-flex items-center gap-2 rounded-md bg-[#e1c85b] px-5 py-3 font-bold text-[#24372c] transition hover:bg-[#eddc85]">
                 Teklif İste <ArrowRight size={18} />
               </Link>
               <a href={WA_LINK()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/40 px-5 py-3 font-bold transition hover:bg-white/10">
@@ -75,15 +84,10 @@ export function CtaBand({ title = "Kurumunuza özel teklif alın", text = "İhti
 /** Alt bilgi */
 export function SiteFooter() {
   return (
-    <footer className="bg-[#071a40] text-white/75">
+    <footer className="bg-[#1f382b] text-white/75">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4">
         <div>
-          <div className="flex items-center gap-3">
-            <span className="relative h-12 w-12 overflow-hidden rounded-full ring-1 ring-white/20">
-              <Image src="/images/ren-logo-3d.png" alt="" fill sizes="48px" className="scale-[1.65] object-cover" />
-            </span>
-            <div className="font-extrabold tracking-wide text-white">REN ENDÜSTRİYEL</div>
-          </div>
+          <SiteWordmark inverse />
           <p className="mt-4 text-sm leading-relaxed">Kurumlara ve işletmelere toptan ve perakende endüstriyel temizlik, hijyen ve kağıt ürünleri tedariki.</p>
         </div>
         <div>
@@ -96,11 +100,6 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
-            <li>
-              <Link href="/katalog" className="hover:text-white">
-                Ürün Kataloğu
-              </Link>
-            </li>
           </ul>
         </div>
         <div>
@@ -151,9 +150,6 @@ export function SiteFooter() {
             <Link href="/yasal" className="hover:text-white">
               KVKK
             </Link>
-            <Link href="/giris" className="hover:text-white">
-              Müşteri Girişi
-            </Link>
           </span>
         </div>
       </div>
@@ -165,11 +161,19 @@ export function SiteFooter() {
 export function MobileContactBar() {
   return (
     <>
+      <a
+        href="#site-top"
+        aria-label="Sayfanın başına çık"
+        title="Sayfanın başına çık"
+        className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-6 z-40 flex size-11 items-center justify-center border border-[#244e39]/25 bg-white text-[#244e39] shadow-md transition hover:bg-[#244e39] hover:text-white"
+      >
+        <ArrowUp size={19} />
+      </a>
       <div className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-2 gap-2 border-t border-slate-200 bg-white/95 p-2 backdrop-blur sm:hidden">
-        <a href={`tel:${CONTACT.tel}`} className="flex items-center justify-center gap-2 rounded-xl bg-[#0b2559] py-3 text-sm font-bold text-white">
+        <a href={`tel:${CONTACT.tel}`} className="flex items-center justify-center gap-2 rounded-md bg-[#244e39] py-3 text-sm font-bold text-white">
           <Phone size={16} /> Ara
         </a>
-        <a href={WA_LINK()} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl bg-[#0e9f9a] py-3 text-sm font-bold text-white">
+        <a href={WA_LINK()} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-md bg-[#e1c85b] py-3 text-sm font-bold text-[#24372c]">
           <MessageCircle size={16} /> WhatsApp
         </a>
       </div>

@@ -1,138 +1,196 @@
 import { supabase } from "@/lib/supabase/client";
+import { DOC_TYPES, docFlow, type DocType } from "@/lib/doc-types";
 
 /**
- * Açık carilerde yapılmış fakat belgelere bağlanmamış (unallocated) tahsilat ve ödemeleri
- * otomatik olarak açık belgelere (en eski vadeden başlayarak) dağıtır ve eşleştirir.
- * Bu sayede anasayfada geciken tahsilat/ödemeler kısmi tahsilatlar düşülmüş olarak gösterilir.
+ * Carinin tüm açık ve kapalı belgelerini, tahsilat ve ödemelerini
+ * en eski tarihten en yeni tarihe doğru (Strict FIFO) eşleştirir.
+ * 
+ * Kural:
+ * - Ödemeler / tahsilatlar en eski açık belgeyi %100 kapatmadan
+ *   asla bir sonraki belgeye geçmez.
+ * - Bu sayede caride hiçbir zaman aynı anda 2 tane "Kısmi Ödendi"
+ *   belgesi bulunamaz; en eski belgeler tamamen "Ödendi" olur,
+ *   en fazla 1 adet sınır belgesi "Kısmi" olabilir, sonrakiler "Açık" kalır.
  */
-export async function reconcileContactAllocations(orgId: string): Promise<number> {
+export async function reconcileContactAllocations(orgId: string, targetContactId?: string): Promise<number> {
   if (!orgId) return 0;
   try {
-    // 1. Cari tahsilat ve ödeme hareketlerini çek
-    const { data: txns, error: txnErr } = await supabase
-      .from("transactions")
-      .select("id, contact_id, direction, amount, exchange_rate, currency, type, txn_date")
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .not("contact_id", "is", null)
-      .in("type", ["collection", "payment"]);
+    // 0. Varsa eski yapay mahsup kayıtlarını (oto-mahsup) temizle
+    try {
+      const { data: offsetRows1 } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .like("reference", "oto-mahsup%");
+      const { data: offsetRows2 } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .ilike("description", "%Otomatik mahsup%");
 
-    if (txnErr || !txns || txns.length === 0) return 0;
-
-    // 2. Bu işlemler için mevcut eşleştirmeleri çek
-    const txnIds = txns.map((t) => t.id);
-    const { data: existingAllocs, error: allocErr } = await supabase
-      .from("payment_allocations")
-      .select("transaction_id, document_id, amount")
-      .eq("org_id", orgId)
-      .in("transaction_id", txnIds);
-
-    if (allocErr) return 0;
-
-    const allocatedMap = new Map<string, number>();
-    const pairs = new Set((existingAllocs || []).map((a) => a.transaction_id + ":" + a.document_id));
-    for (const a of existingAllocs || []) {
-      allocatedMap.set(a.transaction_id, (allocatedMap.get(a.transaction_id) ?? 0) + Number(a.amount));
-    }
-
-    // Henüz dağıtılmamış tutarı olan hareketler
-    const unallocatedTxns = txns.filter((t) => {
-      const allocated = allocatedMap.get(t.id) ?? 0;
-      return Number(t.amount) - allocated > 0.009;
-    });
-
-    if (unallocatedTxns.length === 0) return 0;
-
-    // 3. Bu carilere ait açık belgeleri çek
-    const contactIds = [...new Set(unallocatedTxns.map((t) => t.contact_id as string))];
-
-    const { data: openDocs, error: docErr } = await supabase
-      .from("documents")
-      .select("id, contact_id, doc_type, total, paid_amount, exchange_rate, due_date, issue_date, created_at, status, payment_status")
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .in("contact_id", contactIds)
-      .neq("status", "draft")
-      .neq("status", "cancelled")
-      .in("payment_status", ["unpaid", "partial"])
-      .order("issue_date", { ascending: true })
-      .order("created_at", { ascending: true });
-
-    if (docErr || !openDocs || openDocs.length === 0) return 0;
-
-    // Belgelerin anlık kalan tutarları
-    const docRemainingMap = new Map<string, number>();
-    for (const d of openDocs) {
-      docRemainingMap.set(d.id, Math.max(0, Number(d.total) - Number(d.paid_amount)));
-    }
-
-    // Devir önce: carinin açılış bakiyesi kadar bağlanmamış tutar devri karşılar (faturaya bağlanmaz)
-    const { data: openingRows } = await supabase.from("contacts").select("id, opening_balance").in("id", contactIds);
-    const reserve = new Map<string, number>();
-    for (const c of openingRows ?? []) {
-      const ob = Number(c.opening_balance) || 0;
-      if (ob > 0) reserve.set(c.id + ":in", ob);
-      if (ob < 0) reserve.set(c.id + ":out", -ob);
-    }
-
-    const newAllocations: { org_id: string; transaction_id: string; document_id: string; amount: number }[] = [];
-
-    // Tarihe göre sırala
-    unallocatedTxns.sort((a, b) => (a.txn_date || "").localeCompare(b.txn_date || ""));
-
-    for (const txn of unallocatedTxns) {
-      const alreadyAllocated = allocatedMap.get(txn.id) ?? 0;
-      let unallocated = Number(txn.amount) - alreadyAllocated;
-      const rk = txn.contact_id + ":" + txn.direction;
-      const take = Math.min(unallocated, reserve.get(rk) ?? 0);
-      if (take > 0) {
-        reserve.set(rk, (reserve.get(rk) ?? 0) - take);
-        unallocated -= take;
-      }
-      if (unallocated <= 0.009) continue;
-
-      const validDocTypes =
-        txn.direction === "in"
-          ? ["sales_invoice", "pos_sale", "purchase_return", "sales_order"]
-          : ["purchase_invoice", "expense", "sales_return", "purchase_order"];
-
-      const contactDocs = openDocs.filter(
-        (d) => d.contact_id === txn.contact_id && validDocTypes.includes(d.doc_type)
+      const toCleanIds = Array.from(
+        new Set([...(offsetRows1 || []).map((r) => r.id), ...(offsetRows2 || []).map((r) => r.id)])
       );
+      if (toCleanIds.length > 0) {
+        await supabase.from("payment_allocations").delete().in("transaction_id", toCleanIds);
+        await supabase.from("transactions").update({ deleted_at: new Date().toISOString() }).in("id", toCleanIds);
+      }
+    } catch (e) {
+      console.warn("Mahsup temizleme hatası:", e);
+    }
 
-      for (const doc of contactDocs) {
-        if (unallocated <= 0.009) break;
-        const currentRemaining = docRemainingMap.get(doc.id) ?? 0;
-        if (currentRemaining <= 0.009 || pairs.has(txn.id + ":" + doc.id)) continue;
+    // 1. Hedef cari(ler)
+    let contactIds: string[] = [];
+    if (targetContactId) {
+      contactIds = [targetContactId];
+    } else {
+      const { data: contacts } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .limit(1000);
+      contactIds = (contacts || []).map((c) => c.id);
+    }
 
-        const toAllocate = Math.round(Math.min(unallocated, currentRemaining) * 100) / 100;
-        if (toAllocate > 0) {
-          newAllocations.push({
-            org_id: orgId,
-            transaction_id: txn.id,
-            document_id: doc.id,
-            amount: toAllocate,
-          });
+    if (contactIds.length === 0) return 0;
 
-          unallocated -= toAllocate;
-          docRemainingMap.set(doc.id, Math.max(0, currentRemaining - toAllocate));
+    let totalAllocationsCreated = 0;
+
+    for (const cid of contactIds) {
+      // 2. Carinin devir (açılış) bakiyesini al
+      const { data: contactRow } = await supabase
+        .from("contacts")
+        .select("id, opening_balance")
+        .eq("id", cid)
+        .single();
+      const openingBal = Number(contactRow?.opening_balance || 0);
+
+      // 3. Carinin tüm belgelerini çek (tarihe göre sıralı)
+      const { data: rawDocs, error: docErr } = await supabase
+        .from("documents")
+        .select("id, contact_id, doc_type, total, paid_amount, exchange_rate, due_date, issue_date, created_at, status, payment_status")
+        .eq("org_id", orgId)
+        .eq("contact_id", cid)
+        .is("deleted_at", null)
+        .neq("status", "draft")
+        .neq("status", "cancelled")
+        .order("issue_date", { ascending: true })
+        .order("due_date", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (docErr || !rawDocs) continue;
+
+      // 4. Carinin tüm hareketlerini çek (tarihe göre sıralı, yapay mahsuplar hariç)
+      const { data: rawTxns, error: txnErr } = await supabase
+        .from("transactions")
+        .select("id, contact_id, direction, amount, exchange_rate, currency, type, txn_date, created_at, reference, description")
+        .eq("org_id", orgId)
+        .eq("contact_id", cid)
+        .is("deleted_at", null)
+        .in("type", ["collection", "payment", "cheque_in", "cheque_out", "adjustment", "cheque_collect", "cheque_pay"])
+        .order("txn_date", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (txnErr || !rawTxns) continue;
+
+      // İki yön için ayrı FIFO hesapla: "in" (satış/tahsilat) ve "out" (alış/ödeme)
+      for (const flow of ["in", "out"] as const) {
+        const flowDocs = rawDocs.filter((d) => {
+          const cfg = DOC_TYPES[d.doc_type as DocType];
+          if (!cfg?.payable) return false;
+          return docFlow(d.doc_type as DocType) === flow;
+        });
+
+        const flowTxns = rawTxns
+          .filter((t) => {
+            if (t.direction !== flow || Number(t.amount) <= 0) return false;
+            const ref = t.reference ?? "";
+            const desc = t.description ?? "";
+            if (ref.startsWith("oto-mahsup") || ref.includes("oto-mahsup") || desc.includes("Otomatik mahsup") || desc.includes("oto-mahsup")) {
+              return false;
+            }
+            return true;
+          })
+          .map((t) => ({ ...t, avail: Number(t.amount) }));
+
+        if (flowDocs.length === 0 && flowTxns.length === 0) continue;
+
+        // Devir: müşteri ise flow in devri kapatır, tedarikçi ise flow out devri kapatır
+        let reserve = flow === "in" ? Math.max(0, openingBal) : Math.max(0, -openingBal);
+        for (const t of flowTxns) {
+          if (reserve <= 0.009) break;
+          const take = Math.min(t.avail, reserve);
+          t.avail = Math.round((t.avail - take) * 100) / 100;
+          reserve = Math.round((reserve - take) * 100) / 100;
+        }
+
+        const newAllocs: { org_id: string; transaction_id: string; document_id: string; amount: number }[] = [];
+        const docPaidMap = new Map<string, number>();
+        let txnIdx = 0;
+
+        for (const doc of flowDocs) {
+          const docTotal = Number(doc.total || 0);
+          let needed = docTotal;
+
+          while (needed > 0.009 && txnIdx < flowTxns.length) {
+            const txn = flowTxns[txnIdx];
+            if (txn.avail <= 0.009) {
+              txnIdx++;
+              continue;
+            }
+
+            const pay = Math.round(Math.min(needed, txn.avail) * 100) / 100;
+            if (pay > 0) {
+              newAllocs.push({
+                org_id: orgId,
+                transaction_id: txn.id,
+                document_id: doc.id,
+                amount: pay,
+              });
+              needed = Math.round((needed - pay) * 100) / 100;
+              txn.avail = Math.round((txn.avail - pay) * 100) / 100;
+            }
+
+            if (txn.avail <= 0.009) {
+              txnIdx++;
+            }
+          }
+
+          docPaidMap.set(doc.id, Math.max(0, Math.round((docTotal - needed) * 100) / 100));
+        }
+
+        // DB'deki eski eşleştirmeleri temizle ve temiz FIFO eşleştirmelerini yaz
+        const docIds = flowDocs.map((d) => d.id);
+        if (docIds.length > 0) {
+          await supabase.from("payment_allocations").delete().in("document_id", docIds);
+        }
+
+        if (newAllocs.length > 0) {
+          await supabase.from("payment_allocations").insert(newAllocs);
+          totalAllocationsCreated += newAllocs.length;
+        }
+
+        // Belgelerin paid_amount ve payment_status değerlerini güncelle
+        for (const doc of flowDocs) {
+          const paid = docPaidMap.get(doc.id) ?? 0;
+          const docTotal = Number(doc.total || 0);
+          const status = paid >= docTotal - 0.009 ? "paid" : paid > 0.009 ? "partial" : "unpaid";
+
+          // Sadece değişenleri güncelle
+          if (Math.abs(Number(doc.paid_amount || 0) - paid) > 0.009 || doc.payment_status !== status) {
+            await supabase
+              .from("documents")
+              .update({ paid_amount: paid, payment_status: status })
+              .eq("id", doc.id);
+          }
         }
       }
     }
 
-    if (newAllocations.length === 0) return 0;
-
-    // Eşleştirmeleri kaydet (DB trigger'ı otomatik olarak documents.paid_amount günceller)
-    // aynı hareket–belge çifti zaten varsa atla (benzersiz kısıt); diğer eşleşmeler yine kaydedilir
-    const { error: insertErr } = await supabase
-      .from("payment_allocations")
-      .upsert(newAllocations, { onConflict: "transaction_id,document_id", ignoreDuplicates: true });
-    if (insertErr) {
-      console.warn("Otomatik tahsilat/ödeme eşleştirmesi kaydedilemedi:", insertErr);
-      return 0;
-    }
-
-    return newAllocations.length;
+    return totalAllocationsCreated;
   } catch (err) {
     console.warn("Reconcile error:", err);
     return 0;

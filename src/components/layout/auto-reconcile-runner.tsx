@@ -41,23 +41,29 @@ function appendLog(entry: Record<string, unknown>) {
   } catch {}
 }
 
-/** Yarım kalmış (tek yönü yazılmış) otomatik mahsupları geri alır */
-async function repairOrphans(orgId: string) {
-  const rows = await must<{ id: string; reference: string }[]>(
-    db.from("transactions").select("id, reference").eq("org_id", orgId).is("deleted_at", null).like("reference", `${OFFSET_REF}:%`).limit(5000),
-  );
-  const byRef = new Map<string, string[]>();
-  for (const r of rows) byRef.set(r.reference, [...(byRef.get(r.reference) ?? []), r.id]);
-  for (const [ref, ids] of byRef) {
-    if (ids.length === 1) {
-      await must(db.from("transactions").update({ deleted_at: new Date().toISOString() }).eq("id", ids[0]).select("id"));
-      appendLog({ action: "yarim-mahsup-geri-alindi", reference: ref, id: ids[0] });
+/** Kullanıcı talebi doğrultusunda tüm yapay otomatik mahsup (oto-mahsup) kayıtlarını kaldırır ve temizler */
+async function removeAllOffsets(orgId: string) {
+  try {
+    const rows1 = await must<{ id: string }[]>(
+      db.from("transactions").select("id").eq("org_id", orgId).is("deleted_at", null).like("reference", `${OFFSET_REF}:%`).limit(5000),
+    );
+    const rows2 = await must<{ id: string }[]>(
+      db.from("transactions").select("id").eq("org_id", orgId).is("deleted_at", null).ilike("description", "%Otomatik mahsup%").limit(5000),
+    );
+    const allIds = Array.from(new Set([...rows1.map((r) => r.id), ...rows2.map((r) => r.id)]));
+    if (allIds.length > 0) {
+      await db.from("payment_allocations").delete().in("transaction_id", allIds);
+      await must(db.from("transactions").update({ deleted_at: new Date().toISOString() }).in("id", allIds).select("id"));
+      appendLog({ action: "tum-mahsuplar-kaldirildi", count: allIds.length });
     }
+  } catch (err) {
+    console.warn("Mahsup temizleme hatası:", err);
   }
 }
 
 async function runReconcile(orgId: string): Promise<{ allocations: number; offsets: number }> {
-  await repairOrphans(orgId);
+  // Mevcut yapay mahsupları temizle (ekstrede yapay hareket kalmasın)
+  await removeAllOffsets(orgId);
 
   type DocRow = { id: string; contact_id: string; doc_type: string; due_date: string | null; issue_date: string; total: number; paid_amount: number };
   const docRows = await must<DocRow[]>(
@@ -157,40 +163,8 @@ async function runReconcile(orgId: string): Promise<{ allocations: number; offse
     appendLog({ action: "baglanti", count: rows.length, rows });
   }
 
-  // 2) Satış ↔ alış mahsubu: giriş + çıkış düzeltme hareketi (kasasız, net etkisi sıfır)
-  const today = isoDate();
-  for (const o of plan.offsets) {
-    const base = await stableUuid(o.key);
-    const reference = `${OFFSET_REF}:${base.slice(0, 13)}`;
-    const inId = await stableUuid(`${o.key}:in`);
-    const outId = await stableUuid(`${o.key}:out`);
-    const txn = (id: string, direction: "in" | "out", description: string) => ({
-      id,
-      org_id: orgId,
-      type: "adjustment",
-      direction,
-      txn_date: today,
-      account_id: null,
-      contact_id: o.contact_id,
-      amount: o.amount,
-      currency: "TRY",
-      exchange_rate: 1,
-      method: "other",
-      description,
-      reference,
-    });
-    await must(db.rpc("save_transaction", { p_txn: txn(inId, "in", "Otomatik mahsup · satış faturaları"), p_allocations: o.inAllocs }));
-    try {
-      await must(db.rpc("save_transaction", { p_txn: txn(outId, "out", "Otomatik mahsup · alış faturaları"), p_allocations: o.outAllocs }));
-    } catch (e) {
-      // Tek yön kalmasın: girişi geri al (cari bakiye bozulmasın)
-      await must(db.from("transactions").update({ deleted_at: new Date().toISOString() }).eq("id", inId).select("id"));
-      throw e;
-    }
-    appendLog({ action: "mahsup", contact_id: o.contact_id, amount: o.amount, reference, inId, outId, in: o.inAllocs, out: o.outAllocs });
-  }
-
-  return { allocations: plan.allocations.length, offsets: plan.offsets.length };
+  // Kullanıcı isteği: Yapay mahsuplaştırma (oto-mahsup düzeltmeleri) kaldırıldı.
+  return { allocations: plan.allocations.length, offsets: 0 };
 }
 
 /**

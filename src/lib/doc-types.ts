@@ -75,8 +75,8 @@ export const docFlow = (t: DocType): "in" | "out" =>
 
 export const PAYMENT_STATUS: Record<string, { label: string; tone: "success" | "warning" | "danger" | "neutral" }> = {
   paid: { label: "Ödendi", tone: "success" },
-  partial: { label: "Kısmi", tone: "warning" },
-  unpaid: { label: "Açık", tone: "danger" },
+  partial: { label: "Kısmi Ödendi", tone: "warning" },
+  unpaid: { label: "Ödenmedi", tone: "danger" },
   none: { label: "—", tone: "neutral" },
 };
 

@@ -33,6 +33,7 @@ import {
   Banknote,
   Search,
   X,
+  Sparkles,
 } from "lucide-react";
 import {
   useRow,
@@ -53,6 +54,7 @@ import { DOC_TYPES, PAYMENT_STATUS, docFlow, statusLabel, type DocType } from "@
 import { PaymentDialog } from "@/components/cash/payment-dialog";
 import { ContactPaymentDialog } from "@/components/cash/contact-payment-dialog";
 import { TYPE_LABELS } from "@/components/dashboard/types";
+import { reconcileContactAllocations } from "@/lib/reconcile-allocations";
 import { useOrg } from "@/providers/org-provider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -160,9 +162,37 @@ export function ContactDetail({ id }: { id: string }) {
     order: [{ column: "due_date", ascending: false }],
   });
 
-  // Ekstre hesaplamaları ve birleştirme
+  // Sayfa açıldığında veya cari değiştiğinde yapay mahsupları temizle ve katı FIFO'yu senkronize et
+  React.useEffect(() => {
+    if (!org?.id || !id) return;
+    reconcileContactAllocations(org.id, id)
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ["contact_statement"] });
+        qc.invalidateQueries({ queryKey: ["contact_docs"] });
+        qc.invalidateQueries({ queryKey: ["contact_txns"] });
+      })
+      .catch((err) => {
+        console.warn("Cari mutabakat eşitleme hatası:", err);
+      });
+  }, [org?.id, id, qc]);
+
+  // Ekstre hesaplamaları ve birleştirme (Yapay mahsuplar hariç ne ise o görünür)
   const all = React.useMemo(() => {
-    const raw = (statement.data ?? []).map((r) => ({ ...r }));
+    const raw = (statement.data ?? [])
+      .filter((r) => {
+        const num = r.number ?? "";
+        const desc = r.description ?? "";
+        if (
+          num.startsWith("oto-mahsup") ||
+          num.includes("oto-mahsup") ||
+          desc.includes("Otomatik mahsup") ||
+          desc.includes("oto-mahsup")
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((r) => ({ ...r }));
     const hasOrders = raw.some((r) => r.ref_type === "sales_order" || r.ref_type === "purchase_order");
     const orders = hasOrders
       ? []
@@ -205,6 +235,74 @@ export function ContactDetail({ id }: { id: string }) {
   }, [statement.data, docs.data]);
 
   const c = contact.data;
+
+  // Strict FIFO: Carinin açık belgelerine yapılan tahsilat ve ödemelerin
+  // en eskiden yeniye doğru (strictly sequential) hesaplanması.
+  // Bir faturayı %100 kapatmadan asla sonrakine geçmez -> Asla 2 kısmi olamaz.
+  const fifoMap = React.useMemo(() => {
+    const map = new Map<string, { paid: number; remaining: number; status: "paid" | "partial" | "unpaid" }>();
+    if (!docs.data) return map;
+
+    const openingBal = Number(c?.opening_balance || 0);
+    const validDocs = (docs.data ?? [])
+      .filter((d) => {
+        const cfg = DOC_TYPES[d.doc_type as DocType];
+        return cfg?.payable && d.status !== "draft" && d.status !== "cancelled";
+      })
+      .sort((a, b) => (a.issue_date || "").localeCompare(b.issue_date || "") || (a.created_at || "").localeCompare(b.created_at || ""));
+
+    const validTxns = (txns.data ?? [])
+      .filter((t) => {
+        if (Number(t.amount) <= 0) return false;
+        const ref = t.reference ?? "";
+        const desc = t.description ?? "";
+        if (ref.startsWith("oto-mahsup") || ref.includes("oto-mahsup") || desc.includes("Otomatik mahsup") || desc.includes("oto-mahsup")) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (a.txn_date || "").localeCompare(b.txn_date || "") || (a.created_at || "").localeCompare(b.created_at || ""));
+
+    for (const flow of ["in", "out"] as const) {
+      const flowDocs = validDocs.filter((d) => docFlow(d.doc_type as DocType) === flow);
+      const flowTxns = validTxns.filter((t) => t.direction === flow).map((t) => ({ ...t, avail: Number(t.amount) }));
+
+      let reserve = flow === "in" ? Math.max(0, openingBal) : Math.max(0, -openingBal);
+      for (const t of flowTxns) {
+        if (reserve <= 0.009) break;
+        const take = Math.min(t.avail, reserve);
+        t.avail = Math.round((t.avail - take) * 100) / 100;
+        reserve = Math.round((reserve - take) * 100) / 100;
+      }
+
+      let txnIdx = 0;
+      for (const doc of flowDocs) {
+        const docTotal = Number(doc.total || 0);
+        let needed = docTotal;
+
+        while (needed > 0.009 && txnIdx < flowTxns.length) {
+          const txn = flowTxns[txnIdx];
+          if (txn.avail <= 0.009) {
+            txnIdx++;
+            continue;
+          }
+          const pay = Math.round(Math.min(needed, txn.avail) * 100) / 100;
+          needed = Math.round((needed - pay) * 100) / 100;
+          txn.avail = Math.round((txn.avail - pay) * 100) / 100;
+          if (txn.avail <= 0.009) {
+            txnIdx++;
+          }
+        }
+
+        const paid = Math.max(0, Math.round((docTotal - needed) * 100) / 100);
+        const rem = Math.max(0, Math.round((docTotal - paid) * 100) / 100);
+        const status: "paid" | "partial" | "unpaid" =
+          rem <= 0.009 ? "paid" : paid > 0.009 ? "partial" : "unpaid";
+        map.set(doc.id, { paid, remaining: rem, status });
+      }
+    }
+    return map;
+  }, [docs.data, txns.data, c?.opening_balance]);
 
   // Sıralama State
   const [sortField, setSortField] = React.useState<"date" | "type" | "description" | "debit" | "credit" | "balance">("date");
@@ -293,11 +391,14 @@ export function ContactDetail({ id }: { id: string }) {
   const hasSalesDocs = (docs.data ?? []).some((d) => d.doc_type.startsWith("sales") || d.doc_type === "pos_sale" || d.doc_type === "quote");
   const isSupplier = c.kind === "supplier" || (hasPurchaseDocs && !hasSalesDocs);
   const balance = Number(balances.data?.find((b) => b.contact_id === id)?.balance ?? c.opening_balance ?? 0);
+  const isSettled = Math.abs(balance) <= 0.009;
+  const hasNoDebt = isSupplier ? balance >= -0.009 : balance <= 0.009;
   const openDocs = (docs.data ?? []).filter((d) => d.payment_status === "unpaid" || d.payment_status === "partial");
   const openDocsTotal = openDocs.reduce(
     (acc, d) => acc + (Number(d.total) - Number(d.paid_amount || 0)) * Number(d.exchange_rate || 1),
     0
   );
+  const effectiveOpenDocsTotal = isSettled ? 0 : openDocsTotal;
 
   // Cari kart metrikleri (TL): taslak / iptal / sipariş hariç, iadeler düşülür
   const today = isoDate();
@@ -325,6 +426,7 @@ export function ContactDetail({ id }: { id: string }) {
   // Vadesi geçen açık belgeler
   const overdueDocs = openDocs.filter((d) => d.due_date && d.due_date < today && d.status !== "draft" && d.status !== "cancelled");
   const overdueTotal = overdueDocs.reduce((acc, d) => acc + (Number(d.total) - Number(d.paid_amount || 0)) * Number(d.exchange_rate || 1), 0);
+  const effectiveOverdueTotal = hasNoDebt ? 0 : overdueTotal;
   const oldestDue = overdueDocs.reduce<string | null>((m, d) => (!m || d.due_date! < m ? d.due_date! : m), null);
   const daysSince = (iso: string) => Math.max(0, Math.round((Date.parse(today) - Date.parse(iso)) / 864e5));
 
@@ -357,6 +459,25 @@ export function ContactDetail({ id }: { id: string }) {
           { header: "Belge no", value: (r) => r.number },
           { header: "Açıklama", value: (r) => r.description, width: 36 },
           { header: "Vade", value: (r) => r.due_date, type: "date" },
+          {
+            header: "Ödeme Durumu",
+            value: (r) => {
+              if (r.kind !== "document") return "";
+              const doc = (docs.data ?? []).find((d) => d.id === r.ref_id);
+              if (!doc || !DOC_TYPES[doc.doc_type as DocType]?.payable) return "";
+              const fifo = fifoMap.get(doc.id);
+              if (fifo) {
+                if (fifo.status === "paid") return "Ödendi";
+                if (fifo.status === "partial") return `Kısmi Ödendi (Kalan: ${formatMoney(fifo.remaining, doc.currency)})`;
+                return "Ödenmedi";
+              }
+              const tot = Number(doc.total || 0);
+              const pd = Number(doc.paid_amount || 0);
+              if (doc.payment_status === "paid" || (tot > 0 && pd >= tot - 0.009)) return "Ödendi";
+              if (doc.payment_status === "partial" || pd > 0.009) return `Kısmi Ödendi (Kalan: ${formatMoney(tot - pd, doc.currency)})`;
+              return "Ödenmedi";
+            },
+          },
           { header: "Borç", value: (r) => Number(r.debit), type: "money" },
           { header: "Alacak", value: (r) => Number(r.credit), type: "money" },
           { header: "Bakiye", value: (r) => Number(r.balance), type: "money" },
@@ -373,7 +494,9 @@ export function ContactDetail({ id }: { id: string }) {
   const payableDoc = (docId: string) => {
     const d = (docs.data ?? []).find((x) => x.id === docId);
     if (!d || !DOC_TYPES[d.doc_type as DocType]?.payable || d.status === "draft" || d.status === "cancelled") return null;
-    return Number(d.total) - Number(d.paid_amount || 0) > 0.004 ? d : null;
+    const fifo = fifoMap.get(docId);
+    const rem = fifo ? fifo.remaining : Number(d.total) - Number(d.paid_amount || 0);
+    return rem > 0.004 ? d : null;
   };
   /** Satışlar / Alışlar sekmesi için seçilen tarih aralığı (null = tümü) */
   const docRange = ((): [string, string] | null => {
@@ -530,6 +653,51 @@ export function ContactDetail({ id }: { id: string }) {
     }
   };
 
+  const [reconciling, setReconciling] = React.useState(false);
+
+  const handleAutoReconcile = async () => {
+    if (!org?.id || !id) return;
+    setReconciling(true);
+    try {
+      const count = await reconcileContactAllocations(org.id, id);
+      await Promise.all([
+        statement.refetch(),
+        docs.refetch(),
+        txns.refetch(),
+        balances.refetch(),
+        qc.invalidateQueries({ queryKey: ["rows", "documents"] }),
+        qc.invalidateQueries({ queryKey: ["rows", "transactions"] }),
+        qc.invalidateQueries({ queryKey: ["contact_statement"] }),
+      ]);
+      if (count > 0) {
+        toast.success("Eşleştirme Tamamlandı", {
+          description: `${count} tahsilat/ödeme en eski açık faturalarla (FIFO) eşleştirildi.`,
+        });
+      } else {
+        toast.info("Tüm açık faturalar ve tahsilatlar zaten güncel ve eşleşmiş durumda.");
+      }
+    } catch (err: any) {
+      toast.error("Eşleştirme hatası: " + (err?.message || ""));
+    } finally {
+      setReconciling(false);
+    }
+  };
+
+  // Açılışta bu carinin bağlanmamış tahsilat ve ödemelerini en eski açık faturalara bağla
+  React.useEffect(() => {
+    if (!org?.id || !id) return;
+    reconcileContactAllocations(org.id, id)
+      .then((count) => {
+        if (count > 0) {
+          statement.refetch();
+          docs.refetch();
+          txns.refetch();
+          balances.refetch();
+        }
+      })
+      .catch(() => {});
+  }, [org?.id, id]);
+
   const renderSortHeader = (label: string, field: "date" | "type" | "description" | "debit" | "credit" | "balance", alignRight?: boolean) => (
     <button
       type="button"
@@ -658,6 +826,18 @@ export function ContactDetail({ id }: { id: string }) {
             <ArrowLeftRight className="size-3.5 text-slate-600 dark:text-slate-400" />
             <span>Borç / Alacak Kaydı</span>
           </button>
+
+          {/* Faturaları Eşleştir (FIFO) */}
+          <button
+            type="button"
+            disabled={reconciling}
+            onClick={handleAutoReconcile}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 dark:border-teal-700/60 bg-teal-50 dark:bg-teal-950/40 px-3 py-1.5 text-xs sm:text-sm font-bold text-teal-700 dark:text-teal-300 transition hover:bg-teal-100 dark:hover:bg-teal-900/50"
+            title="Tahsilat ve ödemeleri en eski faturadan yeniye doğru (FIFO) otomatik eşleştirir"
+          >
+            <Sparkles className={cn("size-3.5 text-teal-600 dark:text-teal-400", reconciling && "animate-spin")} />
+            <span>{reconciling ? "Eşleştiriliyor..." : "Faturaları Eşleştir"}</span>
+          </button>
         </div>
       </div>
 
@@ -727,28 +907,34 @@ export function ContactDetail({ id }: { id: string }) {
             <div
               className={cn(
                 "mt-1 text-2xl sm:text-3xl font-black tracking-tight",
-                balance > 0.004
-                  ? isSupplier ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
-                  : balance < -0.004
-                    ? isSupplier ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                    : "text-slate-900 dark:text-white"
+                isSettled
+                  ? "text-slate-800 dark:text-slate-100"
+                  : balance > 0.004
+                    ? isSupplier ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                    : isSupplier ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
               )}
             >
-              {formatMoney(Math.abs(balance))}
+              {isSettled ? "0,00 ₺" : formatMoney(Math.abs(balance))}
             </div>
-            <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              {Math.abs(balance) <= 0.004
-                ? "Hesap kapalı"
-                : isSupplier
-                  ? balance < 0
-                    ? "Alacaklı (Biz Borçluyuz)"
-                    : "Borçlu (Bize Borçlu)"
-                  : balance > 0
-                    ? "Borçlu (Bize Borçlu)"
-                    : "Alacaklı (Biz Borçluyuz)"}
+            <div className="mt-1 flex items-center gap-1.5 sm:justify-end text-xs font-semibold">
+              {isSettled ? (
+                <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" /> Hesap Kapalı (Borç/Alacak Yok)
+                </span>
+              ) : isSupplier ? (
+                balance < 0 ? (
+                  <span className="text-rose-600 dark:text-rose-400">Alacaklı (Biz Borçluyuz)</span>
+                ) : (
+                  <span className="text-emerald-600 dark:text-emerald-400">Borçlu (Bize Borçlu)</span>
+                )
+              ) : balance > 0 ? (
+                <span className="text-emerald-600 dark:text-emerald-400">Borçlu (Bize Borçlu)</span>
+              ) : (
+                <span className="text-rose-600 dark:text-rose-400">Alacaklı (Biz Borçluyuz)</span>
+              )}
             </div>
             <div className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-              Açık belge: {formatMoney(openDocsTotal)}
+              {isSettled ? "Açık bakiye yok" : `Açık belge: ${formatMoney(effectiveOpenDocsTotal)}`}
             </div>
             {Math.abs(Number(c.opening_balance ?? 0)) > 0.004 && (
               <button
@@ -800,13 +986,13 @@ export function ContactDetail({ id }: { id: string }) {
         <div
           className={cn(
             "flex flex-col justify-center rounded-xl bg-gradient-to-r p-4 text-white shadow-sm min-w-0",
-            overdueTotal > 0.004 ? "from-[#f43f5e] to-[#e11d48]" : "from-[#64748b] to-[#475569]",
+            effectiveOverdueTotal > 0.004 ? "from-[#f43f5e] to-[#e11d48]" : "from-[#475569] to-[#334155]",
           )}
         >
-          <div className="text-xl sm:text-2xl font-black tracking-tight truncate">{formatMoney(overdueTotal)}</div>
-          <div className="mt-1 text-xs font-semibold text-white/90">{isSupplier ? "Vadesi Geçen Borcumuz" : "Vadesi Geçen"}</div>
+          <div className="text-xl sm:text-2xl font-black tracking-tight truncate">{formatMoney(effectiveOverdueTotal)}</div>
+          <div className="mt-1 text-xs font-semibold text-white/90">{isSupplier ? "Vadesi Geçen Borcumuz" : "Vadesi Geçen Alacağımız"}</div>
           <div className="mt-0.5 text-[11px] text-white/90 truncate">
-            {oldestDue ? `${overdueDocs.length} belge · en eski ${daysSince(oldestDue)} gün` : "Gecikme yok"}
+            {effectiveOverdueTotal > 0.004 && oldestDue ? `${overdueDocs.length} belge · en eski ${daysSince(oldestDue)} gün` : "Gecikme yok"}
           </div>
         </div>
 
@@ -860,12 +1046,47 @@ export function ContactDetail({ id }: { id: string }) {
         {/* SEKME 1: ÖZET (Son Hareketler Tablosu) */}
         {activeTab === "ozet" && (
           <div>
-            <div className="flex items-center justify-between mb-4 border-b border-slate-200 dark:border-[#1e2a3a] pb-3">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-wide">Son Hareketler</h2>
-              <div className="text-xs text-slate-600 dark:text-slate-400">
-                Toplam {displayRows.length} hareket bulundu
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-slate-200 dark:border-[#1e2a3a] pb-3">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-wide">Son Hareketler (Cari Ekstre)</h2>
+                <span className="rounded-full bg-slate-100 dark:bg-[#1a2332] px-2 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  {displayRows.length} kayıt
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEkstreModalOpen(true)}
+                  className="h-8 text-xs font-medium border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] text-slate-800 dark:text-slate-200"
+                >
+                  <FileText className="size-3.5 mr-1 text-slate-600 dark:text-slate-400" /> Ekstre Raporu
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAutoReconcile}
+                  disabled={reconciling}
+                  className="h-8 text-xs font-bold border-teal-300 dark:border-teal-700/60 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/50"
+                  title="Tahsilat ve ödemeleri en eski faturadan yeniye doğru (FIFO) otomatik eşleştirir"
+                >
+                  <Sparkles className={cn("size-3.5 mr-1 text-teal-600 dark:text-teal-400", reconciling && "animate-spin")} />
+                  {reconciling ? "Eşleştiriliyor..." : "Faturaları Eşleştir (FIFO)"}
+                </Button>
               </div>
             </div>
+
+            {isSettled && (
+              <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/70 dark:bg-emerald-950/20 px-3.5 py-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+                <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="font-bold">Hesap Bakiyesi Kapalı (0,00 ₺):</span>
+                  <span className="text-emerald-700/90 dark:text-emerald-300/90">
+                    Bu cari ile açık borç/alacak bulunmamaktadır. Tüm tahsilat ve ödemeler mutabık durumdadır.
+                  </span>
+                </div>
+              </div>
+            )}
 
             {statement.isPending ? (
               <div className="space-y-2 py-8">
@@ -878,117 +1099,197 @@ export function ContactDetail({ id }: { id: string }) {
                 <span>Henüz hareket yok.</span>
               </div>
             ) : (
-              <div className="thin-scroll overflow-x-auto">
+              <div className="thin-scroll overflow-x-auto rounded-xl border border-slate-200 dark:border-[#1e2a3a]">
                 <table className="w-full text-sm">
-                  <thead className="border-b border-slate-200 dark:border-[#1e2a3a] bg-slate-50 dark:bg-[#16202c]/60 text-[11px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  <thead className="border-b border-slate-200 dark:border-[#1e2a3a] bg-slate-50/80 dark:bg-[#16202c]/80 text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-400">
                     <tr>
-                      <th className="px-3 py-2.5 text-left">{renderSortHeader("Tarih", "date")}</th>
-                      <th className="px-3 py-2.5 text-left">{renderSortHeader("İşlem", "type")}</th>
-                      <th className="hidden px-3 py-2.5 text-left md:table-cell">{renderSortHeader("Açıklama", "description")}</th>
-                      <th className="px-3 py-2.5 text-right">{renderSortHeader("Borç", "debit", true)}</th>
-                      <th className="px-3 py-2.5 text-right">{renderSortHeader("Alacak", "credit", true)}</th>
-                      <th className="px-3 py-2.5 text-right">{renderSortHeader("Bakiye", "balance", true)}</th>
-                      <th className="w-24 px-3 py-2.5 text-right font-semibold">İşlemler</th>
+                      <th className="px-3.5 py-3 text-left">{renderSortHeader("Tarih", "date")}</th>
+                      <th className="px-3.5 py-3 text-left">{renderSortHeader("İşlem & Belge", "type")}</th>
+                      <th className="hidden px-3.5 py-3 text-left md:table-cell">{renderSortHeader("Açıklama & Vade", "description")}</th>
+                      <th className="px-3.5 py-3 text-right">{renderSortHeader("Borç", "debit", true)}</th>
+                      <th className="px-3.5 py-3 text-right">{renderSortHeader("Alacak", "credit", true)}</th>
+                      <th className="px-3.5 py-3 text-right">{renderSortHeader("Bakiye", "balance", true)}</th>
+                      <th className="px-3 py-3 text-center font-semibold">Ödeme Durumu</th>
+                      <th className="w-24 px-3 py-3 text-right font-semibold">İşlemler</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-[#1e2a3a]">
-                    <tr className="bg-slate-50/70 dark:bg-[#16202c]/30 text-slate-600 dark:text-slate-400 text-xs">
-                      <td className="px-3 py-2 whitespace-nowrap">{formatDate(from)}</td>
-                      <td className="px-3 py-2">Devreden Bakiye</td>
-                      <td className="hidden md:table-cell" />
-                      <td />
-                      <td />
-                      <td className="num px-3 py-2 text-right font-semibold text-slate-800 dark:text-slate-200">{formatMoney(carried)}</td>
+                  <tbody className="divide-y divide-slate-100 dark:divide-[#1e2a3a]/60">
+                    <tr className="bg-slate-50/60 dark:bg-[#16202c]/20 text-slate-600 dark:text-slate-400 text-xs">
+                      <td className="px-3.5 py-2.5 whitespace-nowrap font-medium">{formatDate(from)}</td>
+                      <td className="px-3.5 py-2.5 font-medium text-slate-700 dark:text-slate-300">Devreden Bakiye</td>
+                      <td className="hidden px-3.5 py-2.5 md:table-cell">—</td>
+                      <td className="px-3.5 py-2.5 text-right">—</td>
+                      <td className="px-3.5 py-2.5 text-right">—</td>
+                      <td className="num px-3.5 py-2.5 text-right font-semibold text-slate-800 dark:text-slate-200">{formatMoney(carried)}</td>
+                      <td className="px-3.5 py-2.5 text-center">—</td>
                       <td />
                     </tr>
-                    {displayRows.map((r) => (
-                      <tr
-                        key={`${r.kind}-${r.ref_id}`}
-                        className="group cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-[#1a2534]/60"
-                        onClick={() => setSelectedRow(r)}
-                      >
-                        <td className="px-3 py-2.5 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium">
-                          {formatDate(r.entry_date)}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="font-semibold text-slate-900 dark:text-white">
-                            {DOC_TYPES[r.ref_type as DocType]?.label ?? TYPE_LABELS[r.ref_type] ?? "Açılış"}
-                          </div>
-                          {r.number && <div className="text-[11px] text-slate-600 dark:text-slate-400">{r.number}</div>}
-                        </td>
-                        <td className="hidden px-3 py-2.5 text-slate-700 dark:text-slate-300 md:table-cell text-xs">
-                          {r.description !== r.number ? r.description : ""}
-                          {r.due_date && <span className="ml-1 text-[11px] text-slate-600 dark:text-slate-400">(vade: {formatDate(r.due_date)})</span>}
-                        </td>
-                        <td className="num px-3 py-2.5 text-right font-medium text-slate-800 dark:text-slate-200">
-                          {Number(r.debit) ? formatMoney(r.debit) : ""}
-                        </td>
-                        <td className="num px-3 py-2.5 text-right font-medium text-slate-800 dark:text-slate-200">
-                          {Number(r.credit) ? formatMoney(r.credit) : ""}
-                        </td>
-                        <td className={cn("num px-3 py-2.5 text-right font-bold", Number(r.balance) < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")}>
-                          {formatMoney(r.balance)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100">
-                            {canWrite && r.kind === "document" && payableDoc(r.ref_id) && (() => {
-                              const pd = payableDoc(r.ref_id)!;
-                              const inFlow = docFlow(pd.doc_type as DocType) === "in";
-                              return (
+                    {displayRows.map((r) => {
+                      const doc = r.kind === "document" ? (docs.data ?? []).find((d) => d.id === r.ref_id) : null;
+                      const isPayable = doc ? DOC_TYPES[doc.doc_type as DocType]?.payable : false;
+                      const fifo = doc ? fifoMap.get(doc.id) : null;
+                      const docTotal = doc ? Number(doc.total || 0) : 0;
+                      const docPaid = fifo ? fifo.paid : (doc ? Number(doc.paid_amount || 0) : 0);
+                      const docRemaining = fifo ? fifo.remaining : Math.max(0, docTotal - docPaid);
+                      const isPaid = fifo ? fifo.status === "paid" : (doc ? (doc.payment_status === "paid" || (docTotal > 0 && docPaid >= docTotal - 0.009)) : false);
+                      const isPartial = fifo ? fifo.status === "partial" : (!isPaid && doc ? (doc.payment_status === "partial" || docPaid > 0.009) : false);
+                      const rBal = Number(r.balance || 0);
+                      const isRowZero = Math.abs(rBal) <= 0.009;
+
+                      return (
+                        <tr
+                          key={`${r.kind}-${r.ref_id}`}
+                          className="group cursor-pointer transition-colors hover:bg-slate-50/80 dark:hover:bg-[#1a2534]/50"
+                          onClick={() => setSelectedRow(r)}
+                        >
+                          {/* Tarih */}
+                          <td className="px-3.5 py-3 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium text-xs">
+                            {formatDate(r.entry_date)}
+                          </td>
+
+                          {/* İşlem & Belge No */}
+                          <td className="px-3.5 py-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-slate-900 dark:text-white text-xs">
+                                {DOC_TYPES[r.ref_type as DocType]?.label ?? TYPE_LABELS[r.ref_type] ?? "Açılış"}
+                              </span>
+                              {r.number && (
+                                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#1a2332] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
+                                  {r.number}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Açıklama & Vade */}
+                          <td className="hidden px-3.5 py-3 text-slate-600 dark:text-slate-400 md:table-cell text-xs">
+                            <div className="flex items-center gap-1.5 truncate max-w-xs">
+                              <span className="truncate">{r.description !== r.number ? r.description || "—" : "—"}</span>
+                              {r.due_date && (
+                                <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-[#16202c] text-slate-500 dark:text-slate-400">
+                                  Vade: {formatDate(r.due_date)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Borç */}
+                          <td className="num px-3.5 py-3 text-right font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                            {Number(r.debit) ? formatMoney(r.debit) : "—"}
+                          </td>
+
+                          {/* Alacak */}
+                          <td className="num px-3.5 py-3 text-right font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                            {Number(r.credit) ? formatMoney(r.credit) : "—"}
+                          </td>
+
+                          {/* Bakiye */}
+                          <td
+                            className={cn(
+                              "num px-3.5 py-3 text-right font-bold text-xs",
+                              isRowZero
+                                ? "text-slate-700 dark:text-slate-300"
+                                : rBal < 0
+                                  ? "text-rose-600 dark:text-rose-400"
+                                  : "text-emerald-600 dark:text-emerald-400"
+                            )}
+                          >
+                            {isRowZero ? "0,00 ₺" : formatMoney(rBal)}
+                          </td>
+
+                          {/* Ödeme Durumu (Temiz kurumsal sütun) */}
+                          <td className="px-3 py-3 text-center whitespace-nowrap">
+                            {r.kind === "document" && doc && isPayable ? (
+                              isPaid || (isSettled && hasNoDebt) ? (
+                                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
+                                  <span className="size-1.5 rounded-full bg-emerald-500" /> Ödendi
+                                </span>
+                              ) : isPartial ? (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50"
+                                  title={`Ödenen: ${formatMoney(docPaid)} · Kalan: ${formatMoney(docRemaining)}`}
+                                >
+                                  <span className="size-1.5 rounded-full bg-amber-500" /> Kısmi ({formatMoney(docRemaining)})
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                  <span className="size-1.5 rounded-full bg-slate-400" /> Açık
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
+                            )}
+                          </td>
+
+                          {/* İşlemler (Mikro butonlar) */}
+                          <td className="px-3 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              {canWrite && r.kind === "document" && payableDoc(r.ref_id) && !hasNoDebt && (() => {
+                                const pd = payableDoc(r.ref_id)!;
+                                const inFlow = docFlow(pd.doc_type as DocType) === "in";
+                                const pdRem = Math.max(0, Number(pd.total) - Number(pd.paid_amount || 0));
+                                return (
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "h-7 px-2 rounded-lg flex items-center gap-1 text-white text-xs font-bold transition shadow-sm",
+                                      inFlow ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
+                                    )}
+                                    title={`${inFlow ? "Tahsilat Al" : "Ödeme Yap"} · Kalan: ${formatMoney(pdRem, pd.currency)}`}
+                                    onClick={() => setPayDoc(pd)}
+                                  >
+                                    <Coins className="size-3" />
+                                    <span className="text-[10px] font-bold">{formatMoney(pdRem, pd.currency)}</span>
+                                  </button>
+                                );
+                              })()}
+                              {r.kind === "document" && (
                                 <button
                                   type="button"
-                                  className={cn(
-                                    "h-7 w-7 rounded-lg flex items-center justify-center text-white transition",
-                                    inFlow ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
-                                  )}
-                                  title={`${inFlow ? "Tahsilat Al" : "Ödeme Yap"} · kalan ${formatMoney(Number(pd.total) - Number(pd.paid_amount || 0), pd.currency)}`}
-                                  onClick={() => setPayDoc(pd)}
+                                  className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-white dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition"
+                                  title="Belge Önizle / Yazdır"
+                                  onClick={() => {
+                                    const d = (docs.data ?? []).find((x) => x.id === r.ref_id);
+                                    if (d) setPrintDoc(d);
+                                    else setSelectedRow(r);
+                                  }}
                                 >
-                                  <Coins className="h-3.5 w-3.5" />
+                                  <Printer className="size-3.5" />
                                 </button>
-                              );
-                            })()}
-                            {r.kind === "document" && (
+                              )}
                               <button
                                 type="button"
-                                className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition"
-                                title="Belge Önizle / Yazdır"
-                                onClick={() => {
-                                  const d = (docs.data ?? []).find((x) => x.id === r.ref_id);
-                                  if (d) setPrintDoc(d);
-                                  else setSelectedRow(r);
-                                }}
+                                className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-white dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition"
+                                title="İncele / Detay"
+                                onClick={() => setSelectedRow(r)}
                               >
-                                <Printer className="h-3.5 w-3.5" />
+                                <Eye className="size-3.5" />
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition"
-                              title="Detay"
-                              onClick={() => setSelectedRow(r)}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </button>
-                            {canWrite && (
-                              <button type="button" className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-slate-50 dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition" title="Düzenle" onClick={() => handleEditRow(r)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                            {canWrite && r.kind !== "opening" && (
-                              <button
-                                type="button"
-                                className="h-7 w-7 rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-900/40 flex items-center justify-center transition"
-                                title="Sil"
-                                onClick={() => handleDeleteRow(r)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {canWrite && (
+                                <button
+                                  type="button"
+                                  className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-white dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition"
+                                  title="Düzenle"
+                                  onClick={() => handleEditRow(r)}
+                                >
+                                  <Pencil className="size-3.5" />
+                                </button>
+                              )}
+                              {canWrite && r.kind !== "opening" && (
+                                <button
+                                  type="button"
+                                  className="h-7 w-7 rounded-lg border border-rose-200 dark:border-rose-900/40 bg-white dark:bg-[#16202c] text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center justify-center transition"
+                                  title="Sil"
+                                  onClick={() => handleDeleteRow(r)}
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1125,21 +1426,44 @@ export function ContactDetail({ id }: { id: string }) {
                           {formatDate(d.due_date)}
                         </td>
                         <td className="px-3 py-2.5">
-                          <span
-                            className={cn(
-                              "inline-block rounded-md px-2 py-0.5 text-[11px] font-bold",
-                              d.payment_status === "paid"
-                                ? "bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-800/40"
-                                : d.payment_status === "partial"
-                                  ? "bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-800/40"
-                                  : "bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-800/40"
-                            )}
-                          >
-                            {PAYMENT_STATUS[d.payment_status]?.label ?? "Açık"}
-                          </span>
+                          {(() => {
+                            const fifo = fifoMap.get(d.id);
+                            const tot = Number(d.total || 0);
+                            const pd = fifo ? fifo.paid : Number(d.paid_amount || 0);
+                            const rem = fifo ? fifo.remaining : Math.max(0, tot - pd);
+                            const isP = fifo ? fifo.status === "paid" : (d.payment_status === "paid" || (tot > 0 && pd >= tot - 0.009));
+                            const isPart = fifo ? fifo.status === "partial" : (!isP && (d.payment_status === "partial" || pd > 0.009));
+                            return (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                                  isP
+                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50"
+                                    : isPart
+                                      ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50"
+                                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                )}
+                              >
+                                <span className={cn("size-1.5 rounded-full", isP ? "bg-emerald-500" : isPart ? "bg-amber-500" : "bg-slate-400")} />
+                                {isP ? "Ödendi" : isPart ? `Kısmi (${formatMoney(rem, d.currency)})` : "Açık"}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="num px-3 py-2.5 text-right font-black text-slate-900 dark:text-white">
-                          {formatMoney(d.total, d.currency)}
+                          <div>{formatMoney(d.total, d.currency)}</div>
+                          {(() => {
+                            const fifo = fifoMap.get(d.id);
+                            const rem = fifo ? fifo.remaining : Math.max(0, Number(d.total || 0) - Number(d.paid_amount || 0));
+                            if (rem > 0.009 && rem < Number(d.total || 0) - 0.009) {
+                              return (
+                                <div className="text-[11px] font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                                  Kalan: {formatMoney(rem, d.currency)}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </td>
                         <td className="px-3 py-2.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
@@ -1147,20 +1471,24 @@ export function ContactDetail({ id }: { id: string }) {
                               DOC_TYPES[d.doc_type as DocType]?.payable &&
                               d.status !== "draft" &&
                               d.status !== "cancelled" &&
-                              Number(d.total) - Number(d.paid_amount || 0) > 0.004 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPayDoc(d)}
-                                  className={cn(
-                                    "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold text-white shadow-sm transition",
-                                    docFlow(d.doc_type as DocType) === "in" ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
-                                  )}
-                                  title={`Kalan ${formatMoney(Number(d.total) - Number(d.paid_amount || 0), d.currency)}`}
-                                >
-                                  <Coins className="size-3.5" />
-                                  {docFlow(d.doc_type as DocType) === "in" ? "Tahsilat Al" : "Ödeme Yap"}
-                                </button>
-                              )}
+                              (fifoMap.get(d.id)?.remaining ?? (Number(d.total) - Number(d.paid_amount || 0))) > 0.004 && (() => {
+                                const rem = fifoMap.get(d.id)?.remaining ?? Math.max(0, Number(d.total) - Number(d.paid_amount || 0));
+                                const inFlow = docFlow(d.doc_type as DocType) === "in";
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPayDoc(d)}
+                                    className={cn(
+                                      "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold text-white shadow-sm transition",
+                                      inFlow ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
+                                    )}
+                                    title={`Kalan: ${formatMoney(rem, d.currency)}`}
+                                  >
+                                    <Coins className="size-3.5" />
+                                    <span>{inFlow ? "Tahsilat Al" : "Ödeme Yap"} · {formatMoney(rem, d.currency)}</span>
+                                  </button>
+                                );
+                              })()}
                             <button
                               type="button"
                               onClick={() => setPrintDoc(d)}
@@ -1233,7 +1561,13 @@ export function ContactDetail({ id }: { id: string }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-[#1e2a3a]">
-                    {(txns.data ?? []).map((t) => (
+                    {(txns.data ?? [])
+                      .filter((t) => {
+                        const ref = t.reference ?? "";
+                        const desc = t.description ?? "";
+                        return !ref.startsWith("oto-mahsup") && !ref.includes("oto-mahsup") && !desc.includes("Otomatik mahsup") && !desc.includes("oto-mahsup");
+                      })
+                      .map((t) => (
                       <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-[#1a2534]/60 transition">
                         <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
                           {formatDate(t.txn_date)}
@@ -1823,6 +2157,48 @@ export function ContactDetail({ id }: { id: string }) {
                   <span className="font-medium text-slate-800 dark:text-slate-200">{selectedRow.description}</span>
                 </div>
               )}
+              {selectedRow?.kind === "document" && (() => {
+                const doc = (docs.data ?? []).find((d) => d.id === selectedRow?.ref_id);
+                if (!doc) return null;
+                const fifo = fifoMap.get(doc.id);
+                const docTotal = Number(doc.total || 0);
+                const docPaid = fifo ? fifo.paid : Number(doc.paid_amount || 0);
+                const docRemaining = fifo ? fifo.remaining : Math.max(0, docTotal - docPaid);
+                const isPaid = fifo ? fifo.status === "paid" : (doc.payment_status === "paid" || (docTotal > 0 && docPaid >= docTotal - 0.009));
+                const isPartial = fifo ? fifo.status === "partial" : (!isPaid && (doc.payment_status === "partial" || docPaid > 0.009));
+                return (
+                  <div className="space-y-1.5 border-t border-slate-300 dark:border-[#233144] pt-2">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">Belge Toplamı:</span>
+                      <span className="font-bold text-slate-900 dark:text-white tabular-nums">{formatMoney(docTotal, doc.currency)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">Ödenen / Tahsil Edilen:</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatMoney(docPaid, doc.currency)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 dark:text-slate-400">Kalan (Ödeme Kısmı):</span>
+                      <span className="font-black text-rose-600 dark:text-rose-400 text-sm tabular-nums">{formatMoney(docRemaining, doc.currency)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="text-slate-600 dark:text-slate-400">Ödeme Durumu:</span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold",
+                          isPaid
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800"
+                            : isPartial
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
+                              : "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800"
+                        )}
+                      >
+                        <span className={cn("size-1.5 rounded-full", isPaid ? "bg-emerald-500" : isPartial ? "bg-amber-500" : "bg-rose-500")} />
+                        {isPaid ? "Ödendi" : isPartial ? "Kısmi Ödendi" : "Ödenmedi"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
@@ -1843,21 +2219,25 @@ export function ContactDetail({ id }: { id: string }) {
                 </Button>
               )}
 
-              {canWrite && selectedRow?.kind === "document" && payableDoc(selectedRow.ref_id) && (
-                <Button
-                  className={cn(
-                    "w-full justify-center gap-2 font-bold text-white",
-                    docFlow(selectedRow.ref_type as DocType) === "in" ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
-                  )}
-                  onClick={() => {
-                    const pd = payableDoc(selectedRow.ref_id);
-                    setSelectedRow(null);
-                    if (pd) setPayDoc(pd);
-                  }}
-                >
-                  <Coins className="size-4" /> {docFlow(selectedRow.ref_type as DocType) === "in" ? "Tahsilat Al" : "Ödeme Yap"}
-                </Button>
-              )}
+              {canWrite && selectedRow?.kind === "document" && payableDoc(selectedRow.ref_id) && (() => {
+                const pd = payableDoc(selectedRow.ref_id)!;
+                const inFlow = docFlow(selectedRow.ref_type as DocType) === "in";
+                const pdRem = Math.max(0, Number(pd.total) - Number(pd.paid_amount || 0));
+                return (
+                  <Button
+                    className={cn(
+                      "w-full justify-center gap-2 font-bold text-white",
+                      inFlow ? "bg-[#00b49c] hover:bg-[#009e89]" : "bg-rose-600 hover:bg-rose-700",
+                    )}
+                    onClick={() => {
+                      setSelectedRow(null);
+                      setPayDoc(pd);
+                    }}
+                  >
+                    <Coins className="size-4" /> {inFlow ? "Tahsilat Al" : "Ödeme Yap"} · Kalan: {formatMoney(pdRem, pd.currency)}
+                  </Button>
+                );
+              })()}
 
               {canWrite && (selectedRow?.kind === "document" || selectedRow?.kind === "transaction" || selectedRow?.kind === "opening") && (
                 <Button

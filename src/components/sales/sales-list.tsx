@@ -669,7 +669,11 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
           </div>
         ) : (
           filteredRows.map((d) => {
-            const isPaid = d.payment_status === "paid";
+            const docPaid = Number(d.paid_amount || 0);
+            const docTotal = Number(d.total || 0);
+            const docRemaining = Math.max(0, docTotal - docPaid);
+            const isPaid = d.payment_status === "paid" || (docTotal > 0 && docPaid >= docTotal - 0.009);
+            const isPartial = !isPaid && (d.payment_status === "partial" || docPaid > 0.009);
             const isCancelled = d.status === "cancelled";
             const isInvoice = d.doc_type === "sales_invoice" || d.doc_type === "pos_sale";
             const canAct = canWrite && isInvoice && !isCancelled;
@@ -682,9 +686,11 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                 linesCount={d.lines?.length || 0}
                 net={Number(d.net_total ?? d.subtotal ?? 0)}
                 vat={Number(d.vat_total ?? 0)}
-                total={Number(d.total ?? 0)}
+                total={docTotal}
                 currency={d.currency}
-                status={isCancelled ? "cancelled" : isPaid ? "paid" : "open"}
+                status={isCancelled ? "cancelled" : isPaid ? "paid" : isPartial ? "partial" : "open"}
+                paidAmount={docPaid}
+                remainingAmount={docRemaining}
                 stage={DOC_TYPES[d.doc_type as DocType]?.statuses ? { label: statusLabel(d.doc_type as DocType, d.status), tone: statusTone(normalizeStatus(d.doc_type as DocType, d.status)) } : null}
                 dueDate={d.due_date}
                 overdue={!!d.due_date && !isPaid && !isCancelled && d.due_date < today}

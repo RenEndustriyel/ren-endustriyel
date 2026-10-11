@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 /** Kurumsal tanıtım sitesi düzeni (ERP'den bağımsız, her zaman açık tema) */
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-white text-slate-900 [color-scheme:light]">
+    <div id="site-top" className="min-h-screen bg-white text-slate-900 [color-scheme:light]">
       <SiteHeader />
       <main>{children}</main>
       <SiteFooter />

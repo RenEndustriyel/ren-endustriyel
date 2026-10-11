@@ -88,29 +88,8 @@ export function planReconcile(docs: RecDoc[], txns: RecTxn[], openings: Map<stri
       }
     }
 
-    // 2) Kalan satış ↔ alış mahsubu
-    const inLeft = r2(ins.reduce((s, d) => s + (left.get(d.id) ?? 0), 0));
-    const outLeft = r2(outs.reduce((s, d) => s + (left.get(d.id) ?? 0), 0));
-    const amount = r2(Math.min(inLeft, outLeft));
-    if (amount > EPS) {
-      const take = (list: RecDoc[]) => {
-        const res: { document_id: string; amount: number }[] = [];
-        let need = amount;
-        for (const d of list) {
-          if (need <= EPS) break;
-          const rem = left.get(d.id) ?? 0;
-          if (rem <= EPS) continue;
-          const a = r2(Math.min(need, rem));
-          res.push({ document_id: d.id, amount: a });
-          need = r2(need - a);
-        }
-        return res;
-      };
-      const inAllocs = take(ins);
-      const outAllocs = take(outs);
-      const key = [cid, amount.toFixed(2), ...inAllocs.map((a) => `${a.document_id}:${a.amount}`), "|", ...outAllocs.map((a) => `${a.document_id}:${a.amount}`)].join(",");
-      offsets.push({ key, contact_id: cid, amount, inAllocs, outAllocs });
-    }
+    // Kullanıcı talebi doğrultusunda yapay satış ↔ alış mahsubu (Düzeltme kayıtları) kaldırıldı.
+    // Ekstrede ne varsa saf ve net haliyle görünecek.
   }
   return { allocations, offsets };
 }

@@ -29,6 +29,7 @@ export const NAV = [
   { href: "/", label: "Ana Sayfa" },
   { href: "/kurumsal", label: "Kurumsal" },
   { href: "/urun-gruplari", label: "Ürünler" },
+  { href: "/magaza", label: "Mağaza" },
   { href: "/sektorler", label: "Sektörel Çözümler" },
   { href: "/markalar", label: "Markalar" },
   { href: "/blog", label: "Hijyen Rehberi" },
