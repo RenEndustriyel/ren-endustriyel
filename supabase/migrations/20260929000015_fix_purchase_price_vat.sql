@@ -1,0 +1,2 @@
+-- Reverted blanket update as requested by user.
+-- Alış faturasında KDV Hariç işaretli ise satırdaki ürünlerin stok kartına da KDV hariç olarak kaydedilir.

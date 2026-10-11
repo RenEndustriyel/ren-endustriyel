@@ -1,0 +1,13 @@
+REN ENDÜSTRİYEL ÖN MUHASEBE — KULLANIM LİSANSI
+
+1. Bu yazılım Ren Endüstriyel'e aittir. Kurulum, yalnızca Ren Endüstriyel tarafından verilen ve bu bilgisayara özel üretilmiş lisans anahtarıyla kullanılabilir.
+
+2. Lisans anahtarı tek bir bilgisayar içindir ve belirtilen süre boyunca geçerlidir. Anahtar başkasına verilemez, kopyalanamaz ya da başka bilgisayarda kullanılamaz.
+
+3. Yazılım; cari, stok, satış, alış, tahsilat ve ödeme kayıtlarını Ren Endüstriyel'in çevrimiçi hizmetinde saklar. İnternet bağlantısı yokken girilen kayıtlar bu bilgisayarda tutulur ve bağlantı sağlandığında gönderilir. Bağlantı gelmeden bilgisayar biçimlendirilir veya program verileri silinirse gönderilmemiş kayıtlar kaybolabilir.
+
+4. Yazılımın kaynak kodunun çözülmesi, değiştirilmesi, lisans denetiminin aşılmaya çalışılması yasaktır.
+
+5. Yazılım "olduğu gibi" sunulur. Kayıtların doğruluğunun kontrolü kullanıcının sorumluluğundadır.
+
+Kuruluma devam ederek bu koşulları kabul etmiş olursunuz.

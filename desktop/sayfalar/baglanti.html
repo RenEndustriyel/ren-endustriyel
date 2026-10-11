@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+<title>Bağlantı bekleniyor</title>
+<style>
+  :root { --bg:#f8fafc; --ink:#0f172a; --muted:#475569; --brand:#00b49c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --ink:#f1f5f9; --muted:#94a3b8; } }
+  body { margin:0; height:100vh; display:grid; place-items:center; font-family:"Segoe UI", system-ui, sans-serif; background:var(--bg); color:var(--ink); text-align:center; }
+  .box { max-width:460px; padding:24px; }
+  h1 { font-size:20px; margin:0 0 8px; }
+  p { color:var(--muted); font-size:14px; line-height:1.6; margin:0 0 16px; }
+  button { font:600 14px "Segoe UI", sans-serif; border:0; border-radius:10px; padding:10px 18px; background:var(--brand); color:#fff; cursor:pointer; }
+  small { display:block; margin-top:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>İnternet bağlantısı yok</h1>
+  <p>Program bu bilgisayarda ilk kez açılırken internet gerekir. Bir kez açılıp giriş yaptıktan sonra internet olmadan da çalışır; kayıtlar bağlantı gelince gönderilir.</p>
+  <button id="dene">Tekrar dene</button>
+  <small id="sayac"></small>
+</div>
+<script>
+  const hedef = new URLSearchParams(location.search).get("hedef") || "";
+  const dene = () => window.renMasaustu.yenidenDene(hedef);
+  document.getElementById("dene").onclick = dene;
+  let n = 15;
+  setInterval(() => {
+    n -= 1;
+    if (n <= 0) { n = 15; if (navigator.onLine) dene(); }
+    document.getElementById("sayac").textContent = `Bağlantı gelince otomatik denenecek (${n})`;
+  }, 1000);
+  window.addEventListener("online", dene);
+</script>
+</body>
+</html>

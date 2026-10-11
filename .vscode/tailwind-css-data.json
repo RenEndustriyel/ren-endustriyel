@@ -1,0 +1,25 @@
+{
+  "version": 1.1,
+  "atDirectives": [
+    {
+      "name": "@custom-variant",
+      "description": "Tailwind CSS v4 custom variant directive used to define custom variant selectors."
+    },
+    {
+      "name": "@theme",
+      "description": "Tailwind CSS v4 theme directive used to define design tokens, colors and utilities."
+    },
+    {
+      "name": "@utility",
+      "description": "Tailwind CSS v4 custom utility directive."
+    },
+    {
+      "name": "@source",
+      "description": "Tailwind CSS v4 source directive to specify content sources."
+    },
+    {
+      "name": "@plugin",
+      "description": "Tailwind CSS v4 plugin directive to load Tailwind plugins."
+    }
+  ]
+}

@@ -1,0 +1,168 @@
+export type DocType =
+  | "quote"
+  | "sales_order"
+  | "sales_delivery"
+  | "sales_invoice"
+  | "sales_return"
+  | "pos_sale"
+  | "purchase_order"
+  | "purchase_delivery"
+  | "purchase_invoice"
+  | "purchase_return"
+  | "expense"
+  | "salary";
+
+export type DocConfig = {
+  type: DocType;
+  label: string;
+  plural: string;
+  base: string; // liste rotası
+  side: "sales" | "purchase";
+  contactKind: "customer" | "supplier";
+  contactLabel: string;
+  /** vade / ödeme takibi */
+  payable: boolean;
+  /** stok etkisi (1 giriş, -1 çıkış) */
+  stock: -1 | 0 | 1;
+  /** fiyat/tutar içerir mi (irsaliyede isteğe bağlı) */
+  priced: boolean;
+  autoNumber: boolean;
+  /** dönüştürülebileceği belgeler */
+  convertTo: DocType[];
+  statuses?: { value: string; label: string }[];
+};
+
+// Durumlar veritabanındaki izinli değerlere eşlenir (draft, pending, sent, accepted, rejected, approved, converted, cancelled)
+const QUOTE_STATUSES = [
+  { value: "pending", label: "Beklemede" },
+  { value: "accepted", label: "Onaylandı" },
+  { value: "rejected", label: "Onaylanmadı" },
+  { value: "converted", label: "Dönüştürüldü" },
+];
+const ORDER_STATUSES = [
+  { value: "pending", label: "Hazırlanıyor" },
+  { value: "sent", label: "Sevk edildi" },
+  { value: "accepted", label: "Teslim edildi" },
+  { value: "converted", label: "Faturalandı" },
+  { value: "cancelled", label: "İptal" },
+];
+const PURCHASE_ORDER_STATUSES = [
+  { value: "pending", label: "Sipariş verildi" },
+  { value: "sent", label: "Yolda" },
+  { value: "accepted", label: "Teslim alındı" },
+  { value: "converted", label: "Faturalandı" },
+  { value: "cancelled", label: "İptal" },
+];
+
+export const DOC_TYPES: Record<DocType, DocConfig> = {
+  quote: { type: "quote", label: "Teklif", plural: "Teklifler", base: "/satislar/teklifler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: false, stock: 0, priced: true, autoNumber: true, convertTo: ["sales_order", "sales_invoice"], statuses: QUOTE_STATUSES },
+  sales_order: { type: "sales_order", label: "Satış Siparişi", plural: "Siparişler", base: "/satislar/siparisler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: 0, priced: true, autoNumber: true, convertTo: ["sales_delivery", "sales_invoice"], statuses: ORDER_STATUSES },
+  sales_delivery: { type: "sales_delivery", label: "Giden İrsaliye", plural: "Giden İrsaliyeler", base: "/satislar/irsaliyeler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: false, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_invoice"] },
+  sales_invoice: { type: "sales_invoice", label: "Satış Faturası", plural: "Satış Faturaları", base: "/satislar/faturalar", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_return"] },
+  sales_return: { type: "sales_return", label: "Satış İadesi", plural: "Satış İadeleri", base: "/satislar/iadeler", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: 1, priced: true, autoNumber: true, convertTo: [] },
+  pos_sale: { type: "pos_sale", label: "Hızlı Satış", plural: "Hızlı Satışlar", base: "/satislar/hizli-satislar", side: "sales", contactKind: "customer", contactLabel: "Müşteri", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: ["sales_return"] },
+  purchase_order: { type: "purchase_order", label: "Satın Alma Siparişi", plural: "Satın Alma Siparişleri", base: "/giderler/siparisler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 0, priced: true, autoNumber: true, convertTo: ["purchase_delivery", "purchase_invoice"], statuses: PURCHASE_ORDER_STATUSES },
+  purchase_delivery: { type: "purchase_delivery", label: "Gelen İrsaliye", plural: "Gelen İrsaliyeler", base: "/giderler/irsaliyeler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: false, stock: 1, priced: true, autoNumber: false, convertTo: ["purchase_invoice"] },
+  purchase_invoice: { type: "purchase_invoice", label: "Alış Faturası", plural: "Alış Faturaları", base: "/giderler/alis-faturalari", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 1, priced: true, autoNumber: false, convertTo: ["purchase_return"] },
+  purchase_return: { type: "purchase_return", label: "Alış İadesi", plural: "Alış İadeleri", base: "/giderler/iadeler", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: -1, priced: true, autoNumber: true, convertTo: [] },
+  expense: { type: "expense", label: "Masraf", plural: "Masraflar", base: "/giderler/masraflar", side: "purchase", contactKind: "supplier", contactLabel: "Tedarikçi", payable: true, stock: 0, priced: true, autoNumber: false, convertTo: [] },
+  salary: { type: "salary", label: "Maaş Tahakkuku", plural: "Maaşlar", base: "/giderler/maaslar", side: "purchase", contactKind: "supplier", contactLabel: "Çalışan", payable: true, stock: 0, priced: true, autoNumber: false, convertTo: [] },
+};
+
+/** Tahsilat (in) mı ödeme (out) mu doğurur */
+export const docFlow = (t: DocType): "in" | "out" =>
+  t === "sales_invoice" || t === "pos_sale" || t === "purchase_return" || t === "sales_order" ? "in" : "out";
+
+export const PAYMENT_STATUS: Record<string, { label: string; tone: "success" | "warning" | "danger" | "neutral" }> = {
+  paid: { label: "Ödendi", tone: "success" },
+  partial: { label: "Kısmi", tone: "warning" },
+  unpaid: { label: "Açık", tone: "danger" },
+  none: { label: "—", tone: "neutral" },
+};
+
+export const STATUS_LABEL: Record<string, string> = {
+  draft: "Taslak",
+  pending: "Bekliyor",
+  sent: "Gönderildi",
+  accepted: "Kabul edildi",
+  rejected: "Reddedildi",
+  approved: "Onaylı",
+  converted: "Dönüştürüldü",
+  cancelled: "İptal",
+};
+
+/** Eski kayıtlarda kalan değerlerin karşılığı (ör. eski "onaylı" sipariş = hazırlanıyor) */
+const LEGACY_STATUS: Record<string, string> = { approved: "pending", sent: "pending" };
+
+/** Belge türüne göre durum değerini seçici için normalize eder */
+export function normalizeStatus(type: DocType, status: string): string {
+  const list = DOC_TYPES[type]?.statuses;
+  if (!list || list.some((x) => x.value === status)) return status;
+  return LEGACY_STATUS[status] ?? status;
+}
+
+/** Belge türüne göre durum adı (teklif: Onaylandı, sipariş: Teslim edildi …) */
+export function statusLabel(type: DocType, status: string): string {
+  const list = DOC_TYPES[type]?.statuses;
+  const v = normalizeStatus(type, status);
+  return list?.find((x) => x.value === v)?.label ?? STATUS_LABEL[status] ?? status;
+}
+
+export function statusTone(status: string): "success" | "danger" | "warning" | "primary" | "neutral" {
+  if (status === "rejected" || status === "cancelled") return "danger";
+  if (status === "accepted" || status === "converted") return "success";
+  if (status === "sent") return "primary";
+  if (status === "draft") return "neutral";
+  return "warning";
+}
+
+// Belgenin cari bakiyeye etkisi: +1 müşteri bize borçlanır / tedarikçiye borcumuz azalır, -1 tersi, 0 etkisiz
+const BALANCE_SIGN: Partial<Record<DocType, number>> = {
+  sales_invoice: 1,
+  pos_sale: 1,
+  sales_order: 1,
+  purchase_return: 1,
+  purchase_invoice: -1,
+  purchase_order: -1,
+  sales_return: -1,
+  expense: -1,
+};
+
+/** Belge şu an bakiyeye işliyor mu? (taslak hariç; iptal ve faturalanmış sipariş işlemez) */
+export function balanceSign(type: string, status: string): number {
+  if (status === "cancelled") return 0;
+  if (status === "converted" && (type === "sales_order" || type === "purchase_order")) return 0;
+  return BALANCE_SIGN[type as DocType] ?? 0;
+}
+
+/**
+ * Çıktıdaki "Önceki bakiye / Bu belge / Güncel bakiye".
+ * `balance`: carinin güncel bakiyesi (TL). `included`: bu belge o bakiyenin içinde mi.
+ * Taslak belgede güncel bakiye, belge kaydedilirse oluşacak bakiyeyi gösterir.
+ */
+export function docBalanceInfo(
+  doc: { doc_type: string; status: string; total: number | null; total_try?: number | null; exchange_rate?: number | null },
+  balance: number,
+  included: boolean,
+) {
+  const sign = balanceSign(doc.doc_type, doc.status);
+  const amt = Number(doc.total_try ?? Number(doc.total || 0) * Number(doc.exchange_rate || 1));
+  const without = included ? balance - sign * amt : balance;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  return { previous_balance: r2(without), this_amount: Number(doc.total || 0), current_balance: r2(without + sign * amt) };
+}
+
+export const VAT_RATES = [0, 1, 10, 20];
+export const CURRENCIES = ["TRY", "USD", "EUR"];
+
+export const MOVEMENT_LABELS: Record<string, string> = {
+  opening: "Açılış",
+  purchase: "Alış",
+  sale: "Satış",
+  sales_return: "Satış iadesi",
+  purchase_return: "Alış iadesi",
+  transfer_in: "Transfer girişi",
+  transfer_out: "Transfer çıkışı",
+  adjustment: "Düzeltme",
+  count: "Sayım",
+};
