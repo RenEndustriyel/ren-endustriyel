@@ -56,14 +56,14 @@ export function useDashboard(orgId: string) {
         const docIds = list.filter((r) => r.kind === "document").map((r) => r.id);
         const txnIds = list.filter((r) => r.kind === "transaction").map((r) => r.id);
 
-        const docMap = new Map<string, { payment_status: string; due_date: string | null; contact_name: string | null; method: string | null }>();
-        const txnMap = new Map<string, { method: string | null; contact_name: string | null }>();
+        const docMap = new Map<string, { payment_status: string; due_date: string | null; contact_name: string | null; method: string | null; created_at: string | null }>();
+        const txnMap = new Map<string, { method: string | null; contact_name: string | null; created_at: string | null }>();
 
         if (docIds.length > 0) {
           try {
             const { data: docs } = await supabase
               .from("documents")
-              .select("id, payment_status, due_date, contacts(name)")
+              .select("id, payment_status, due_date, created_at, contacts(name)")
               .in("id", docIds);
 
             const { data: allocs } = await supabase
@@ -78,12 +78,13 @@ export function useDashboard(orgId: string) {
               }
             }
 
-            for (const d of (docs as unknown as { id: string; payment_status: string; due_date: string | null; contacts: { name: string } | null }[]) || []) {
+            for (const d of (docs as unknown as { id: string; payment_status: string; due_date: string | null; created_at: string | null; contacts: { name: string } | null }[]) || []) {
               docMap.set(d.id, {
                 payment_status: d.payment_status,
                 due_date: d.due_date,
                 contact_name: d.contacts?.name ?? null,
                 method: allocMethodMap.get(d.id) ?? null,
+                created_at: d.created_at ?? null,
               });
             }
           } catch (e) {
@@ -95,13 +96,14 @@ export function useDashboard(orgId: string) {
           try {
             const { data: txns } = await supabase
               .from("transactions")
-              .select("id, method, contacts(name)")
+              .select("id, method, created_at, contacts(name)")
               .in("id", txnIds);
 
-            for (const t of (txns as unknown as { id: string; method: string | null; contacts: { name: string } | null }[]) || []) {
+            for (const t of (txns as unknown as { id: string; method: string | null; created_at: string | null; contacts: { name: string } | null }[]) || []) {
               txnMap.set(t.id, {
                 method: t.method ?? null,
                 contact_name: t.contacts?.name ?? null,
+                created_at: t.created_at ?? null,
               });
             }
           } catch (e) {
@@ -120,6 +122,7 @@ export function useDashboard(orgId: string) {
               payment_status: extra?.payment_status ?? (r.type === "pos_sale" ? "paid" : "unpaid"),
               method: extra?.method ?? (r.type === "pos_sale" ? "cash" : null),
               due_date: extra?.due_date ?? null,
+              created_at: extra?.created_at ?? null,
             };
           } else {
             const extra = txnMap.get(r.id);
@@ -129,6 +132,7 @@ export function useDashboard(orgId: string) {
               party: partyName,
               payment_status: "paid",
               method: extra?.method ?? "cash",
+              created_at: extra?.created_at ?? null,
             };
           }
         });

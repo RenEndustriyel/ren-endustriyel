@@ -90,6 +90,13 @@ const monthRange = (ym: string) => {
 
 const salesUrl = (from: string, to: string) => `/satislar?baslangic=${from}&bitis=${to}`;
 
+/** Kayıt saati (örn. 14:32), tarayıcının saat diliminde */
+const clockFmt = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
+const formatClock = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : clockFmt.format(d);
+};
+
 /** Son hareket satırının gideceği adres */
 function recentHref(r: DashboardSummary["recent"][number]): string {
   if (r.kind === "document") {
@@ -941,7 +948,7 @@ function RecentCard({ data }: { data: DashboardSummary | undefined }) {
           {rows.map((r) => {
             const amount = Number(r.amount) || 0;
             const isDoc = r.kind === "document";
-            const detail = [formatDate(r.date), r.number, r.method ? METHOD_LABELS[r.method] ?? r.method : null]
+            const detail = [formatDate(r.date), r.created_at ? formatClock(r.created_at) : null, r.number, r.method ? METHOD_LABELS[r.method] ?? r.method : null]
               .filter(Boolean)
               .join(" · ");
             return (

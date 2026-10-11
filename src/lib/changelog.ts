@@ -14,9 +14,22 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.5";
+export const LATEST_VERSION = "2.7.6";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.6",
+    date: "11 Ekim 2026",
+    title: "Son Hareketlerde Saat",
+    badge: "Panel",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Son Hareketlerde İşlem Saati",
+        description: "Ana sayfa Son Hareketler listesinde her işlemin kaydedildiği saat (SS:DD) tarih yanında küçük yazıyla gösterilir.",
+      },
+    ],
+  },
   {
     version: "2.7.5",
     date: "11 Ekim 2026",
