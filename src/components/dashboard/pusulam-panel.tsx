@@ -1087,7 +1087,7 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
         <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
           {filterMode === "overdue"
             ? (isIn ? "Gecikmiş tahsilat bulunmuyor. Harika!" : "Gecikmiş ödeme bulunmuyor. Harika!")
-            : (isIn ? "Bekleyen tahsilat yok." : "Bekleyen ödeme yok.")}
+            : (isIn ? "Vadesi gelen tahsilat yok." : "Vadesi gelen ödeme yok.")}
         </p>
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-slate-800">

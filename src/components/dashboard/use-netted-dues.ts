@@ -60,19 +60,31 @@ const dayDiff = (from: string, to: string) => {
 const remainingTry = (d: OpenDoc) => r2((Number(d.total) - (Number(d.paid_amount) || 0)) * (Number(d.exchange_rate) || 1));
 const dueOf = (d: OpenDoc) => String(d.due_date ?? d.issue_date).slice(0, 10);
 
-/** Net bakiyeyi karşılayan belgelerden en eski vadeyi bulur (yeni belgeler en son ödenir) */
-function oldestUnpaidDue(docs: OpenDoc[], net: number): { due: string | null; count: number } {
+type DuePart = { amount: number; due: string | null; count: number };
+
+/**
+ * Net bakiyeyi karşılayan belgeleri (yeni belgeler en son ödenir) vadesi gelen (bugün
+ * dahil) ve vadesi gelmeyen olarak ikiye ayırır. Belgeyle karşılanmayan bakiye (açılış vb.)
+ * vadesi olmadığı için vadesi gelmiş sayılmaz.
+ */
+function splitByDue(docs: OpenDoc[], net: number, today: string): { overdue: DuePart; upcoming: DuePart } {
   const sorted = [...docs].sort((a, b) => dueOf(b).localeCompare(dueOf(a)));
+  const overdue: DuePart = { amount: 0, due: null, count: 0 };
+  const upcoming: DuePart = { amount: 0, due: null, count: 0 };
   let left = net;
-  let due: string | null = null;
-  let count = 0;
   for (const d of sorted) {
     if (left <= 0.009) break;
-    due = dueOf(d);
-    count++;
-    left -= remainingTry(d);
+    const due = dueOf(d);
+    const part = due <= today ? overdue : upcoming;
+    const share = Math.min(left, remainingTry(d));
+    part.amount = r2(part.amount + share);
+    // yeniden eskiye gidildiği için son yazılan en eski vadedir
+    part.due = due;
+    part.count++;
+    left = r2(left - share);
   }
-  return { due, count };
+  if (left > 0.009) upcoming.amount = r2(upcoming.amount + left);
+  return { overdue, upcoming };
 }
 
 export function useNettedDues() {
@@ -103,6 +115,7 @@ export function useNettedDues() {
       if (!d.contact_id) {
         // Carisiz belge (kategori masrafı, maaş): mahsup edilemez, tek tek listelenir
         const due = dueOf(d);
+        if (due > today) continue;
         const cfg = DOC_TYPES[d.doc_type as DocType];
         const item: DueItem = {
           key: d.id,
@@ -129,18 +142,20 @@ export function useNettedDues() {
       if (Math.abs(net) <= 0.009) continue;
       const g = byContact.get(b.contact_id) ?? { ins: [], outs: [] };
       const isIn = net > 0;
-      const { due, count } = oldestUnpaidDue(isIn ? g.ins : g.outs, Math.abs(net));
+      // Yalnızca vadesi gelen belgelerin tutarı listelenir; carinin vadesi gelmeyen borcu gösterilmez
+      const { overdue: part } = splitByDue(isIn ? g.ins : g.outs, Math.abs(net), today);
+      if (part.amount <= 0.009 || !part.due) continue;
       const receivable = r2(g.ins.reduce((s, d) => s + remainingTry(d), 0));
       const payable = r2(g.outs.reduce((s, d) => s + remainingTry(d), 0));
       const item: DueItem = {
         key: b.contact_id,
         kind: "contact",
         title: names.get(b.contact_id) ?? "Cari",
-        subtitle: [count ? `${count} açık belge` : "belgesiz bakiye", due ? `Vade: ${formatDate(due)}` : null].filter(Boolean).join(" · "),
+        subtitle: `${part.count} açık belge · Vade: ${formatDate(part.due)}`,
         href: `/cariler/detay?id=${b.contact_id}`,
-        amount: Math.abs(net),
-        due,
-        days_overdue: due && due < today ? dayDiff(due, today) : 0,
+        amount: part.amount,
+        due: part.due,
+        days_overdue: dayDiff(part.due, today),
         offset: receivable > 0 && payable > 0 ? { receivable, payable } : undefined,
       };
       (isIn ? incoming : outgoing).push(item);
