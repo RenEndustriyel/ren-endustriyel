@@ -14,9 +14,22 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.4";
+export const LATEST_VERSION = "2.7.5";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.5",
+    date: "11 Ekim 2026",
+    title: "Raporlarda Günlük Satış Hacmi",
+    badge: "Raporlar",
+    items: [
+      {
+        type: "yeni",
+        title: "Ciro Raporunda Günlük Ortalama Satış",
+        description: "Raporlar → Ciro ekranında seçili dönem için günlük ortalama satış tutarı, önceki döneme göre değişim, satış yapılan gün başına ortalama, en yüksek gün ve hafta/ay/yıl sonu tahmini gösterilir. Günlük grafikte ortalama çizgisi eklendi.",
+      },
+    ],
+  },
   {
     version: "2.7.4",
     date: "10 Ekim 2026",
