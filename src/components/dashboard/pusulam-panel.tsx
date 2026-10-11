@@ -1322,6 +1322,8 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
       {/* Kritik Stok Uyarısı (varsa hemen dikkat çeksin) */}
       <CriticalStockCard data={data} />
 
+      <SalesChartCard data={data} />
+
       {/* ----------------------------------------------------------------- */}
       {/* TAHSİLATLAR VE ÖDEMELER (Göz Önünde - Vurgulu)                   */}
       {/* ----------------------------------------------------------------- */}
@@ -1363,7 +1365,6 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
         </div>
       </section>
 
-      <SalesChartCard data={data} />
       <BalanceCards data={data} />
       <TopProductsCard data={data} />
 

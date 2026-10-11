@@ -14,9 +14,22 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.8";
+export const LATEST_VERSION = "2.7.9";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.9",
+    date: "11 Ekim 2026",
+    title: "Satış Grafiği Üstte",
+    badge: "Panel",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Satış Grafiği & Ciro Temposu Yukarı Alındı",
+        description: "Ana sayfada Satış Grafiği & Ciro Temposu kartı, Tahsilatlar ve Ödemeler bölümünün üstünde gösterilir.",
+      },
+    ],
+  },
   {
     version: "2.7.8",
     date: "11 Ekim 2026",
