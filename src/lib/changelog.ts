@@ -14,9 +14,22 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.6";
+export const LATEST_VERSION = "2.7.8";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.7.8",
+    date: "11 Ekim 2026",
+    title: "Tahsilat ve Ödemelerde Yalnızca Vadesi Gelenler",
+    badge: "Panel",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Yalnızca Vadesi Gelen Faturalar Listelenir",
+        description: "Ana sayfadaki Tahsilatlar ve Ödemeler listesinde carinin toplam bakiyesi yerine yalnızca vadesi gelen faturaların tutarı gösterilir. Vadesi gelmeyen faturalar listeye ve gecikmiş toplamına dahil edilmez.",
+      },
+    ],
+  },
   {
     version: "2.7.6",
     date: "11 Ekim 2026",
