@@ -874,25 +874,21 @@ export function ListReportPdf({
   return (
     <Document title={title} author={org.name}>
       <Page size="A4" orientation={orientation} style={s.page}>
-        <View style={[s.header, { marginBottom: 10 }]}>
+        {/* Üst bant: solda firma, sağda rapor tarihi; altında marka renginde çizgi */}
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingBottom: 8, borderBottomWidth: 1.5, borderColor: C.brand }}>
           <OrgHeader org={org} logo={logo} />
-          <View>
-            {subtitle ? (
-              <View style={s.metaRow}>
-                <Text style={s.metaLabel}>Filtre / Dönem</Text>
-                <Text style={[s.metaValue, { width: 180 }]}>{subtitle}</Text>
-              </View>
-            ) : null}
-            <View style={s.metaRow}>
-              <Text style={s.metaLabel}>Rapor Tarihi</Text>
-              <Text style={[s.metaValue, { width: 180 }]}>{new Date().toLocaleDateString("tr-TR")}</Text>
-            </View>
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={{ fontSize: 7, color: C.muted }}>Rapor Tarihi</Text>
+            <Text style={{ fontSize: 9, fontWeight: 700 }}>{new Date().toLocaleDateString("tr-TR")}</Text>
           </View>
         </View>
-        {/* Başlık firma bilgisinin altında, ortada: uzun başlık adres satırlarının üstüne binmez */}
-        <Text style={{ fontSize: 12, fontWeight: 700, color: C.ink, textAlign: "center", marginBottom: 10 }}>
-          {title.toLocaleLowerCase("tr-TR").replace(/(^|[\s/(])\p{L}/gu, (m) => m.toLocaleUpperCase("tr-TR"))}
-        </Text>
+        {/* Başlık ortada; filtre/dönem bilgisi hemen altında küçük yazıyla */}
+        <View style={{ alignItems: "center", marginTop: 12, marginBottom: 12 }}>
+          <Text style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+            {title.toLocaleLowerCase("tr-TR").replace(/(^|[\s/(])\p{L}/gu, (m) => m.toLocaleUpperCase("tr-TR"))}
+          </Text>
+          {subtitle ? <Text style={{ fontSize: 8, color: C.muted, marginTop: 3 }}>{subtitle}</Text> : null}
+        </View>
 
         {/* Table Header */}
         <View style={s.row} fixed>

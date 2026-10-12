@@ -14,9 +14,26 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.2";
+export const LATEST_VERSION = "2.8.3";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.3",
+    date: "12 Ekim 2026",
+    title: "Yeni Liste Çıktısı Şablonu",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Liste PDF Şablonu Yenilendi",
+        description: "Liste çıktılarında üstte firma bilgisi ve rapor tarihi, altında renkli çizgi, ortada başlık ve hemen altında filtre bilgisi yer alır. Dağınık duran Filtre / Dönem ve Rapor Tarihi satırları kaldırıldı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Bakiye Listesinde İlçe / İl Sütunu Kaldırıldı",
+        description: "Bakiye listesi çıktısında cari adı ve not alanı genişletildi.",
+      },
+    ],
+  },
   {
     version: "2.8.2",
     date: "12 Ekim 2026",

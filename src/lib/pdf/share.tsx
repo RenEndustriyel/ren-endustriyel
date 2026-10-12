@@ -238,7 +238,7 @@ export async function shareListPdf({
   }
 }
 
-/** Tahsilata/ödemeye çıkarken çıktısı alınacak bakiye listesi: telefon, yer, bakiye ve elle not alanı */
+/** Tahsilata/ödemeye çıkarken çıktısı alınacak bakiye listesi: telefon, bakiye ve elle not alanı */
 export async function shareBalanceListPdf({
   org,
   title,
@@ -251,7 +251,7 @@ export async function shareBalanceListPdf({
   title: string;
   subtitle?: string;
   /** balance > 0: cari bize borçlu, balance < 0: biz cariye borçluyuz */
-  rows: { name: string; phone?: string | null; place?: string | null; balance: number }[];
+  rows: { name: string; phone?: string | null; balance: number }[];
   fileName: string;
   mode?: "share" | "download" | "open" | "print";
 }) {
@@ -277,17 +277,15 @@ export async function shareBalanceListPdf({
     mode,
     columns: [
       { header: "#", width: "5%" },
-      { header: "Cari", width: "34%" },
-      { header: "Telefon", width: "16%" },
-      { header: "İlçe / İl", width: "15%" },
-      { header: "Bakiye", width: "16%", align: "right" },
-      { header: "Tahsilat / Not", width: "14%", align: "center" },
+      { header: "Cari", width: "42%" },
+      { header: "Telefon", width: "17%" },
+      { header: "Bakiye", width: "18%", align: "right" },
+      { header: "Tahsilat / Not", width: "18%", align: "center" },
     ],
     rows: list.map((r, i) => [
       i + 1,
       r.name,
       r.phone || "—",
-      r.place || "—",
       formatMoney(Math.abs(r.balance), "TRY") + (mixed ? (r.balance > 0 ? " (B)" : " (A)") : ""),
       "",
     ]),

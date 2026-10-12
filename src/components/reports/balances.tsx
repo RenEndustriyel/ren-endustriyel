@@ -56,7 +56,6 @@ export function BalancesReport() {
           .map((b) => ({
             name: b.contact!.name,
             phone: b.contact!.mobile || b.contact!.phone,
-            place: [b.contact!.district, b.contact!.city].filter(Boolean).join(" / "),
             balance: Number(b.balance),
           })),
       });

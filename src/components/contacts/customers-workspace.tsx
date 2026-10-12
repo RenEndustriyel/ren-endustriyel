@@ -210,7 +210,6 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
       rows: sorted.map((c) => ({
         name: c.name,
         phone: c.mobile || c.phone,
-        place: [c.district, c.city].filter(Boolean).join(" / "),
         balance: c.balance,
       })),
     });
