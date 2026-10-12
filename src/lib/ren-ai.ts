@@ -1,7 +1,7 @@
 "use client";
 
 import { formatMoney } from "./format";
-import type { Row } from "./data";
+import { supabase } from "./supabase/client";
 
 export type DiscrepancyType =
   | "discount_missing"   // Önceki faturada iskonto vardı, bu faturada hiç uygulanmadı
@@ -38,6 +38,8 @@ export type RenAiDiscrepancy = {
   suggestedInvoiceDesc: string;
   createdAt: string;
   status: "pending" | "invoiced" | "disputed" | "accepted" | "ignored";
+  /** Otomatik taramayla bulundu: fatura düzeltilince bekleyen uyarı kendiliğinden kalkar */
+  auto?: boolean;
 };
 
 export type RenAiStats = {
@@ -64,22 +66,36 @@ export function getStoredAiAlerts(orgId?: string): RenAiDiscrepancy[] {
   }
 }
 
-/** Yeni uyarıları yerel depoya ekler veya günceller */
-export function saveAiAlerts(alerts: RenAiDiscrepancy[], orgId?: string): void {
-  if (typeof window === "undefined") return;
+/** Kullanıcının sildiği uyarılar: tarama aynı uyarıyı yeniden getirmesin */
+const dismissedKey = (orgId?: string) => `${STORAGE_KEY}_silinen_${orgId || "default"}`;
+
+function getDismissedIds(orgId?: string): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(dismissedKey(orgId)) || "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Yeni uyarıları yerel depoya ekler; gerçekten eklenenleri döndürür (zaten kayıtlı ya da silinmiş olanlar eklenmez) */
+export function saveAiAlerts(alerts: RenAiDiscrepancy[], orgId?: string): RenAiDiscrepancy[] {
+  if (typeof window === "undefined") return [];
   try {
     const existing = getStoredAiAlerts(orgId);
-    const existingIds = new Set(existing.map((a) => a.id));
-    const merged = [...existing];
+    const skip = new Set([...existing.map((a) => a.id), ...getDismissedIds(orgId)]);
+    const added: RenAiDiscrepancy[] = [];
     for (const a of alerts) {
-      if (!existingIds.has(a.id)) {
-        merged.unshift(a);
-      }
+      if (skip.has(a.id)) continue;
+      skip.add(a.id);
+      added.push(a);
     }
-    localStorage.setItem(`${STORAGE_KEY}_${orgId || "default"}`, JSON.stringify(merged));
+    if (!added.length) return [];
+    localStorage.setItem(`${STORAGE_KEY}_${orgId || "default"}`, JSON.stringify([...added, ...existing]));
     window.dispatchEvent(new CustomEvent("ren_ai_alerts_updated"));
+    return added;
   } catch (e) {
     console.error("REN AI alert kaydetme hatası:", e);
+    return [];
   }
 }
 
@@ -107,6 +123,7 @@ export function deleteAiAlert(alertId: string, orgId?: string): void {
     const alerts = getStoredAiAlerts(orgId);
     const updated = alerts.filter((a) => a.id !== alertId);
     localStorage.setItem(`${STORAGE_KEY}_${orgId || "default"}`, JSON.stringify(updated));
+    localStorage.setItem(dismissedKey(orgId), JSON.stringify([...getDismissedIds(orgId), alertId].slice(-500)));
     window.dispatchEvent(new CustomEvent("ren_ai_alerts_updated"));
   } catch (e) {
     console.error("REN AI alert silme hatası:", e);
@@ -247,7 +264,7 @@ export function analyzePurchaseDiscrepancies({
 
       let explanation = "";
       if (type === "discount_missing") {
-        explanation = `Bu ürünü aynı tedarikçiden ${prev.document.issue_date} tarihinde (${prevDocNo}) %${prevDisc} iskonto ile net ${formatMoney(prevNet, currency)} birim fiyata almıştınız. Bu faturada ise hiç iskonto uygulanmamış (net ${formatMoney(curNet, currency)}). ${line.quantity} adet alımda toplam ${formatMoney(totalLoss, currency)} fazladan ödeme / zarar oluştu.`;
+        explanation = `Bu ürünü aynı tedarikçiden ${trDate(prev.document.issue_date)} tarihinde${prev.document.number && !prevDocNo.includes("tarihli") ? ` (${prevDocNo})` : ""} %${prevDisc} iskonto ile net ${formatMoney(prevNet, currency)} birim fiyata almıştınız. Bu faturada ise hiç iskonto uygulanmamış (net ${formatMoney(curNet, currency)}). ${line.quantity} adet alımda toplam ${formatMoney(totalLoss, currency)} fazladan ödeme / zarar oluştu.`;
       } else if (type === "discount_reduced") {
         explanation = `Önceki faturada (${prevDocNo}) %${prevDisc} iskonto uygulanmışken, bu faturada iskonto %${curDisc} oranına düşürülmüştür. İskonto kaybından kaynaklanan toplam fark: ${formatMoney(totalLoss, currency)}.`;
       } else if (type === "price_and_discount") {
@@ -269,7 +286,8 @@ Ren Endüstriyel`;
       const suggestedInvoiceDesc = `${pName} Fiyat / İskonto Farkı Yansıtma (${curDocNo} No'lu Alış Faturası)`;
 
       discrepancies.push({
-        id: `ren-ai-${currentDoc.id}-${line.product_id || line.description}-${Date.now()}`,
+        // sabit kimlik: aynı belge/kalem için uyarı yinelenmez
+        id: `ren-ai-${currentDoc.id}-${line.product_id || line.description}`,
         docId: currentDoc.id,
         docNumber: curDocNo,
         docDate: currentDoc.issue_date,
@@ -301,4 +319,125 @@ Ren Endüstriyel`;
   }
 
   return discrepancies;
+}
+
+type ScanRow = {
+  id: string;
+  product_id: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  unit_factor: number | null;
+  discount_rate: number | null;
+  vat_rate: number | null;
+  documents: {
+    id: string;
+    number: string | null;
+    issue_date: string;
+    created_at: string;
+    contact_id: string;
+    currency: string;
+    prices_include_vat: boolean | null;
+    contact_snapshot: { name?: string | null } | null;
+  };
+};
+
+const SCAN_DAYS = 180;
+const trDate = (d: string) => d.slice(0, 10).split("-").reverse().join(".");
+
+/**
+ * Kayıtlı alış faturalarını tarar: her faturanın kalemini aynı tedarikçiden bir önceki alışla karşılaştırır.
+ * docId verilirse yalnızca o fatura, verilmezse son 180 günün faturaları denetlenir.
+ * Fiyatlar KDV hariç ve ana birim başına karşılaştırılır (KDV dahil girilmiş ya da koliyle alınmış fatura yanlış uyarı vermesin).
+ */
+export async function scanPurchaseDiscrepancies(orgId: string, opts: { docId?: string } = {}): Promise<{ found: RenAiDiscrepancy[]; since: string }> {
+  const rows: ScanRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from("document_lines")
+      .select(
+        "id, product_id, description, quantity, unit_price, unit_factor, discount_rate, vat_rate, documents!inner (id, number, issue_date, created_at, contact_id, currency, prices_include_vat, contact_snapshot)",
+      )
+      .eq("documents.org_id", orgId)
+      .eq("documents.doc_type", "purchase_invoice")
+      .is("documents.deleted_at", null)
+      .not("documents.contact_id", "is", null)
+      .not("documents.status", "in", '("draft","cancelled")')
+      .order("id")
+      .range(from, from + 999);
+    if (error) throw error;
+    rows.push(...((data ?? []) as ScanRow[]));
+    if (!data || data.length < 1000) break;
+  }
+
+  const byDoc = new Map<string, { doc: ScanRow["documents"]; lines: LineForAnalysis[] }>();
+  for (const r of rows) {
+    const factor = Number(r.unit_factor) || 1;
+    const vat = Number(r.vat_rate || 0);
+    const exVat = r.documents.prices_include_vat ? Number(r.unit_price) / (1 + vat / 100) : Number(r.unit_price);
+    const entry = byDoc.get(r.documents.id) ?? { doc: r.documents, lines: [] };
+    entry.lines.push({
+      id: r.id,
+      product_id: r.product_id,
+      description: r.description,
+      quantity: Number(r.quantity) * factor,
+      unit_price: Math.round((exVat / factor) * 10000) / 10000,
+      discount_rate: Number(r.discount_rate || 0),
+      vat_rate: vat,
+    });
+    byDoc.set(r.documents.id, entry);
+  }
+
+  // en eskiden yeniye: her fatura yalnızca kendinden önceki alışlarla karşılaştırılır
+  const docs = [...byDoc.values()].sort((a, b) => (a.doc.issue_date + a.doc.created_at).localeCompare(b.doc.issue_date + b.doc.created_at));
+  const since = new Date(Date.now() - SCAN_DAYS * 86400000).toISOString().slice(0, 10);
+  const label = (d: ScanRow["documents"]) => d.number || `${trDate(d.issue_date)} tarihli alış`;
+  const found: RenAiDiscrepancy[] = [];
+  const past: PastPurchaseLine[] = [];
+  for (const { doc, lines } of docs) {
+    if (opts.docId ? doc.id === opts.docId : doc.issue_date >= since) {
+      const res = analyzePurchaseDiscrepancies({
+        currentDoc: { id: doc.id, number: label(doc), issue_date: doc.issue_date, contact_id: doc.contact_id },
+        currentLines: lines,
+        pastLines: past.filter((p) => p.document.currency === doc.currency),
+        contactName: doc.contact_snapshot?.name || "Tedarikçi",
+        currency: doc.currency,
+      });
+      // kuruşluk yuvarlama farkları uyarı sayılmaz
+      found.push(...res.filter((d) => d.totalLoss >= 1).map((d) => ({ ...d, auto: true })));
+    }
+    past.push(
+      ...lines.map((l) => ({
+        id: l.id ?? "",
+        product_id: l.product_id,
+        description: l.description,
+        quantity: l.quantity,
+        unit_price: l.unit_price,
+        discount_rate: l.discount_rate,
+        vat_rate: l.vat_rate,
+        document: { id: doc.id, number: label(doc), issue_date: doc.issue_date, contact_id: doc.contact_id, currency: doc.currency },
+      })),
+    );
+  }
+  return { found, since };
+}
+
+/**
+ * Taramayı çalıştırıp uyarı listesini günceller; yeni eklenen uyarıları döndürür.
+ * Düzeltilmiş (artık fark çıkmayan) faturaların bekleyen otomatik uyarıları kaldırılır.
+ */
+export async function syncPurchaseAlerts(orgId: string, opts: { docId?: string } = {}): Promise<RenAiDiscrepancy[]> {
+  const { found, since } = await scanPurchaseDiscrepancies(orgId, opts);
+  try {
+    const ids = new Set(found.map((f) => f.id));
+    const stored = getStoredAiAlerts(orgId);
+    const inScope = (a: RenAiDiscrepancy) => (opts.docId ? a.docId === opts.docId : a.docDate >= since);
+    const kept = stored.filter((a) => !(a.auto && a.status === "pending" && inScope(a) && !ids.has(a.id)));
+    if (kept.length !== stored.length) {
+      localStorage.setItem(`${STORAGE_KEY}_${orgId || "default"}`, JSON.stringify(kept));
+      window.dispatchEvent(new CustomEvent("ren_ai_alerts_updated"));
+    }
+  } catch {}
+  return saveAiAlerts(found, orgId);
 }

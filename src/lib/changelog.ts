@@ -14,9 +14,32 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.1";
+export const LATEST_VERSION = "2.8.2";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.2",
+    date: "12 Ekim 2026",
+    title: "Ren AI Alış Fiyat Uyarısı",
+    badge: "Ren AI",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Alışta Fiyat / İskonto Farkı Uyarısı Çalışmıyordu",
+        description: "Ren AI'nin önceki alışla karşılaştırma denetimi yeni alış penceresine bağlı değildi; iskontosuz girilen ya da fiyatı artan kalemler uyarı vermiyordu. Artık alış faturası kaydedilince hemen denetlenir.",
+      },
+      {
+        type: "yeni",
+        title: "Geçmiş Alışların Otomatik Taranması",
+        description: "Son 180 günün alış faturaları arka planda taranır; aynı tedarikçiden önceki alışa göre net birim fiyatı artan kalemler ekranda uyarı olarak, Bildirimler menüsünde ve Ren AI uyarı listesinde gösterilir. Fatura düzeltilince uyarı kendiliğinden kalkar.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Liste PDF Başlıkları",
+        description: "Bakiye listesi ve diğer liste çıktılarında başlık küçültüldü, küçük harfle yazılıp firma bilgisinin altında ortalandı; artık adres satırlarının üstüne binmiyor.",
+      },
+    ],
+  },
   {
     version: "2.8.1",
     date: "12 Ekim 2026",

@@ -13,6 +13,7 @@ import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { addDays } from "@/lib/doc-calc";
 import type { DocRow } from "./document-editor";
 import { useOrg } from "@/providers/org-provider";
+import { requestPurchaseCheck } from "@/components/layout/ren-ai-purchase-watch";
 import { cn } from "@/lib/utils";
 import { NumberInput } from "@/components/ui/money-input";
 import { MultiDiscountInput } from "./multi-discount-input";
@@ -1250,6 +1251,8 @@ function QuickDocForm({
         return;
       }
       clearDraft();
+      // Ren AI: önceki alışa göre fiyat/iskonto farkı varsa hemen uyarır
+      if (docType === "purchase_invoice") requestPurchaseCheck(docId);
       onSaved?.({ id: docId, doc_type: docType });
       onOpenChange(false);
     } catch (e) {

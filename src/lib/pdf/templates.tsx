@@ -874,10 +874,9 @@ export function ListReportPdf({
   return (
     <Document title={title} author={org.name}>
       <Page size="A4" orientation={orientation} style={s.page}>
-        <View style={s.header}>
+        <View style={[s.header, { marginBottom: 10 }]}>
           <OrgHeader org={org} logo={logo} />
           <View>
-            <Text style={s.title}>{title}</Text>
             {subtitle ? (
               <View style={s.metaRow}>
                 <Text style={s.metaLabel}>Filtre / Dönem</Text>
@@ -890,6 +889,10 @@ export function ListReportPdf({
             </View>
           </View>
         </View>
+        {/* Başlık firma bilgisinin altında, ortada: uzun başlık adres satırlarının üstüne binmez */}
+        <Text style={{ fontSize: 12, fontWeight: 700, color: C.ink, textAlign: "center", marginBottom: 10 }}>
+          {title.toLocaleLowerCase("tr-TR").replace(/(^|[\s/(])\p{L}/gu, (m) => m.toLocaleUpperCase("tr-TR"))}
+        </Text>
 
         {/* Table Header */}
         <View style={s.row} fixed>

@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, CheckCheck, PackageCheck, PackageX } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, PackageCheck, PackageX, TrendingUp } from "lucide-react";
+import { getStoredAiAlerts, type RenAiDiscrepancy } from "@/lib/ren-ai";
 import { toast } from "sonner";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { useRows, type Row } from "@/lib/data";
@@ -89,8 +90,31 @@ export function NotificationsMenu() {
     });
   }, [dueOrders, today, router]);
 
+  // Ren AI: önceki alışa göre pahalı gelen kalemler (bekleyen uyarılar)
+  const [aiAlerts, setAiAlerts] = React.useState<RenAiDiscrepancy[]>([]);
+  React.useEffect(() => {
+    const load = () => setAiAlerts(getStoredAiAlerts(org?.id).filter((a) => a.status === "pending"));
+    load();
+    window.addEventListener("ren_ai_alerts_updated", load);
+    return () => window.removeEventListener("ren_ai_alerts_updated", load);
+  }, [org?.id]);
+
   const sections = React.useMemo<Section[]>(() => {
     const list: Section[] = [];
+
+    if (aiAlerts.length) {
+      list.push({
+        key: "ai",
+        title: `Alış Fiyat / İskonto Farkı (${aiAlerts.length})`,
+        icon: <TrendingUp size={13} />,
+        items: aiAlerts.map((a) => ({
+          key: a.id,
+          label: `${a.productName} · ${a.contactName}`,
+          value: `+${formatMoney(a.totalLoss, a.currency)}`,
+          href: "/yapay-zeka?tab=alerts",
+        })),
+      });
+    }
 
     if (dueOrders.length) {
       list.push({
@@ -150,7 +174,7 @@ export function NotificationsMenu() {
       });
     }
     return list;
-  }, [criticalStockOn, data?.critical_stock, dues, cheques.data, dueOrders, today]);
+  }, [criticalStockOn, data?.critical_stock, dues, cheques.data, dueOrders, today, aiAlerts]);
 
   const allIds = sections.flatMap((s) => s.items.map((it) => itemId(s.key, it)));
   const count = allIds.length;
