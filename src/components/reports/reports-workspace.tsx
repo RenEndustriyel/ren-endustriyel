@@ -40,6 +40,7 @@ import {
 import { formatMoney, formatDate, isoDate } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { TurnoverReport } from "./turnover";
+import { ActivityLog } from "./activity-log";
 import { toast } from "sonner";
 
 const MONTH_NAMES = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
@@ -59,6 +60,7 @@ export function ReportsWorkspace() {
     | "borc"
     | "pos"
     | "tops"
+    | "gecmis"
   >("ciro");
 
   const [period, setPeriod] = React.useState<"day" | "week" | "month" | "year">("month");
@@ -731,6 +733,7 @@ export function ReportsWorkspace() {
               { id: "borc", label: "Borç / Alacak" },
               { id: "pos", label: "POS Satış" },
               { id: "tops", label: "En Çok Satan" },
+              { id: "gecmis", label: "İşlem Geçmişi" },
             ].map((tab) => {
               const active = activeTab === tab.id;
               return (
@@ -785,6 +788,7 @@ export function ReportsWorkspace() {
 
         {/* 1. GENEL */}
         {activeTab === "ciro" && <TurnoverReport />}
+        {activeTab === "gecmis" && <ActivityLog embedded />}
 
         {activeTab === "genel" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

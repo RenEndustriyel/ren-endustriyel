@@ -286,9 +286,9 @@ export async function resetOrganizationData({ orgId, scope, qc, onProgress }: Re
     report("Çalışanlar siliniyor...", 6, total);
     await supabase.from("employees").delete().eq("org_id", orgId);
 
-    report("Ekler ve denetim kayıtları siliniyor...", 7, total);
+    // İşlem geçmişi (audit_log) bilerek silinmez: kullanıcı kararı, o kayıtlar hiçbir koşulda silinmemeli
+    report("Ekler siliniyor...", 7, total);
     await supabase.from("attachments").delete().eq("org_id", orgId);
-    await supabase.from("audit_log").delete().eq("org_id", orgId);
 
     report("Depolar sıfırlanıyor (Merkez Depo korunuyor)...", 8, total);
     const { data: whs } = await supabase.from("warehouses").select("id, is_default").eq("org_id", orgId);

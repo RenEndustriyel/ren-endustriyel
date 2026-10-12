@@ -14,9 +14,32 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.3";
+export const LATEST_VERSION = "2.8.4";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.4",
+    date: "12 Ekim 2026",
+    title: "İşlem Geçmişi",
+    badge: "Yeni Rapor",
+    items: [
+      {
+        type: "yeni",
+        title: "Raporlar > İşlem Geçmişi",
+        description: "Kim, ne zaman, hangi hesapta ne yaptı tek ekranda: kasa/banka hareketleri (bakiyenin önceki ve sonraki haliyle), hesap, belge, cari ve ürün ekleme, değiştirme ve silmeleri. Tarih, tür, hesap, işlem ve kullanıcıya göre süzülür; PDF ve Excel olarak alınır.",
+      },
+      {
+        type: "duzeltme",
+        title: "Otomatik Eşleştirme Gereksiz Kayıt Üretiyordu",
+        description: "Cari eşleştirme her çalıştığında bütün ödeme bağlantılarını silip yeniden yazıyor, faturalar saniyede ödenmedi/ödendi gidip geliyordu. Artık yalnızca gerçekten değişen bağlantılar yazılır.",
+      },
+      {
+        type: "iyilestirme",
+        title: "İşlem Geçmişi Sıfırlamada Silinmez",
+        description: "Verileri sıfırlama ekranı artık işlem geçmişi kayıtlarını silmeye çalışmaz.",
+      },
+    ],
+  },
   {
     version: "2.8.3",
     date: "12 Ekim 2026",

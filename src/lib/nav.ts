@@ -121,6 +121,7 @@ export const NAV: NavGroup[] = [
       { title: "Satış Analizi", href: "/raporlar/satis", icon: PieChart, hideFor: ["staff"] },
       { title: "Cari Bakiyeler", href: "/raporlar/cari-bakiye", icon: BookUser, hideFor: ["staff"], keywords: "yaşlandırma alacak borç" },
       { title: "Stok Raporu", href: "/raporlar/stok", icon: Boxes, hideFor: ["staff"] },
+      { title: "İşlem Geçmişi", href: "/raporlar/islem-gecmisi", icon: History, hideFor: ["staff"], keywords: "kim ne yaptı kayıt log denetim silinen değişen bakiye düzeltme" },
     ],
   },
   {

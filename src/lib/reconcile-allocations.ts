@@ -162,15 +162,39 @@ export async function reconcileContactAllocations(orgId: string, targetContactId
           docPaidMap.set(doc.id, Math.max(0, Math.round((docTotal - needed) * 100) / 100));
         }
 
-        // DB'deki eski eşleştirmeleri temizle ve temiz FIFO eşleştirmelerini yaz
+        // Yalnızca FARKLI olan eşleştirmeleri yaz. Eskiden her çalışmada hepsi silinip yeniden ekleniyordu:
+        // faturalar saniyede "ödenmedi → ödendi" gidip geliyor, işlem geçmişi on binlerce anlamsız kayıtla doluyordu.
         const docIds = flowDocs.map((d) => d.id);
-        if (docIds.length > 0) {
-          await supabase.from("payment_allocations").delete().in("document_id", docIds);
+        const existing: { id: string; transaction_id: string; document_id: string; amount: number }[] = [];
+        let readFailed = false;
+        for (let i = 0; i < docIds.length; i += 100) {
+          const { data, error } = await supabase
+            .from("payment_allocations")
+            .select("id, transaction_id, document_id, amount")
+            .in("document_id", docIds.slice(i, i + 100));
+          if (error) {
+            readFailed = true;
+            break;
+          }
+          existing.push(...(data ?? []));
         }
+        // mevcut durum okunamadıysa bu yönde hiçbir şeye dokunma (yarım silme/yazma olmasın)
+        if (readFailed) continue;
 
-        if (newAllocs.length > 0) {
-          await supabase.from("payment_allocations").insert(newAllocs);
-          totalAllocationsCreated += newAllocs.length;
+        const key = (a: { transaction_id: string; document_id: string }) => `${a.transaction_id}|${a.document_id}`;
+        const wanted = new Map(newAllocs.map((a) => [key(a), a.amount]));
+        const same = (a: { transaction_id: string; document_id: string; amount: number }) =>
+          wanted.has(key(a)) && Math.abs(Number(wanted.get(key(a))) - Number(a.amount)) <= 0.009;
+        const staleIds = existing.filter((e) => !same(e)).map((e) => e.id);
+        const keptKeys = new Set(existing.filter(same).map(key));
+        const missing = newAllocs.filter((a) => !keptKeys.has(key(a)));
+
+        for (let i = 0; i < staleIds.length; i += 100) {
+          await supabase.from("payment_allocations").delete().in("id", staleIds.slice(i, i + 100));
+        }
+        if (missing.length > 0) {
+          await supabase.from("payment_allocations").insert(missing);
+          totalAllocationsCreated += missing.length;
         }
 
         // Belgelerin paid_amount ve payment_status değerlerini güncelle
