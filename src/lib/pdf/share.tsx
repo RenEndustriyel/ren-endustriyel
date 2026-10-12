@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { supabase, type Tables } from "@/lib/supabase/client";
 import { downloadBlob } from "@/lib/excel";
+import { formatMoney } from "@/lib/format";
 import { DOC_TYPES, docBalanceInfo, type DocType } from "@/lib/doc-types";
 import { TYPE_LABELS } from "@/components/dashboard/types";
 
@@ -237,7 +238,64 @@ export async function shareListPdf({
   }
 }
 
-export type DocForPdf = Tables<"documents"> & {
+/** Tahsilata/ödemeye çıkarken çıktısı alınacak bakiye listesi: telefon, yer, bakiye ve elle not alanı */
+export async function shareBalanceListPdf({
+  org,
+  title,
+  subtitle,
+  rows,
+  fileName,
+  mode = "download",
+}: {
+  org: Org;
+  title: string;
+  subtitle?: string;
+  /** balance > 0: cari bize borçlu, balance < 0: biz cariye borçluyuz */
+  rows: { name: string; phone?: string | null; place?: string | null; balance: number }[];
+  fileName: string;
+  mode?: "share" | "download" | "open" | "print";
+}) {
+  const list = rows.filter((r) => Math.abs(r.balance) > 0.004);
+  if (list.length === 0) {
+    toast.error("Listede bakiyesi olan cari yok");
+    return;
+  }
+  const rec = list.filter((r) => r.balance > 0).reduce((s, r) => s + r.balance, 0);
+  const pay = list.filter((r) => r.balance < 0).reduce((s, r) => s - r.balance, 0);
+  const mixed = rec > 0 && pay > 0;
+  const summary = [{ label: "Cari Sayısı", value: `${list.length} adet` }];
+  if (rec > 0) summary.push({ label: mixed ? "Toplam Alacağımız (B: bize borçlu)" : "Toplam Alacağımız", value: formatMoney(rec, "TRY") });
+  if (pay > 0) summary.push({ label: mixed ? "Toplam Borcumuz (A: bizden alacaklı)" : "Toplam Borcumuz", value: formatMoney(pay, "TRY") });
+  if (mixed) summary.push({ label: "Net", value: formatMoney(rec - pay, "TRY") });
+
+  await shareListPdf({
+    org,
+    title,
+    subtitle,
+    orientation: "portrait",
+    fileName,
+    mode,
+    columns: [
+      { header: "#", width: "5%" },
+      { header: "Cari", width: "34%" },
+      { header: "Telefon", width: "16%" },
+      { header: "İlçe / İl", width: "15%" },
+      { header: "Bakiye", width: "16%", align: "right" },
+      { header: "Tahsilat / Not", width: "14%", align: "center" },
+    ],
+    rows: list.map((r, i) => [
+      i + 1,
+      r.name,
+      r.phone || "—",
+      r.place || "—",
+      formatMoney(Math.abs(r.balance), "TRY") + (mixed ? (r.balance > 0 ? " (B)" : " (A)") : ""),
+      "",
+    ]),
+    summary,
+  });
+}
+
+export type DocForPdf =Tables<"documents"> & {
   lines: (Tables<"document_lines"> & { unit_name?: string | null; product_name?: string | null })[];
   contact_balance_info?: {
     previous_balance?: number | null;

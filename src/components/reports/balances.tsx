@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Download } from "lucide-react";
+import { Download, FileText, Printer } from "lucide-react";
 import { useContactBalances, useContacts, useRpcQuery } from "@/lib/data";
 import { formatMoney, isoDate } from "@/lib/format";
 import { exportExcel, sheet } from "@/lib/excel";
@@ -40,11 +40,66 @@ export function BalancesReport() {
     cell: (r: Aging) => <span className={cn("num", n(r[k] as number) && danger && "text-danger")}>{n(r[k] as number) ? formatMoney(n(r[k] as number)) : "—"}</span>,
   });
 
+  // Açık sekmeye göre: bakiye listesi ya da alacak/borç yaşlandırma
+  const handlePdf = async (mode: "download" | "open") => {
+    if (!org) return;
+    const { shareBalanceListPdf, shareListPdf } = await import("@/lib/pdf/share");
+    if (tab === "balances") {
+      await shareBalanceListPdf({
+        org,
+        title: "CARİ BAKİYE LİSTESİ",
+        subtitle: "Tüm bakiyeliler",
+        fileName: "cari-bakiye-listesi",
+        mode,
+        rows: [...bal]
+          .sort((a, b) => Number(b.balance) - Number(a.balance))
+          .map((b) => ({
+            name: b.contact!.name,
+            phone: b.contact!.mobile || b.contact!.phone,
+            place: [b.contact!.district, b.contact!.city].filter(Boolean).join(" / "),
+            balance: Number(b.balance),
+          })),
+      });
+      return;
+    }
+    const m = (v: number | null) => (n(v) ? formatMoney(n(v)) : "—");
+    const rows = [...agingRows].sort((a, b) => n(b.total) - n(a.total));
+    await shareListPdf({
+      org,
+      title: tab === "in" ? "ALACAK YAŞLANDIRMA" : "BORÇ YAŞLANDIRMA",
+      subtitle: "Vadesine göre açık faturalar",
+      fileName: tab === "in" ? "alacak-yaslandirma" : "borc-yaslandirma",
+      orientation: "landscape",
+      mode,
+      columns: [
+        { header: "Cari", width: "34%" },
+        { header: "Vadesi gelmemiş", width: "11%", align: "right" },
+        { header: "1-30 gün", width: "11%", align: "right" },
+        { header: "31-60 gün", width: "11%", align: "right" },
+        { header: "61-90 gün", width: "11%", align: "right" },
+        { header: "90+ gün", width: "11%", align: "right" },
+        { header: "Toplam", width: "11%", align: "right" },
+      ],
+      rows: rows.map((a) => [a.name, m(a.not_due), m(a.d0_30), m(a.d31_60), m(a.d61_90), m(a.d90_plus), formatMoney(n(a.total))]),
+      summary: [
+        { label: "Cari Sayısı", value: `${rows.length} adet` },
+        { label: "Toplam", value: formatMoney(rows.reduce((s, a) => s + n(a.total), 0)) },
+      ],
+    });
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Cari Bakiyeler ve Yaşlandırma"
         actions={
+          <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => handlePdf("open")} title="Açık sekmedeki listeyi yeni sekmede aç ve yazdır">
+            <Printer /> Yazdır
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => handlePdf("download")} title="Açık sekmedeki listeyi PDF olarak indir">
+            <FileText /> PDF
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -70,6 +125,7 @@ export function BalancesReport() {
           >
             <Download /> Excel
           </Button>
+          </div>
         }
       />
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-3">

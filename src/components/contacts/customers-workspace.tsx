@@ -21,7 +21,10 @@ import {
   MapPin,
   ArrowUpDown,
   MessageCircle,
+  Printer,
+  FileText,
 } from "lucide-react";
+import { useOrg } from "@/providers/org-provider";
 import { useContacts, useContactBalances, useUpdate, type Row } from "@/lib/data";
 import { formatMoney } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
@@ -39,6 +42,7 @@ type SortDir = "asc" | "desc";
 
 export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | "supplier" }) {
   const router = useRouter();
+  const { org } = useOrg();
   const contactsQuery = useContacts();
   const balancesQuery = useContactBalances();
   const updateContact = useUpdate("contacts");
@@ -191,7 +195,28 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
     ]);
   };
 
-  const getCleanPhone = (phoneStr?: string | null) => {
+  const handleBalancePdf = async (mode: "download" | "open") => {
+    if (!org) return;
+    const { shareBalanceListPdf } = await import("@/lib/pdf/share");
+    const who = isCustomer ? "MÜŞTERİ" : "TEDARİKÇİ";
+    const scope =
+      filterStatus === "debt" ? "Bize borçlu olanlar" : filterStatus === "credit" ? "Bizim borçlu olduklarımız" : "Tüm bakiyeliler";
+    await shareBalanceListPdf({
+      org,
+      title: `${who} BAKİYE LİSTESİ`,
+      subtitle: [scope, q.trim() ? `Arama: ${q.trim()}` : ""].filter(Boolean).join(" · "),
+      fileName: isCustomer ? "musteri-bakiye-listesi" : "tedarikci-bakiye-listesi",
+      mode,
+      rows: sorted.map((c) => ({
+        name: c.name,
+        phone: c.mobile || c.phone,
+        place: [c.district, c.city].filter(Boolean).join(" / "),
+        balance: c.balance,
+      })),
+    });
+  };
+
+  const getCleanPhone =(phoneStr?: string | null) => {
     if (!phoneStr) return null;
     const digits = phoneStr.replace(/\D/g, "");
     if (!digits) return null;
@@ -211,6 +236,22 @@ export function CustomersWorkspace({ kind = "customer" }: { kind?: "customer" | 
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 min-w-0 lg:justify-end">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => handleBalancePdf("open")}
+            title="Bakiye listesini yeni sekmede aç ve yazdır"
+          >
+            <Printer className="h-4 w-4" /> Bakiye Listesi Yazdır
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => handleBalancePdf("download")}
+            title="Bakiyesi olan carileri PDF olarak indir (ekrandaki filtre ve sıralamayla)"
+          >
+            <FileText className="h-4 w-4" /> Bakiye PDF
+          </button>
           <button
             type="button"
             className="btn-ghost"

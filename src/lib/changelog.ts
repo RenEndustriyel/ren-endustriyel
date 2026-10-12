@@ -14,9 +14,26 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.7.9";
+export const LATEST_VERSION = "2.8.1";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.1",
+    date: "12 Ekim 2026",
+    title: "Bakiye Listesi PDF",
+    items: [
+      {
+        type: "yeni",
+        title: "Tahsilat İçin Bakiye Listesi Çıktısı",
+        description: "Müşteriler ve Tedarikçiler ekranındaki Bakiye PDF ve Bakiye Listesi Yazdır düğmeleri, bakiyesi olan carileri telefon, ilçe/il, bakiye ve elle not alanıyla tek listede verir. Ekrandaki filtre, arama ve sıralama aynen uygulanır.",
+      },
+      {
+        type: "yeni",
+        title: "Cari Bakiyeler Raporunda PDF ve Yazdır",
+        description: "Raporlar > Cari Bakiyeler ekranında açık olan sekme (bakiyeler, alacak yaşlandırma, borç yaşlandırma) PDF olarak indirilebilir veya yazdırılabilir.",
+      },
+    ],
+  },
   {
     version: "2.7.9",
     date: "11 Ekim 2026",
