@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.4";
+export const LATEST_VERSION = "2.8.5";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.5",
+    date: "14 Ekim 2026",
+    title: "Bakiye Düzeltme",
+    items: [
+      {
+        type: "yeni",
+        title: "Hesaplar > Bakiye Düzelt",
+        description: "Her kasa, banka, POS ve kredi kartı hesabında bakiye düzeltme (yalnızca yönetici ve firma sahibi görür). Olması gereken bakiyeyi yazarsınız; fark \"Düzeltme\" hareketi olarak hesaba işlenir. Eski kayıtlar değişmez; düzeltme hesap ekstresinde ve İşlem Geçmişi'nde görünür.",
+      },
+    ],
+  },
   {
     version: "2.8.4",
     date: "12 Ekim 2026",

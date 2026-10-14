@@ -14,6 +14,7 @@ import {
   Plus,
   CircleHelp,
   X,
+  Scale,
 } from "lucide-react";
 import { useAccounts, useSave, useUpdate, useRpc, newId, type Row } from "@/lib/data";
 import { formatMoney, isoDate } from "@/lib/format";
@@ -23,12 +24,18 @@ import { useOrg } from "@/providers/org-provider";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
+// "1.234,56" → 1234.56 ; "1234.56" → 1234.56
+const parseAmount = (v: string) => {
+  const t = v.trim();
+  return parseFloat(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t);
+};
+
 export function AccountsList() {
   const qc = useQueryClient();
   const accountsQuery = useAccounts();
   const updateAccount = useUpdate("accounts");
   const saveTxn = useRpc("save_transaction");
-  const { org } = useOrg();
+  const { org, isAdmin } = useOrg();
 
   const [helpOpen, setHelpOpen] = React.useState(false);
   const [newModalOpen, setNewModalOpen] = React.useState(false);
@@ -42,6 +49,13 @@ export function AccountsList() {
   const [txnAmount, setTxnAmount] = React.useState("");
   const [txnDesc, setTxnDesc] = React.useState("");
   const [targetAccountId, setTargetAccountId] = React.useState("");
+
+  // Bakiye düzeltme (yalnızca yönetici): fark kadar "adjustment" hareketi yazılır, geçmiş korunur
+  const [adjAccount, setAdjAccount] = React.useState<Row<"accounts"> | null>(null);
+  const [adjNewBalance, setAdjNewBalance] = React.useState("");
+  const [adjDate, setAdjDate] = React.useState(isoDate());
+  const [adjDesc, setAdjDesc] = React.useState("");
+  const [adjSaving, setAdjSaving] = React.useState(false);
 
   const accounts = accountsQuery.data ?? [];
 
@@ -142,6 +156,59 @@ export function AccountsList() {
     }
   };
 
+  const openAdjust = (acc: Row<"accounts">) => {
+    setAdjAccount(acc);
+    setAdjNewBalance("");
+    setAdjDate(isoDate());
+    setAdjDesc("");
+  };
+
+  const handleAdjustSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adjAccount || !org || !isAdmin) return;
+    const target = parseAmount(adjNewBalance);
+    if (isNaN(target)) {
+      toast.error("Geçerli bir bakiye girin");
+      return;
+    }
+    const current = Number(adjAccount.balance ?? 0);
+    const diff = Math.round((target - current) * 100) / 100;
+    if (diff === 0) {
+      toast.info("Bakiye zaten bu tutarda");
+      return;
+    }
+    setAdjSaving(true);
+    try {
+      await saveTxn.call({
+        p_txn: {
+          id: newId(),
+          org_id: org.id,
+          type: "adjustment",
+          direction: diff > 0 ? "in" : "out",
+          txn_date: adjDate || isoDate(),
+          account_id: adjAccount.id,
+          amount: Math.abs(diff),
+          currency: adjAccount.currency || "TRY",
+          exchange_rate: 1,
+          description: adjDesc || `Bakiye düzeltme (${formatMoney(current)} → ${formatMoney(target)})`,
+          reference: "bakiye-duzeltme",
+        },
+        p_allocations: null,
+      });
+      toast.success("Bakiye düzeltildi");
+      qc.invalidateQueries({ queryKey: ["rows", "accounts"] });
+      qc.invalidateQueries({ queryKey: ["rows", "transactions"] });
+      qc.invalidateQueries({ queryKey: ["account_statement"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      await accountsQuery.refetch();
+      setAdjAccount(null);
+    } catch (err: any) {
+      toast.error(err.message || "Bakiye düzeltilemedi");
+    } finally {
+      setAdjSaving(false);
+    }
+  };
+
   const renderAccountItem = (acc: Row<"accounts">) => {
     const bal = Number(acc.balance ?? 0);
     const isNegative = bal < 0;
@@ -202,6 +269,16 @@ export function AccountsList() {
           >
             <ArrowUpRight className="h-[15px] w-[15px]" />
           </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="h-8 w-8 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center hover:bg-amber-100 dark:hover:bg-amber-900/50 transition"
+              title="Bakiye düzelt"
+              onClick={() => openAdjust(acc)}
+            >
+              <Scale className="h-[15px] w-[15px]" />
+            </button>
+          )}
           <button
             type="button"
             className="h-8 w-8 rounded-lg text-slate-300 hover:text-rose-500 flex items-center justify-center transition"
@@ -408,6 +485,72 @@ export function AccountsList() {
               setEditingAccount(null);
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Bakiye Düzeltme Modalı (yalnızca yönetici) */}
+      <Dialog open={!!adjAccount && isAdmin} onOpenChange={(val) => !val && setAdjAccount(null)}>
+        <DialogContent title="Bakiye Düzeltme" className="max-w-md">
+          {adjAccount && isAdmin && (
+            <form onSubmit={handleAdjustSubmit} className="space-y-4 pt-2">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Hesap</label>
+                <div className="font-semibold text-sm px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 flex justify-between gap-2">
+                  <span className="truncate">
+                    {adjAccount.name} ({adjAccount.currency})
+                  </span>
+                  <span className="tabular-nums shrink-0">{formatMoney(Number(adjAccount.balance ?? 0))}</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Olması gereken bakiye</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  required
+                  className="input w-full text-base font-semibold"
+                  placeholder="0,00"
+                  value={adjNewBalance}
+                  onChange={(e) => setAdjNewBalance(e.target.value)}
+                />
+                {(() => {
+                  const t = parseAmount(adjNewBalance);
+                  if (isNaN(t)) return null;
+                  const d = Math.round((t - Number(adjAccount.balance ?? 0)) * 100) / 100;
+                  if (d === 0) return <p className="text-[11px] text-slate-400 mt-1">Fark yok</p>;
+                  return (
+                    <p className={`text-[11px] mt-1 ${d > 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                      Fark: {d > 0 ? "+" : "−"}
+                      {formatMoney(Math.abs(d))} ({d > 0 ? "giriş" : "çıkış"} olarak kaydedilecek)
+                    </p>
+                  );
+                })()}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Tarih</label>
+                <input type="date" className="input w-full" value={adjDate} onChange={(e) => setAdjDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1 block">Açıklama</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  placeholder="Bakiye düzeltme (opsiyonel)"
+                  value={adjDesc}
+                  onChange={(e) => setAdjDesc(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" className="btn-ghost" onClick={() => setAdjAccount(null)}>
+                  Vazgeç
+                </button>
+                <button type="submit" className="btn-primary" disabled={adjSaving}>
+                  {adjSaving ? "Kaydediliyor..." : "Bakiyeyi Düzelt"}
+                </button>
+              </div>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 
