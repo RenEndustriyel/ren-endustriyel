@@ -14,9 +14,26 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.5";
+export const LATEST_VERSION = "2.8.6";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.6",
+    date: "14 Ekim 2026",
+    title: "Alış Faturası Barkod Çakışması",
+    items: [
+      {
+        type: "duzeltme",
+        title: "\"Bu kayıt zaten mevcut\" Hatası",
+        description: "Alış faturasında yeni ürün olarak girilen kalemin barkodu başka bir ürün kartında kayıtlıysa fatura kaydedilemiyordu. Artık yeni kart açılmaz, kalem o barkodlu ürüne bağlanır. Kayıttan sonra ürün kartına barkod yazılırken çakışma olursa barkod yazılmaz, uyarı verilir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Tekrarlanan Kayıt Mesajı Netleşti",
+        description: "Hata artık neyin tekrarlandığını söylüyor: barkod, ürün kodu, cari kodu veya belge numarası.",
+      },
+    ],
+  },
   {
     version: "2.8.5",
     date: "14 Ekim 2026",

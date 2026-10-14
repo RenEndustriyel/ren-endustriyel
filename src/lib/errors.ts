@@ -3,7 +3,15 @@ export function errorMessage(err: unknown): string {
   if (!err) return "Bilinmeyen hata";
   const e = err as { message?: string; code?: string; details?: string };
   const msg = e.message ?? String(err);
-  if (e.code === "23505") return "Bu kayıt zaten mevcut (tekrarlanan değer).";
+  if (e.code === "23505") {
+    // hangi kuralın tekrarlandığını söyle (Postgres mesajında kısıt adı geçer)
+    const text = `${msg} ${e.details ?? ""}`;
+    if (/products_barcode_uniq/.test(text)) return "Bu barkod başka bir ürün kartında kayıtlı.";
+    if (/products_code_uniq/.test(text)) return "Bu ürün kodu başka bir ürün kartında kayıtlı.";
+    if (/contacts_code_uniq/.test(text)) return "Bu cari kodu başka bir caride kayıtlı.";
+    if (/documents_number_uniq/.test(text)) return "Bu belge numarası aynı türde başka bir belgede kayıtlı.";
+    return `Bu kayıt zaten mevcut (tekrarlanan değer). ${e.details ?? ""}`.trim();
+  }
   if (e.code === "23503") return "Bu kayıt başka kayıtlarda kullanıldığı için işlem yapılamadı.";
   if (e.code === "42501" || /row-level security/i.test(msg)) return "Bu işlem için yetkiniz yok.";
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return "Bağlantı yok. İnternet bağlantınızı kontrol edin.";

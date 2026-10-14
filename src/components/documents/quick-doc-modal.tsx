@@ -1080,6 +1080,23 @@ function QuickDocForm({
   // Kaydetme
   // -------------------------------------------------------------------------
 
+  /** Barkodun kayıtlı olduğu (silinmemiş) ürün; yoksa / bağlantı yoksa null */
+  const barcodeOwner = async (barcode: string) => {
+    try {
+      const { data } = await supabase
+        .from("products")
+        .select("id, name")
+        .eq("org_id", org!.id)
+        .eq("barcode", barcode)
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle();
+      return (data as { id: string; name: string } | null) ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleSave = async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       toast.error("İnternet bağlantısı yok — belge kaydedilmedi", {
@@ -1115,6 +1132,16 @@ function QuickDocForm({
         if (l.kind !== "new") {
           resolved.push(l);
           continue;
+        }
+        // Barkod başka bir ürün kartında kayıtlıysa (listede görünmese de) yeni kart açma, o ürünü kullan
+        const bc = l.barcode.trim();
+        if (bc) {
+          const owner = await barcodeOwner(bc);
+          if (owner) {
+            toast.info(`"${bc}" barkodu kayıtlı ürüne bağlandı: ${owner.name}`);
+            resolved.push({ ...l, kind: "product", product_id: owner.id });
+            continue;
+          }
         }
         const res = await saveProduct.save<{ id: string }>({
           id: productIdFor(l.id),
@@ -1239,7 +1266,12 @@ function QuickDocForm({
             patch.sale_price = l.shelf_price;
             patch.sale_price_includes_vat = true;
           }
-          if (l.barcode.trim() && !p.barcode) patch.barcode = l.barcode.trim();
+          if (l.barcode.trim() && !p.barcode) {
+            // belge kaydedildi; barkod başka üründeyse karta yazma (hata verip kaydı yarım göstermesin)
+            const owner = await barcodeOwner(l.barcode.trim());
+            if (!owner) patch.barcode = l.barcode.trim();
+            else if (owner.id !== l.product_id) toast.warning(`"${l.barcode.trim()}" barkodu ${owner.name} ürününde kayıtlı; ${p.name} kartına yazılmadı.`);
+          }
           await updateProduct.update(l.product_id, patch);
         }
       }
