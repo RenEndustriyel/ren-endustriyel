@@ -999,7 +999,7 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
   const overdueItems = rows.filter((r) => r.days_overdue > 0);
   const overdueCount = overdueItems.length;
   const overdueTotal = overdueItems.reduce((s, r) => s + r.amount, 0);
-  const accent = isIn ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400";
+  const accent = isIn ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600/80 dark:text-rose-400/80";
   const today = isoDate();
 
   const displayRows = filterMode === "overdue" ? overdueItems : rows;
@@ -1009,9 +1009,8 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
       className={cn(
         "card p-5 transition-all shadow-soft",
         isIn
-          ? "border-t-4 border-t-emerald-500"
-          : "border-t-4 border-t-rose-500",
-        overdueCount > 0 && "ring-1 ring-rose-300 dark:ring-rose-900/60",
+          ? "border-t-2 border-t-emerald-400/70"
+          : "border-t-2 border-t-rose-300/80 dark:border-t-rose-800/70",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
@@ -1020,8 +1019,8 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
             className={cn(
               "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
               isIn
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300"
-                : "bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300",
+                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300"
+                : "bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-300/90",
             )}
           >
             <CalendarClock size={20} />
@@ -1034,7 +1033,7 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
               <span>{rows.length} kayıt ·</span>
               <span className={cn("font-bold text-sm tabular-nums", accent)}>{formatMoney(total)}</span>
               {overdueCount > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-100 text-rose-700 dark:bg-rose-950/90 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-600/90 dark:bg-rose-950/40 dark:text-rose-300/90 border border-rose-200/70 dark:border-rose-900/60">
                   <TriangleAlert size={11} /> {overdueCount} gecikmiş ({formatMoney(overdueTotal)})
                 </span>
               )}
@@ -1063,8 +1062,8 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                 className={cn(
                   "px-2.5 py-1 rounded-md transition flex items-center gap-1",
                   filterMode === "overdue"
-                    ? "bg-rose-600 text-white shadow-xs font-bold"
-                    : "text-rose-600 dark:text-rose-400 hover:text-rose-700 font-bold",
+                    ? "bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 shadow-xs font-bold"
+                    : "text-rose-500/90 dark:text-rose-400/90 hover:text-rose-600",
                 )}
               >
                 <TriangleAlert size={11} />
@@ -1102,9 +1101,9 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                 className={cn(
                   "group flex items-center gap-3 py-2.5 px-2.5 rounded-xl transition my-0.5",
                   overdue
-                    ? "bg-rose-50/80 hover:bg-rose-100/90 dark:bg-rose-950/35 dark:hover:bg-rose-900/50 border border-rose-200/90 dark:border-rose-900/70 shadow-xs"
+                    ? "bg-rose-50/30 hover:bg-rose-50/70 dark:bg-rose-950/10 dark:hover:bg-rose-950/25 border border-rose-100/80 dark:border-rose-900/30"
                     : isDueToday
-                      ? "bg-amber-50/80 hover:bg-amber-100/90 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 border border-amber-200/90 dark:border-amber-900/70 shadow-xs"
+                      ? "bg-amber-50/30 hover:bg-amber-50/70 dark:bg-amber-950/10 dark:hover:bg-amber-950/25 border border-amber-100/80 dark:border-amber-900/30"
                       : "hover:bg-slate-50 dark:hover:bg-slate-800/50",
                 )}
               >
@@ -1112,9 +1111,9 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                   className={cn(
                     "h-9 w-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
                     overdue
-                      ? "bg-rose-600 text-white"
+                      ? "bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400"
                       : isDueToday
-                        ? "bg-amber-500 text-white"
+                        ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
                         : isIn
                           ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600"
                           : "bg-blue-50 dark:bg-blue-900/30 text-blue-600",
@@ -1134,8 +1133,6 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                   <div
                     className={cn(
                       "text-sm font-semibold truncate",
-                      overdue && "text-rose-950 dark:text-rose-100 font-bold",
-                      isDueToday && "text-amber-950 dark:text-amber-100 font-bold",
                       blur,
                     )}
                   >
@@ -1145,9 +1142,9 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                     className={cn(
                       "text-xs truncate",
                       overdue
-                        ? "text-rose-700/90 dark:text-rose-300/90 font-medium"
+                        ? "text-rose-600/70 dark:text-rose-300/70"
                         : isDueToday
-                          ? "text-amber-700/90 dark:text-amber-300/90 font-medium"
+                          ? "text-amber-700/70 dark:text-amber-300/70"
                           : "text-slate-500 dark:text-slate-400",
                     )}
                   >
@@ -1163,17 +1160,17 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                   <div
                     className={cn(
                       "font-extrabold text-sm tabular-nums",
-                      overdue ? "text-rose-600 dark:text-rose-400" : isDueToday ? "text-amber-600 dark:text-amber-400" : accent,
+                      overdue ? "text-rose-600/80 dark:text-rose-400/80" : isDueToday ? "text-amber-600/90 dark:text-amber-400/90" : accent,
                     )}
                   >
                     {formatMoney(t.amount)}
                   </div>
                   {overdue ? (
-                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-600 text-white shadow-xs">
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-600/90 dark:bg-rose-950/40 dark:text-rose-300/90 border border-rose-200/70 dark:border-rose-900/60">
                       <TriangleAlert size={10} /> {t.days_overdue} gün gecikti
                     </span>
                   ) : isDueToday ? (
-                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-500 text-white shadow-xs">
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700/90 dark:bg-amber-950/40 dark:text-amber-300/90 border border-amber-200/70 dark:border-amber-900/60">
                       <Clock size={10} /> Bugün vadeli
                     </span>
                   ) : daysLeft !== null && daysLeft > 0 && daysLeft <= 3 ? (
