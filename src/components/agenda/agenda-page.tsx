@@ -76,7 +76,8 @@ export function AgendaPage() {
 
   const reminders = useRows<Reminder>("reminders", {
     params: [from, to],
-    filter: (q) => q.gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`),
+    // tekrarlayan masraf kuralları Masraflar ekranında yönetilir
+    filter: (q) => q.gte("starts_at", `${from}T00:00:00`).lte("starts_at", `${to}T23:59:59`).or("related_type.is.null,related_type.neq.recurring_expense"),
     order: [{ column: "starts_at" }],
   });
   const docs = useRows<Row<"documents"> & { contact: { name: string } | null }>("documents", {

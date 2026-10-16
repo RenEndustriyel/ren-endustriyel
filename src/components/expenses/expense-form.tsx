@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase/client";
 import { newId, useAccounts, useCategories, useRpc, useSave, type Row } from "@/lib/data";
 import { VAT_RATES } from "@/lib/doc-types";
 import { calcDocument } from "@/lib/doc-calc";
-import { formatMoney, isoDate } from "@/lib/format";
+import { formatDate, formatMoney, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ContactPicker } from "@/components/contacts/contact-picker";
 import { useDocument } from "@/components/documents/document-editor";
 import { useConfirm } from "@/components/ui/confirm";
+import { RECURRING_EXPENSE, RECURRING_RULES, dayToTs, nextRecurringDate, ruleLabel, type RecurringRule } from "@/lib/recurring-expense";
 
 /** Fotoğrafı küçültüp JPEG'e çevirir (yükleme boyutunu düşürür) */
 async function compressImage(file: File, max = 1600): Promise<Blob> {
@@ -36,13 +37,13 @@ async function compressImage(file: File, max = 1600): Promise<Blob> {
   return new Promise((res) => canvas.toBlob((b) => res(b ?? file), "image/jpeg", 0.82));
 }
 
-export function ExpenseFormPage({ editId }: { editId?: string | null }) {
+export function ExpenseFormPage({ editId, defaultRecurring = false }: { editId?: string | null; defaultRecurring?: boolean }) {
   const q = useDocument(editId);
   if (editId && q.isPending) return <Skeleton className="mx-auto h-96 max-w-2xl rounded-card" />;
-  return <ExpenseForm key={editId ?? "new"} doc={q.data ?? null} />;
+  return <ExpenseForm key={editId ?? "new"} doc={q.data ?? null} defaultRecurring={defaultRecurring} />;
 }
 
-function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_lines">[] }) | null }) {
+function ExpenseForm({ doc, defaultRecurring }: { doc: (Row<"documents"> & { lines: Row<"document_lines">[] }) | null; defaultRecurring: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
   const { org } = useOrg();
@@ -51,6 +52,8 @@ function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_
   const saveDoc = useRpc<Row<"documents">>("save_document");
   const saveCat = useSave("categories");
   const saveAtt = useSave("attachments");
+  const saveRule = useSave("reminders");
+  const [rec, setRec] = React.useState<{ on: boolean; rule: RecurringRule; end: string }>({ on: defaultRecurring, rule: "monthly", end: "" });
   const line = doc?.lines?.[0];
   const [v, setV] = React.useState({
     issue_date: doc?.issue_date ?? isoDate(),
@@ -79,6 +82,8 @@ function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_
     setErr(null);
     if (!v.amount) return setErr("Tutar girin.");
     if (!v.category_id && !v.description.trim()) return setErr("Kategori veya açıklama girin.");
+    const firstRepeat = nextRecurringDate(v.issue_date, rec.rule);
+    if (!doc && rec.on && rec.end && rec.end < firstRepeat) return setErr(`Bitiş tarihi ilk tekrardan (${formatDate(firstRepeat)}) önce olamaz.`);
 
     if (doc) {
       const ok = await confirm({
@@ -111,6 +116,25 @@ function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_
       p_lines: [{ description: v.description.trim() || catName || "Masraf", quantity: 1, unit_price: v.amount, vat_rate: v.vat_rate, discount_rate: 0 }],
       p_payment: v.paid && accountId ? { id: newId(), account_id: accountId, method: "cash" } : null,
     }, doc ? "Masraf güncellendi" : "Masraf kaydedildi");
+
+    // Tekrarlayan işlem: bu masraf şablon olur, sonraki tarihlerde "ödenecek" olarak kopyalanır
+    if (!doc && rec.on) {
+      const title = v.description.trim() || catName || "Masraf";
+      await saveRule.save(
+        {
+          kind: "reminder",
+          title: `${title} (tekrarlayan masraf)`,
+          description: `${ruleLabel(rec.rule)} · ${formatMoney(v.amount)}`,
+          starts_at: dayToTs(firstRepeat),
+          ends_at: rec.end ? dayToTs(rec.end) : null,
+          all_day: true,
+          repeat_rule: rec.rule,
+          related_type: RECURRING_EXPENSE,
+          related_id: id,
+        },
+        `Tekrarlayan işlem: ${ruleLabel(rec.rule).toLocaleLowerCase("tr")}, ilk tekrar ${formatDate(firstRepeat)}`,
+      );
+    }
 
     if (photo) {
       if (!onlineManager.isOnline()) {
@@ -199,6 +223,37 @@ function ExpenseForm({ doc }: { doc: (Row<"documents"> & { lines: Row<"document_
                 <Field label="Son ödeme tarihi">
                   <Input type="date" value={v.due_date} onChange={(e) => set("due_date", e.target.value)} />
                 </Field>
+              )}
+            </CardBody>
+          </Card>
+        )}
+
+        {!doc && (
+          <Card>
+            <CardBody className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+                <Switch checked={rec.on} onCheckedChange={(on) => setRec((r) => ({ ...r, on }))} />
+                Tekrarlayan işlem
+              </label>
+              {rec.on && (
+                <>
+                  <Field label="Tekrar sıklığı">
+                    <NativeSelect value={rec.rule} onChange={(e) => setRec((r) => ({ ...r, rule: e.target.value as RecurringRule }))}>
+                      {RECURRING_RULES.map((x) => (
+                        <option key={x.value} value={x.value}>
+                          {x.label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                  <Field label="Bitiş tarihi (isteğe bağlı)">
+                    <Input type="date" value={rec.end} onChange={(e) => setRec((r) => ({ ...r, end: e.target.value }))} />
+                  </Field>
+                  <p className="text-xs text-muted sm:col-span-2">
+                    İlk tekrar {formatDate(nextRecurringDate(v.issue_date, rec.rule))}. Zamanı gelince bu masrafın aynısı &quot;Ödenecek&quot; olarak
+                    oluşturulur{rec.end ? `, ${formatDate(rec.end)} tarihine kadar` : ", siz durdurana kadar"}. Kuralları Masraflar &gt; Tekrarlayan İşlemler&apos;den yönetebilirsiniz.
+                  </p>
+                </>
               )}
             </CardBody>
           </Card>

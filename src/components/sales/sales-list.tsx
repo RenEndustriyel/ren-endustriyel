@@ -356,6 +356,16 @@ const DEFAULT_SALES_DOCS: Doc[] = [
 
 type SalesView = "all" | "documents" | "pos" | "cancelled";
 
+// Silinen örnek (gösterim) kayıtları: veritabanında olmadıkları için bu cihazda gizlenir
+const HIDDEN_SAMPLES_KEY = "satislar:gizli-ornekler";
+const readHiddenSamples = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(HIDDEN_SAMPLES_KEY) || "[]") as string[];
+  } catch {
+    return [];
+  }
+};
+
 export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -383,6 +393,8 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
     : null;
 
   const [printDoc, setPrintDoc] = React.useState<Doc | null>(null);
+  const [hiddenSamples, setHiddenSamples] = React.useState<string[]>([]);
+  React.useEffect(() => setHiddenSamples(readHiddenSamples()), []);
   const [helpOpen, setHelpOpen] = React.useState(false);
 
   // Yeni belge akışı: Müşteri seç → Yeni Satış Belgesi
@@ -418,11 +430,11 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
       orders: ["sales_order"],
       waybills: ["sales_waybill", "sales_delivery"],
     };
-    for (const def of DEFAULT_SALES_DOCS.filter((d) => sampleTypes[activeTab].includes(d.doc_type))) {
+    for (const def of DEFAULT_SALES_DOCS.filter((d) => sampleTypes[activeTab].includes(d.doc_type) && !hiddenSamples.includes(d.id))) {
       if (!merged.some((m) => m.id === def.id || (m.number && m.number === def.number))) merged.push(def);
     }
     return merged;
-  }, [docs.data, activeTab]);
+  }, [docs.data, activeTab, hiddenSamples]);
 
   const today = isoDate();
   const filteredRows = React.useMemo(() => {
@@ -509,7 +521,17 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
 
   // Sipariş / irsaliye silme (faturalar silinmez, iptal edilir)
   const handleDelete = async (d: Doc) => {
-    if (guardSample(d)) return;
+    if (isSample(d)) {
+      const ok = await confirm({ title: `Örnek kayıt (${d.number}) silinsin mi?`, description: "Örnek kayıt listeden kaldırılır.", danger: true, confirmText: "Sil" });
+      if (!ok) return;
+      const next = [...new Set([...readHiddenSamples(), d.id])];
+      try {
+        localStorage.setItem(HIDDEN_SAMPLES_KEY, JSON.stringify(next));
+      } catch {}
+      setHiddenSamples(next);
+      toast.success("Örnek kayıt silindi");
+      return;
+    }
     const isOrder = d.doc_type === "sales_order";
     const ok = await confirm({
       title: `${nameOf(d)} ${isOrder ? "siparişi" : "irsaliyesi"} silinsin mi?`,
@@ -755,7 +777,7 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                   { label: "Kargo gönderisi oluştur", onSelect: () => !guardSample(d) && toast.info("Kargo entegrasyonu henüz kurulmadı."), hidden: !canAct },
                   { label: "Satışı iptal et", onSelect: () => handleCancel(d), danger: true, hidden: !canAct },
                   { label: "Siparişi iptal et", onSelect: () => handleCancelOrder(d), danger: true, hidden: !orderOpen },
-                  { label: "Sil", onSelect: () => handleDelete(d), danger: true, hidden: !canWrite || isInvoice },
+                  { label: "Sil", onSelect: () => handleDelete(d), danger: true, hidden: !canWrite || (isInvoice && !isSample(d)) },
                 ]}
               />
             );

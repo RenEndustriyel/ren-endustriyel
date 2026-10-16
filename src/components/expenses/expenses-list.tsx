@@ -21,6 +21,104 @@ import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ExpenseFormPage } from "./expense-form";
 import { textMatches } from "@/lib/search";
+import { useConfirm } from "@/components/ui/confirm";
+import { useOrg } from "@/providers/org-provider";
+import { RECURRING_EXPENSE, ruleLabel, tsToDay } from "@/lib/recurring-expense";
+
+type RuleRow = Row<"reminders">;
+type TemplateRow = Row<"documents"> & { category?: { name: string } | null; contact?: { name: string } | null };
+
+/** Tekrarlayan masraf kuralları (Masraflar > Tekrarlayan İşlemler) */
+function RecurringRules({ onNew }: { onNew: () => void }) {
+  const confirm = useConfirm();
+  const { canWrite } = useOrg();
+  const { remove } = useUpdate("reminders");
+  const rules = useRows<RuleRow>("reminders", {
+    params: ["recurring_expense"],
+    filter: (x) => x.eq("related_type", RECURRING_EXPENSE),
+    order: [{ column: "starts_at" }],
+  });
+  const ids = (rules.data ?? []).map((r) => r.related_id).filter(Boolean) as string[];
+  const templates = useRows<TemplateRow>("documents", {
+    select: "*, category:categories(name), contact:contacts(name)",
+    params: ["recurring_templates", ids.join(",")],
+    softDelete: false,
+    enabled: ids.length > 0,
+    filter: (x) => x.in("id", ids),
+  });
+  const tpl = new Map((templates.data ?? []).map((d) => [d.id, d]));
+
+  const stop = async (r: RuleRow) => {
+    const ok = await confirm({
+      title: "Tekrarlayan işlem durdurulsun mu?",
+      description: "Bundan sonra yeni masraf oluşturulmaz. Daha önce oluşturulan masraflar silinmez.",
+      danger: true,
+      confirmText: "Durdur",
+    });
+    if (ok) await remove(r.id, "Tekrarlayan işlem durduruldu");
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Tekrarlayan İşlemler</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Kira, aidat, abonelik gibi düzenli giderler zamanı gelince &quot;Ödenecek&quot; olarak otomatik oluşturulur.
+          </p>
+        </div>
+        {canWrite && (
+          <button type="button" className="btn-primary" onClick={onNew}>
+            + Yeni Tekrarlayan Masraf
+          </button>
+        )}
+      </div>
+      <div className="space-y-2.5">
+        {(rules.data ?? []).length === 0 ? (
+          <div className="card p-8 text-center text-slate-400">
+            <Banknote className="mx-auto h-8 w-8 mb-2 opacity-50" />
+            Tekrarlayan masraf kuralı yok. Yeni masraf girerken &quot;Tekrarlayan işlem&quot;i açarak ekleyebilirsiniz.
+          </div>
+        ) : (
+          (rules.data ?? []).map((r) => {
+            const t = r.related_id ? tpl.get(r.related_id) : undefined;
+            return (
+              <div key={r.id} className="card p-4 flex items-center gap-4">
+                <div className="h-11 w-11 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 flex items-center justify-center shrink-0">
+                  <Banknote className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold truncate">{t?.description || r.title.replace(/ \(tekrarlayan masraf\)$/, "")}</div>
+                  <div className="text-xs text-slate-400">
+                    {ruleLabel(r.repeat_rule)} · {t?.category?.name || "Diğer"}
+                    {t?.contact?.name ? ` · ${t.contact.name}` : ""}
+                  </div>
+                  <div className="text-xs mt-0.5">
+                    {r.is_done ? (
+                      <span className="text-slate-500">Bitti</span>
+                    ) : (
+                      <span className="text-indigo-600 dark:text-indigo-400 font-medium">Sonraki: {formatDate(tsToDay(r.starts_at))}</span>
+                    )}
+                    {r.ends_at ? <span className="text-slate-400"> · Bitiş: {formatDate(tsToDay(r.ends_at))}</span> : null}
+                  </div>
+                </div>
+                <div className="font-bold text-rose-500 shrink-0 tabular-nums">{t ? formatMoney(Number(t.total ?? 0)) : "—"}</div>
+                {canWrite && !r.is_done && (
+                  <button type="button" className="text-slate-300 hover:text-rose-500 p-1 transition" title="Durdur" onClick={() => stop(r)}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+      <p className="mt-4 text-xs text-slate-400">
+        Tutar ve kategori ilk masraftan alınır; ilk masrafı düzenlerseniz sonraki tekrarlar yeni tutarla oluşur.
+      </p>
+    </div>
+  );
+}
 
 type ExpenseDoc = Row<"documents"> & {
   category?: { name: string } | null;
@@ -38,6 +136,7 @@ export function ExpensesList() {
   const [aiModalOpen, setAiModalOpen] = React.useState(false);
   const [editExpenseId, setEditExpenseId] = React.useState<string | null>(null);
   const [newExpenseOpen, setNewExpenseOpen] = React.useState(false);
+  const [newRecurring, setNewRecurring] = React.useState(false);
 
   // Fetch expense documents
   const expensesQuery = useRows<ExpenseDoc>("documents", {
@@ -116,10 +215,7 @@ export function ExpensesList() {
         </div>
 
         {topTab === "recurring" ? (
-          <div className="card p-8 text-center text-slate-400">
-            <Banknote className="mx-auto h-8 w-8 mb-2 opacity-50" />
-            Tekrarlayan otomatik masraf kuralı bulunmuyor.
-          </div>
+          <RecurringRules onNew={() => { setNewRecurring(true); setNewExpenseOpen(true); }} />
         ) : (
           <div className="flex-1 min-h-0">
             <div>
@@ -332,15 +428,16 @@ export function ExpensesList() {
         onOpenChange={(val) => {
           if (!val) {
             setNewExpenseOpen(false);
+            setNewRecurring(false);
             setEditExpenseId(null);
           }
         }}
       >
         <DialogContent
-          title={editExpenseId ? "Masrafı Düzenle" : "Yeni Masraf"}
+          title={editExpenseId ? "Masrafı Düzenle" : newRecurring ? "Yeni Tekrarlayan Masraf" : "Yeni Masraf"}
           className="max-w-2xl max-h-[90vh] overflow-y-auto"
         >
-          <ExpenseFormPage editId={editExpenseId} />
+          <ExpenseFormPage editId={editExpenseId} defaultRecurring={newRecurring} />
         </DialogContent>
       </Dialog>
 

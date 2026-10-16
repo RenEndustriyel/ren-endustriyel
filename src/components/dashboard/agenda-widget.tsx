@@ -24,6 +24,8 @@ type Reminder = Row<"reminders">;
 
 export function AgendaWidget() {
   const reminders = useRows<Reminder>("reminders", {
+    params: ["agenda-widget"],
+    filter: (q) => q.or("related_type.is.null,related_type.neq.recurring_expense"),
     order: [{ column: "starts_at", ascending: true }],
   });
   const save = useSave("reminders");

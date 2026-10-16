@@ -14,9 +14,31 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.8";
+export const LATEST_VERSION = "2.8.9";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.9",
+    date: "16 Ekim 2026",
+    title: "Tekrarlayan Masraflar",
+    items: [
+      {
+        type: "yeni",
+        title: "Masrafta Tekrarlayan İşlem",
+        description: "Yeni masraf girerken \"Tekrarlayan işlem\" açılıp haftalık, aylık ya da yıllık sıklık ve isteğe bağlı bitiş tarihi seçilebilir. Zamanı gelince masrafın aynısı \"Ödenecek\" olarak otomatik oluşturulur; kasa/banka kendiliğinden değişmez.",
+      },
+      {
+        type: "yeni",
+        title: "Tekrarlayan İşlemler Sekmesi",
+        description: "Masraflar > Tekrarlayan İşlemler sekmesinde kurallar sıradaki tarih ve tutarla listelenir; buradan yeni kural eklenir ya da durdurulur. Durdurmak daha önce oluşan masrafları silmez.",
+      },
+      {
+        type: "duzeltme",
+        title: "Örnek Kayıtlar Silinebiliyor",
+        description: "Satışlar listesindeki örnek (gösterim) sipariş, irsaliye ve faturalar \"Bu bir örnek kayıttır\" uyarısıyla silinemiyordu. Artık menüden \"Sil\" ile kaldırılabiliyor.",
+      },
+    ],
+  },
   {
     version: "2.8.8",
     date: "16 Ekim 2026",
