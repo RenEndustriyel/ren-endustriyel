@@ -293,9 +293,9 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
 
         <div className="px-4 sm:px-6 py-5 space-y-5">
           {/* Hızlı işlemler */}
-          {canAct && (cfg.payable && remaining > 0.004 || cfg.convertTo.length > 0) && (
+          {canAct && (cfg.payable && remaining > 0.004 && d.status !== "converted" || cfg.convertTo.length > 0) && (
             <div className="flex flex-wrap gap-2">
-              {cfg.payable && remaining > 0.004 && (
+              {cfg.payable && remaining > 0.004 && d.status !== "converted" && (
                 <Button size="sm" variant={flow === "in" ? "success" : "danger"} onClick={() => setPayOpen(true)}>
                   <HandCoins /> {flow === "in" ? "Tahsilat ekle" : "Ödeme ekle"}
                 </Button>

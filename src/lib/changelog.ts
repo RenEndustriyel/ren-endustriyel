@@ -14,9 +14,26 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.7";
+export const LATEST_VERSION = "2.8.8";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.8",
+    date: "16 Ekim 2026",
+    title: "Satış Siparişlerinde Silme ve Faturalaştırma",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Siparişler Silinebiliyor",
+        description: "Satışlar > Siparişler listesinde siparişin menüsünde \"Sil\" ve \"Siparişi iptal et\" yoktu. Eklendi; silinen ya da iptal edilen sipariş carinin bakiyesinden düşer.",
+      },
+      {
+        type: "yeni",
+        title: "Faturalaştır",
+        description: "Sipariş menüsünden \"Faturalaştır\" ile sipariş kalemleriyle fatura açılır. Fatura kaydedilince sipariş listede kalır, üzerinde \"Faturalaştı\" yazar ve bakiyeye artık sipariş değil fatura işler (çift sayılmaz). Faturalaşmamış siparişler bakiyeye sipariş olarak işlemeye devam eder.",
+      },
+    ],
+  },
   {
     version: "2.8.7",
     date: "15 Ekim 2026",

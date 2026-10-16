@@ -362,6 +362,7 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
   const confirm = useConfirm();
   const { org, canWrite } = useOrg();
   const setStatus = useRpc("set_document_status");
+  const del = useRpc("delete_document");
 
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = React.useState<SatisTab>(
@@ -504,6 +505,40 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
   const changeStage = async (d: Doc, s: string) => {
     if (guardSample(d)) return;
     await setStatus.call({ p_doc: d.id, p_status: s }, `Durum: ${statusLabel(d.doc_type as DocType, s)}`);
+  };
+
+  // Sipariş / irsaliye silme (faturalar silinmez, iptal edilir)
+  const handleDelete = async (d: Doc) => {
+    if (guardSample(d)) return;
+    const isOrder = d.doc_type === "sales_order";
+    const ok = await confirm({
+      title: `${nameOf(d)} ${isOrder ? "siparişi" : "irsaliyesi"} silinsin mi?`,
+      description: isOrder
+        ? d.status === "converted"
+          ? "Sipariş listeden kaldırılır. Oluşturulan fatura etkilenmez."
+          : "Sipariş listeden kaldırılır ve carinin bakiyesinden düşülür."
+        : "İrsaliye listeden kaldırılır, stok hareketleri geri alınır.",
+      danger: true,
+      confirmText: "Sil",
+    });
+    if (ok) await del.call({ p_doc: d.id }, "Belge silindi");
+  };
+
+  // Siparişi faturaya dönüştür: kaydedilince sipariş "Faturalaştı" olur, bakiyeye artık fatura işler
+  const handleConvert = (d: Doc, to: "sales_invoice" | "sales_delivery") => {
+    if (guardSample(d)) return;
+    router.push(`${DOC_TYPES[to].base}/yeni?kaynak=${d.id}`);
+  };
+
+  const handleCancelOrder = async (d: Doc) => {
+    if (guardSample(d)) return;
+    const ok = await confirm({
+      title: `${nameOf(d)} siparişi iptal edilsin mi?`,
+      description: "Sipariş carinin bakiyesinden düşülür. Listede 'İptal' olarak kalır.",
+      danger: true,
+      confirmText: "İptal et",
+    });
+    if (ok) await setStatus.call({ p_doc: d.id, p_status: "cancelled" }, "Sipariş iptal edildi");
   };
 
   const handleWhatsAppShare = (d: Doc) => {
@@ -677,6 +712,9 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
             const isCancelled = d.status === "cancelled";
             const isInvoice = d.doc_type === "sales_invoice" || d.doc_type === "pos_sale";
             const canAct = canWrite && isInvoice && !isCancelled;
+            const isOrder = d.doc_type === "sales_order";
+            const isConverted = d.status === "converted";
+            const orderOpen = canWrite && isOrder && !isCancelled && !isConverted;
             return (
               <DocCard
                 key={d.id}
@@ -692,8 +730,9 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                 paidAmount={docPaid}
                 remainingAmount={docRemaining}
                 stage={DOC_TYPES[d.doc_type as DocType]?.statuses ? { label: statusLabel(d.doc_type as DocType, d.status), tone: statusTone(normalizeStatus(d.doc_type as DocType, d.status)) } : null}
+                extraInfo={isOrder && isConverted ? "Faturalaştı — bakiyeye fatura olarak işlendi" : isOrder && isCancelled ? "İptal" : null}
                 dueDate={d.due_date}
-                overdue={!!d.due_date && !isPaid && !isCancelled && d.due_date < today}
+                overdue={!!d.due_date && !isPaid && !isCancelled && !(isOrder && isConverted) && d.due_date < today}
                 whatsappTitle={d.contact?.phone ? `${nameOf(d)} kişisine WhatsApp'tan gönder` : "Carinin telefonu yok — sohbet seçtirilir"}
                 onOpen={() => handleOpen(d)}
                 onPrint={() => setPrintDoc(d)}
@@ -702,6 +741,8 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                 onCopy={() => handleCopy(d)}
                 onEdit={canWrite && !isCancelled ? () => handleEdit(d) : undefined}
                 moreItems={[
+                  { label: "Faturalaştır", onSelect: () => handleConvert(d, "sales_invoice"), hidden: !orderOpen },
+                  { label: "İrsaliye oluştur", onSelect: () => handleConvert(d, "sales_delivery"), hidden: !orderOpen },
                   ...(DOC_TYPES[d.doc_type as DocType]?.statuses ?? [])
                     .filter((x) => x.value !== "converted" && x.value !== "cancelled")
                     .map((x) => ({
@@ -713,6 +754,8 @@ export function SalesList({ initialTab = "invoices" }: { initialTab?: SatisTab }
                   { label: "Tam iade", onSelect: () => handleReturn(d, false), hidden: !canAct },
                   { label: "Kargo gönderisi oluştur", onSelect: () => !guardSample(d) && toast.info("Kargo entegrasyonu henüz kurulmadı."), hidden: !canAct },
                   { label: "Satışı iptal et", onSelect: () => handleCancel(d), danger: true, hidden: !canAct },
+                  { label: "Siparişi iptal et", onSelect: () => handleCancelOrder(d), danger: true, hidden: !orderOpen },
+                  { label: "Sil", onSelect: () => handleDelete(d), danger: true, hidden: !canWrite || isInvoice },
                 ]}
               />
             );

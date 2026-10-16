@@ -43,7 +43,7 @@ const ORDER_STATUSES = [
   { value: "pending", label: "Hazırlanıyor" },
   { value: "sent", label: "Sevk edildi" },
   { value: "accepted", label: "Teslim edildi" },
-  { value: "converted", label: "Faturalandı" },
+  { value: "converted", label: "Faturalaştı" },
   { value: "cancelled", label: "İptal" },
 ];
 const PURCHASE_ORDER_STATUSES = [
