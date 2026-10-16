@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.9";
+export const LATEST_VERSION = "2.8.10";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.10",
+    date: "16 Ekim 2026",
+    title: "Satış Grafiğinde Trend ve Ortalama",
+    items: [
+      {
+        type: "yeni",
+        title: "Trend ve Ortalama Çizgisi",
+        description: "Paneldeki satış grafiğine kesikli trend çizgisi eklendi: satışlar yükselişteyse yeşil, düşüşteyse kırmızı; yanında yükseliş/düşüş yüzdesi. Turuncu kesikli çizgi bu ayın günlük ortalamasını gösterir (haftalık/aylıkta dönem ortalaması); noktanın üstüne gelince ortalamanın üstünde mi altında mı yazar.",
+      },
+    ],
+  },
   {
     version: "2.8.9",
     date: "16 Ekim 2026",

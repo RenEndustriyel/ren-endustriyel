@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Area, AreaChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useCiroCompare } from "@/components/reports/turnover";
 import {
   ArrowLeftRight,
@@ -264,6 +264,35 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
   }, [mode, data?.sales_daily, data?.sales_monthly]);
 
   const total = points.reduce((s, p) => s + p.amount, 0);
+
+  // Trend çizgisi (doğrusal regresyon): yukarı eğimliyse yeşil, aşağıysa kırmızı
+  const trend = React.useMemo(() => {
+    const n = points.length;
+    if (n < 2) return null;
+    const mx = (n - 1) / 2;
+    const my = points.reduce((t, p) => t + p.amount, 0) / n;
+    let num = 0;
+    let den = 0;
+    points.forEach((p, i) => {
+      num += (i - mx) * (p.amount - my);
+      den += (i - mx) ** 2;
+    });
+    const b = den ? num / den : 0;
+    const a = my - b * mx;
+    const first = a;
+    const last = a + b * (n - 1);
+    return {
+      up: b >= 0,
+      pct: Math.abs(first) > 1 ? ((last - first) / Math.abs(first)) * 100 : null,
+      values: points.map((_, i) => Math.max(0, Math.round(a + b * i))),
+    };
+  }, [points]);
+  const chartData = points.map((p, i) => ({ ...p, trend: trend?.values[i] ?? null }));
+  const trendColor = trend?.up ? "#16a34a" : "#dc2626";
+
+  // Ortalama çizgisi: günlükte bu ayın günlük ortalaması (kartlarla aynı), haftalık/aylıkta gösterilen dönemlerin ortalaması
+  const avgLine = mode === "daily" ? compare.dailyAverages?.thisMonth.dailyAvg ?? 0 : points.length ? total / points.length : 0;
+  const avgLabel = mode === "daily" ? "Bu ayın günlük ortalaması" : mode === "weekly" ? "Haftalık ortalama" : "Aylık ortalama";
   const periodLabel = mode === "daily" ? "Son 14 gün" : mode === "weekly" ? "Son 30 gün, haftalık" : "Son 12 ay";
 
   const openPoint = (p: ChartPoint | undefined) => {
@@ -548,10 +577,36 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </div>
         </div>
       )}
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[#0f9b8e]" /> Satış
+        </span>
+        {trend && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-5 border-t-2 border-dashed" style={{ borderColor: trendColor }} /> Trend
+          </span>
+        )}
+        {avgLine > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-5 border-t-2 border-dashed border-amber-500" /> {avgLabel} ({formatMoney(avgLine)})
+          </span>
+        )}
+        {trend && (
+          <span
+            className={cn(
+              "ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold",
+              trend.up ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
+            )}
+          >
+            {trend.up ? "▲" : "▼"} Satışlar {trend.up ? "yükselişte" : "düşüşte"}
+            {trend.pct != null && Number.isFinite(trend.pct) && ` (${trend.up ? "+" : "−"}%${Math.abs(trend.pct).toFixed(1).replace(".", ",")})`}
+          </span>
+        )}
+      </div>
       <div className={cn("h-[240px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={points}
+          <ComposedChart
+            data={chartData}
             margin={{ top: 22, right: 16, bottom: 0, left: 0 }}
             onClick={(state) => {
               const idx = Number((state as { activeTooltipIndex?: number | string } | null)?.activeTooltipIndex);
@@ -566,6 +621,16 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="#e2e8f0" strokeOpacity={0.6} strokeDasharray="3 3" />
+            {avgLine > 0 && (
+              <ReferenceLine
+                y={avgLine}
+                stroke="#f59e0b"
+                strokeWidth={1.5}
+                strokeDasharray="6 5"
+                ifOverflow="extendDomain"
+                label={{ value: `Ortalama ${formatMoney(avgLine)}`, position: "insideBottomRight", fill: "#d97706", fontSize: 11, fontWeight: 700 }}
+              />
+            )}
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} minTickGap={12} />
             <YAxis
               tickFormatter={formatCompact}
@@ -581,7 +646,12 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                 active && payload?.length ? (
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs shadow-lg">
                     <div className="font-semibold mb-0.5">{label}</div>
-                    <div className="tabular-nums">Satış: {formatMoney(Number(payload[0].value) || 0)}</div>
+                    <div className="tabular-nums">Satış: {formatMoney(Number((payload[0].payload as ChartPoint).amount) || 0)}</div>
+                    {avgLine > 0 && (
+                      <div className="tabular-nums text-slate-500 dark:text-slate-400">
+                        {Number((payload[0].payload as ChartPoint).amount) >= avgLine ? "▲ Ortalamanın üstünde" : "▼ Ortalamanın altında"}
+                      </div>
+                    )}
                     <div className="text-[10px] text-slate-400 mt-0.5">Satışları görmek için tıklayın</div>
                   </div>
                 ) : null
@@ -608,7 +678,10 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                 formatter={(v: unknown) => (Number(v) > 0 ? formatCompact(Number(v)) : "")}
               />
             </Area>
-          </AreaChart>
+            {trend && (
+              <Line type="linear" dataKey="trend" stroke={trendColor} strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={false} isAnimationActive={false} />
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>
