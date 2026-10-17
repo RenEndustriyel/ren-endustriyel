@@ -14,9 +14,65 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.10";
+export const LATEST_VERSION = "2.8.13";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.13",
+    date: "17 Ekim 2026",
+    title: "Satış Grafiği: Bu Ay, 8 Hafta ve Renkli Ortalama",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Günlük Grafik Bu Ayı Gösteriyor",
+        description: "Günlük grafik ayın 1'inden ay sonuna kadar her günün tarihini gösterir; gelmemiş günler boş kalır. Haftalık grafik son 8 haftayı kapsar.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Ortalama Çizgisi",
+        description: "Ortalama çizgisi düz ve sakin renkte; üstündeki etikette ok, günlük ortalama düne göre yükseldiyse yeşil ▲, düştüyse kırmızı ▼. Gece temasında çizgiler daha açık tonlarda, belirgin.",
+      },
+    ],
+  },
+  {
+    version: "2.8.12",
+    date: "16 Ekim 2026",
+    title: "Panele Hızlı İşlemler, Yaklaşan Vadeler ve 12 Aylık Gelir–Gider",
+    items: [
+      {
+        type: "yeni",
+        title: "Hızlı İşlem Çubuğu",
+        description: "Panelin üstünde tek tıkla Satış Faturası, Tahsilat, Cari Ödeme, Gider, Müşteri ve Ürün ekleme.",
+      },
+      {
+        type: "yeni",
+        title: "Tahsilatlar ve Ödemeler Kartında \"Yaklaşan\" Sekmesi",
+        description: "Paneldeki Tahsilatlar ve Ödemeler kartlarına Vadesi gelen / Gecikenler yanına Yaklaşan sekmesi eklendi: önümüzdeki 30 günde vadesi gelecek tutarlar, kaç gün kaldığıyla ve ara toplamla. Tutarlar carinin gerçek bakiyesine göre hesaplanır.",
+      },
+      {
+        type: "yeni",
+        title: "Gelir – Gider (Son 12 Ay)",
+        description: "Her ayın satışı ile alış + masraf + maaş toplamı yan yana; ayın üstüne gelince fazla ya da açık tutarı görünür.",
+      },
+    ],
+  },
+  {
+    version: "2.8.11",
+    date: "16 Ekim 2026",
+    title: "REN AI Tahsilat Listesi Düzeltildi",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Bakiyesi Olmayan Cariye Hatırlatma",
+        description: "REN AI tahsilat radarı ve sabah brifingi, faturaları tek tek \"ödenmedi\" işaretine göre listelediği için bakiyesi kapanmış carileri (ör. tahsilatı faturaya bağlanmamış olanlar) borçlu gösteriyordu; silinmiş/iptal faturalar da sayılıyordu. Artık paneldeki Tahsilatlar/Ödemeler kartıyla aynı hesap kullanılıyor: carinin gerçek bakiyesi kadar, vadesi gelmiş tutar.",
+      },
+      {
+        type: "iyilestirme",
+        title: "WhatsApp Hatırlatma Metni",
+        description: "Hatırlatma metni fatura numarası yerine carinin vadesi dolmuş bakiyesini yazıyor.",
+      },
+    ],
+  },
   {
     version: "2.8.10",
     date: "16 Ekim 2026",

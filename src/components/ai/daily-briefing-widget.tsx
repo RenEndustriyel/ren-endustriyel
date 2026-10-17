@@ -26,7 +26,7 @@ import {
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useOrg } from "@/providers/org-provider";
 import {
@@ -78,7 +78,7 @@ export function DailyBriefingWidget({
   if (!briefing) return null;
 
   const handleSendReminderWhatsapp = (item: DueItem) => {
-    const text = `Sayın ${item.contactName} Yetkilisi,\n\n${item.dueDate} vadeli, ${item.docNumber} numaralı ${formatMoney(item.amount)} tutarındaki faturanızın vadesi dolmuştur. Ödemenizi rica eder, iyi çalışmalar dileriz.\n\nRen Endüstriyel`;
+    const text = `Sayın ${item.contactName} Yetkilisi,\n\nCari hesabınızda ${formatDate(item.dueDate)} itibarıyla vadesi dolmuş ${formatMoney(item.amount)} tutarında bakiye bulunmaktadır. Ödemenizi rica eder, iyi çalışmalar dileriz.\n\nRen Endüstriyel`;
     navigator.clipboard.writeText(text);
     toast.success(`${item.contactName} için ödeme hatırlatma metni kopyalandı!`);
   };
@@ -375,7 +375,7 @@ export function DailyBriefingWidget({
                       )}
                     </div>
                     <div className="text-[11px] text-muted mt-0.5">
-                      Fatura: {item.docNumber} · Vade: {item.dueDate}
+                      {item.docNumber} · Vade: {formatDate(item.dueDate)}
                     </div>
                   </div>
 
@@ -439,7 +439,7 @@ export function DailyBriefingWidget({
                       )}
                     </div>
                     <div className="text-[11px] text-muted mt-0.5">
-                      Fatura: {item.docNumber} · Vade: {item.dueDate}
+                      {item.docNumber} · Vade: {formatDate(item.dueDate)}
                     </div>
                   </div>
 

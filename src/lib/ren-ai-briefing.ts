@@ -2,6 +2,19 @@
 
 import { formatMoney, isoDate } from "./format";
 import { supabase } from "./supabase/client";
+import { mergeOrderBalances, OPEN_ORDER_SELECT, type ContactBalance, type OpenOrderRow } from "./data";
+import {
+  computeNettedDues,
+  IN_TYPES,
+  OPEN_DOC_SELECT,
+  OPEN_DOC_STATUS_EXCLUDE,
+  OUT_TYPES,
+  type DueItem as NettedDue,
+  type OpenDoc,
+} from "@/components/dashboard/use-netted-dues";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export type DueItem = {
   id: string;
@@ -84,74 +97,48 @@ export async function generateDailyBriefing(orgId: string): Promise<RenAiDailyBr
   });
 
   try {
-    // 1. Vadesi gelen ve vadesi geçmiş belgeleri çek
-    const { data: docs } = await supabase
-      .from("documents")
-      .select(`
-        id,
-        doc_type,
-        number,
-        issue_date,
-        due_date,
-        total,
-        paid_amount,
-        payment_status,
-        contact_id,
-        contacts (id, name, phone)
-      `)
-      .eq("org_id", orgId)
-      .neq("payment_status", "paid")
-      .not("due_date", "is", null);
+    // 1. Vadesi gelen / geçen tahsilat ve ödemeler — paneldeki Tahsilatlar/Ödemeler kartıyla aynı hesap:
+    //    fatura tek tek değil, carinin gerçek bakiyesi kadar (belgeye bağlanmamış tahsilatlar, açılış
+    //    bakiyesi ve alış-satış mahsubu düşülmüş). Bakiyesi sıfır olan cari listelenmez.
+    const [openDocsRes, balRes, ordersRes, contactsRes] = await Promise.all([
+      db
+        .from("documents")
+        .select(OPEN_DOC_SELECT)
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .in("payment_status", ["unpaid", "partial"])
+        .not("status", "in", OPEN_DOC_STATUS_EXCLUDE)
+        .in("doc_type", [...IN_TYPES, ...OUT_TYPES])
+        .limit(2000),
+      db.from("contact_balances").select("*").eq("org_id", orgId).limit(5000),
+      db
+        .from("documents")
+        .select(OPEN_ORDER_SELECT)
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .in("doc_type", ["sales_order", "purchase_order"])
+        .not("status", "in", OPEN_DOC_STATUS_EXCLUDE)
+        .limit(5000),
+      db.from("contacts").select("id, name").eq("org_id", orgId).is("deleted_at", null).limit(5000),
+    ]);
+    for (const r of [openDocsRes, balRes, ordersRes, contactsRes]) if (r.error) throw r.error;
 
-    const todayCollections: DueItem[] = [];
-    const todayPayments: DueItem[] = [];
-
-    if (docs) {
-      for (const d of docs) {
-        const remaining = Math.max(0, Number(d.total) - Number(d.paid_amount || 0));
-        if (remaining <= 0.01) continue;
-
-        const dueDate = d.due_date!;
-        const dueObj = new Date(dueDate);
-        const diffDays = Math.round((todayDate.getTime() - dueObj.getTime()) / (1000 * 3600 * 24));
-        const isOverdue = dueDate < today;
-        const isToday = dueDate === today;
-
-        // Bugün vadesi gelen veya vadesi geçmiş tahsilatlar (satış faturası)
-        if (d.doc_type === "sales_invoice" || d.doc_type === "pos_sale") {
-          if (isToday || isOverdue) {
-            todayCollections.push({
-              id: d.id,
-              type: "collection",
-              contactId: d.contact_id,
-              contactName: (d.contacts as any)?.name || "Müşteri",
-              docNumber: d.number || "Fatura",
-              amount: remaining,
-              dueDate,
-              isOverdue,
-              daysDiff: Math.max(0, diffDays),
-            });
-          }
-        }
-
-        // Bugün vadesi gelen veya vadesi geçmiş ödemeler (alış faturası, masraf)
-        if (d.doc_type === "purchase_invoice" || d.doc_type === "expense") {
-          if (isToday || isOverdue) {
-            todayPayments.push({
-              id: d.id,
-              type: "payment",
-              contactId: d.contact_id,
-              contactName: (d.contacts as any)?.name || "Tedarikçi",
-              docNumber: d.number || "Fatura",
-              amount: remaining,
-              dueDate,
-              isOverdue,
-              daysDiff: Math.max(0, diffDays),
-            });
-          }
-        }
-      }
-    }
+    const balances = mergeOrderBalances((balRes.data ?? []) as ContactBalance[], (ordersRes.data ?? []) as OpenOrderRow[]);
+    const names = new Map(((contactsRes.data ?? []) as { id: string; name: string }[]).map((c) => [c.id, c.name]));
+    const netted = computeNettedDues((openDocsRes.data ?? []) as OpenDoc[], balances, names, today);
+    const toDue = (x: NettedDue, type: DueItem["type"]): DueItem => ({
+      id: x.key,
+      type,
+      contactId: x.kind === "contact" ? x.key : null,
+      contactName: x.title,
+      docNumber: x.subtitle.split(" · Vade")[0],
+      amount: x.amount,
+      dueDate: x.due ?? today,
+      isOverdue: !!x.due && x.due < today,
+      daysDiff: Math.max(0, x.days_overdue),
+    });
+    const todayCollections: DueItem[] = netted.incoming.map((x) => toDue(x, "collection"));
+    const todayPayments: DueItem[] = netted.outgoing.map((x) => toDue(x, "payment"));
 
     // Sıralama: En yüksek tutarlı ve en çok gecikenler başta
     todayCollections.sort((a, b) => b.amount - a.amount);

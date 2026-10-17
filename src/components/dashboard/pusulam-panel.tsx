@@ -21,6 +21,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useNettedDues, type DueItem } from "./use-netted-dues";
+import { IncomeExpenseCard, QuickActionBar } from "./panel-extras";
 import { useRows } from "@/lib/data";
 import { useOrg } from "@/providers/org-provider";
 import { criticalStockEnabled } from "@/lib/features";
@@ -31,6 +32,7 @@ import { formatCompact, formatDate, formatMoney, formatNumber, formatQty, isoDat
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { TYPE_LABELS, type DashboardSummary } from "./types";
+import { useTheme } from "@/providers/theme-provider";
 
 // ---------------------------------------------------------------------------
 // Sabitler
@@ -216,43 +218,76 @@ function SummaryStrip({ data }: { data: DashboardSummary | undefined }) {
 }
 
 type ChartMode = "daily" | "weekly" | "monthly";
-type ChartPoint = { label: string; amount: number; from: string; to: string };
+/** future: henüz gelmemiş gün (grafikte boş kalır, hesaplara girmez) */
+type ChartPoint = { label: string; amount: number; from: string; to: string; future?: boolean };
+
+const WEEKS = 8;
+/** Grafik çizgi renkleri; gece temasında daha açık tonlar (koyu zeminde belirgin olsun) */
+const CHART_COLORS = {
+  light: { up: "#16a34a", down: "#dc2626", avg: "#475569", pillBg: "#334155", pillText: "#ffffff", pillUp: "#4ade80", pillDown: "#f87171" },
+  dark: { up: "#4ade80", down: "#f87171", avg: "#e2e8f0", pillBg: "#e2e8f0", pillText: "#0f172a", pillUp: "#15803d", pillDown: "#b91c1c" },
+};
 
 function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
   const { hidden, formatMoney, formatCompact } = useFmt();
   const router = useRouter();
   const [mode, setMode] = React.useState<ChartMode>("daily");
   const compare = useCiroCompare();
+  const C = CHART_COLORS[useTheme().resolved === "dark" ? "dark" : "light"];
+
+  const today = parseDay(String(data?.today ?? isoDate(new Date())).slice(0, 10));
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const firstMonday = new Date(today);
+  firstMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7) - (WEEKS - 1) * 7);
+  // Panel özeti yalnızca son 30 günü verir; bu ayın tamamı ve 8 hafta için satışları ayrıca oku (panel ile aynı kurallar)
+  const rangeFrom = isoDate(firstMonday < monthStart ? firstMonday : monthStart);
+  const rangeTo = isoDate(today);
+  const salesDocs = useRows<{ issue_date: string; doc_type: string; total_try: number }>("documents", {
+    select: "issue_date,doc_type,total_try",
+    params: ["panel-grafik", rangeFrom, rangeTo],
+    filter: (q) =>
+      q.in("doc_type", ["sales_invoice", "pos_sale", "sales_return"]).not("status", "in", "(draft,cancelled)").gte("issue_date", rangeFrom).lte("issue_date", rangeTo),
+    limit: 20000,
+  });
 
   const points = React.useMemo<ChartPoint[]>(() => {
-    const daily = (data?.sales_daily ?? []).map((d) => ({ date: String(d.date).slice(0, 10), amount: Number(d.amount) || 0 }));
+    const byDate = new Map<string, number>();
+    if (salesDocs.data) {
+      for (const d of salesDocs.data) {
+        const amt = Number(d.total_try) || 0;
+        byDate.set(d.issue_date, (byDate.get(d.issue_date) ?? 0) + (d.doc_type === "sales_return" ? -amt : amt));
+      }
+    } else {
+      for (const d of data?.sales_daily ?? []) byDate.set(String(d.date).slice(0, 10), Number(d.amount) || 0);
+    }
+    const t = parseDay(rangeTo);
 
     if (mode === "daily") {
-      return daily.slice(-14).map((d) => {
-        const dt = parseDay(d.date);
-        return { label: `${dt.getDate()} ${MONTHS_SHORT[dt.getMonth()]}`, amount: d.amount, from: d.date, to: d.date };
+      // Yalnızca bu ay: 1'inden ay sonuna kadar her gün; satış olmayan gün 0, henüz gelmemiş günler boş
+      const lastDay = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+      return Array.from({ length: lastDay }, (_, i) => {
+        const dt = new Date(t.getFullYear(), t.getMonth(), i + 1);
+        const date = isoDate(dt);
+        return { label: `${dt.getDate()} ${MONTHS_SHORT[dt.getMonth()]}`, amount: byDate.get(date) ?? 0, from: date, to: date, future: dt > t };
       });
     }
 
     if (mode === "weekly") {
-      // Son 30 günü pazartesi başlangıçlı haftalara böl
-      const weeks = new Map<string, ChartPoint>();
-      for (const d of daily) {
-        const dt = parseDay(d.date);
-        const monday = new Date(dt);
-        monday.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
-        const key = isoDate(monday);
-        const w = weeks.get(key) ?? {
-          label: `${monday.getDate()} ${MONTHS_SHORT[monday.getMonth()]}`,
-          amount: 0,
-          from: d.date,
-          to: d.date,
-        };
-        w.amount += d.amount;
-        w.to = d.date;
-        weeks.set(key, w);
-      }
-      return [...weeks.values()];
+      // Son 8 hafta (pazartesi başlangıçlı, bu hafta dahil)
+      return Array.from({ length: WEEKS }, (_, w) => {
+        const monday = new Date(t);
+        monday.setDate(t.getDate() - ((t.getDay() + 6) % 7) - (WEEKS - 1 - w) * 7);
+        let amount = 0;
+        let to = isoDate(monday);
+        for (let i = 0; i < 7; i++) {
+          const dt = new Date(monday);
+          dt.setDate(monday.getDate() + i);
+          if (dt > t) break;
+          to = isoDate(dt);
+          amount += byDate.get(to) ?? 0;
+        }
+        return { label: `${monday.getDate()} ${MONTHS_SHORT[monday.getMonth()]}`, amount, from: isoDate(monday), to };
+      });
     }
 
     return (data?.sales_monthly ?? []).map((m) => {
@@ -261,19 +296,21 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
       const { from, to } = monthRange(ym);
       return { label: `${MONTHS_SHORT[mm - 1]} ${String(y).slice(2)}`, amount: Number(m.amount) || 0, from, to };
     });
-  }, [mode, data?.sales_daily, data?.sales_monthly]);
+  }, [mode, rangeTo, salesDocs.data, data?.sales_daily, data?.sales_monthly]);
 
-  const total = points.reduce((s, p) => s + p.amount, 0);
+  // Hesaplar yalnızca gerçekleşmiş günlerle yapılır
+  const actual = points.filter((p) => !p.future);
+  const total = actual.reduce((s, p) => s + p.amount, 0);
 
   // Trend çizgisi (doğrusal regresyon): yukarı eğimliyse yeşil, aşağıysa kırmızı
   const trend = React.useMemo(() => {
-    const n = points.length;
+    const n = actual.length;
     if (n < 2) return null;
     const mx = (n - 1) / 2;
-    const my = points.reduce((t, p) => t + p.amount, 0) / n;
+    const my = total / n;
     let num = 0;
     let den = 0;
-    points.forEach((p, i) => {
+    actual.forEach((p, i) => {
       num += (i - mx) * (p.amount - my);
       den += (i - mx) ** 2;
     });
@@ -284,19 +321,34 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
     return {
       up: b >= 0,
       pct: Math.abs(first) > 1 ? ((last - first) / Math.abs(first)) * 100 : null,
-      values: points.map((_, i) => Math.max(0, Math.round(a + b * i))),
+      values: actual.map((_, i) => Math.max(0, Math.round(a + b * i))),
     };
-  }, [points]);
-  const chartData = points.map((p, i) => ({ ...p, trend: trend?.values[i] ?? null }));
-  const trendColor = trend?.up ? "#16a34a" : "#dc2626";
+  }, [actual, total]);
+  // gelmemiş günlerde satış alanı ve trend çizilmez
+  const chartData = points.map((p, i) => ({ ...p, amount: p.future ? null : p.amount, trend: p.future ? null : (trend?.values[i] ?? null) }));
+  const trendColor = trend?.up ? C.up : C.down;
 
   // Ortalama çizgisi: günlükte bu ayın günlük ortalaması (kartlarla aynı), haftalık/aylıkta gösterilen dönemlerin ortalaması
-  const avgLine = mode === "daily" ? compare.dailyAverages?.thisMonth.dailyAvg ?? 0 : points.length ? total / points.length : 0;
-  const avgLabel = mode === "daily" ? "Bu ayın günlük ortalaması" : mode === "weekly" ? "Haftalık ortalama" : "Aylık ortalama";
-  const periodLabel = mode === "daily" ? "Son 14 gün" : mode === "weekly" ? "Son 30 gün, haftalık" : "Son 12 ay";
+  const avgLine = mode === "daily" ? compare.dailyAverages?.thisMonth.dailyAvg ?? 0 : actual.length ? total / actual.length : 0;
+  // Ortalamanın bir önceki hali: günlükte dünkü (bugün hariç) ay ortalaması, haftalık/aylıkta son dönem hariç ortalama
+  const prevAvg = (() => {
+    if (mode === "daily") {
+      const d = compare.dailyAverages;
+      if (!d) return null;
+      const m = d.thisMonth;
+      return m.days > 1 ? (m.totalSales - d.today.total) / (m.days - 1) : d.lastMonth.dailyAvg;
+    }
+    return actual.length > 1 ? (total - actual[actual.length - 1].amount) / (actual.length - 1) : null;
+  })();
+  const avgUp = prevAvg == null || avgLine >= prevAvg;
+  const avgColor = avgUp ? C.up : C.down;
+  const avgChange = prevAvg ? ((avgLine - prevAvg) / prevAvg) * 100 : null;
+  const prevLabel = mode === "daily" ? "düne göre" : mode === "weekly" ? "geçen haftaya göre" : "geçen aya göre";
+  const avgLabel = mode === "daily" ?"Bu ayın günlük ortalaması" : mode === "weekly" ? "Haftalık ortalama" : "Aylık ortalama";
+  const periodLabel = mode === "daily" ? "Bu ay, günlük" : mode === "weekly" ? "Son 8 hafta" : "Son 12 ay";
 
   const openPoint = (p: ChartPoint | undefined) => {
-    if (p) router.push(salesUrl(p.from, p.to));
+    if (p && !p.future) router.push(salesUrl(p.from, p.to));
   };
 
   const modes: { id: ChartMode; label: string }[] = [
@@ -583,12 +635,17 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
         </span>
         {trend && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-5 border-t-2 border-dashed" style={{ borderColor: trendColor }} /> Trend
+            <span className="w-5 border-t-[3px]" style={{ borderColor: trendColor }} /> Trend
           </span>
         )}
         {avgLine > 0 && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-5 border-t-2 border-dashed border-amber-500" /> {avgLabel} ({formatMoney(avgLine)})
+            <span className="w-5 border-t-2" style={{ borderColor: C.avg }} /> {avgLabel} ({formatMoney(avgLine)})
+            {avgChange != null && Number.isFinite(avgChange) && (
+              <strong style={{ color: avgColor }}>
+                {avgUp ? "▲" : "▼"} %{Math.abs(avgChange).toFixed(1).replace(".", ",")} {prevLabel}
+              </strong>
+            )}
           </span>
         )}
         {trend && (
@@ -603,11 +660,11 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </span>
         )}
       </div>
-      <div className={cn("h-[240px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
+      <div className={cn("h-[270px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={chartData}
-            margin={{ top: 22, right: 16, bottom: 0, left: 0 }}
+            margin={{ top: 30, right: 16, bottom: 0, left: 0 }}
             onClick={(state) => {
               const idx = Number((state as { activeTooltipIndex?: number | string } | null)?.activeTooltipIndex);
               if (Number.isFinite(idx)) openPoint(points[idx]);
@@ -621,17 +678,15 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} stroke="#e2e8f0" strokeOpacity={0.6} strokeDasharray="3 3" />
-            {avgLine > 0 && (
-              <ReferenceLine
-                y={avgLine}
-                stroke="#f59e0b"
-                strokeWidth={1.5}
-                strokeDasharray="6 5"
-                ifOverflow="extendDomain"
-                label={{ value: `Ortalama ${formatMoney(avgLine)}`, position: "insideBottomRight", fill: "#d97706", fontSize: 11, fontWeight: 700 }}
-              />
-            )}
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} minTickGap={12} />
+            <XAxis
+              dataKey="label"
+              tick={mode === "daily" ? { fontSize: 10, fill: "#94a3b8", angle: -45, textAnchor: "end" } : { fontSize: 11, fill: "#94a3b8" }}
+              height={mode === "daily" ? 44 : 30}
+              interval={mode === "daily" ? 0 : "preserveEnd"}
+              axisLine={false}
+              tickLine={false}
+              minTickGap={mode === "daily" ? 0 : 12}
+            />
             <YAxis
               tickFormatter={formatCompact}
               tick={{ fontSize: 11, fill: "#94a3b8" }}
@@ -647,9 +702,11 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs shadow-lg">
                     <div className="font-semibold mb-0.5">{label}</div>
                     <div className="tabular-nums">Satış: {formatMoney(Number((payload[0].payload as ChartPoint).amount) || 0)}</div>
-                    {avgLine > 0 && (
+                    {trend && (payload[0].payload as { trend: number | null }).trend != null && (
                       <div className="tabular-nums text-slate-500 dark:text-slate-400">
-                        {Number((payload[0].payload as ChartPoint).amount) >= avgLine ? "▲ Ortalamanın üstünde" : "▼ Ortalamanın altında"}
+                        {Number((payload[0].payload as ChartPoint).amount) >= Number((payload[0].payload as { trend: number }).trend)
+                          ? "▲ Eğilimin üstünde"
+                          : "▼ Eğilimin altında"}
                       </div>
                     )}
                     <div className="text-[10px] text-slate-400 mt-0.5">Satışları görmek için tıklayın</div>
@@ -679,7 +736,33 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
               />
             </Area>
             {trend && (
-              <Line type="linear" dataKey="trend" stroke={trendColor} strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={false} isAnimationActive={false} />
+              <Line type="linear" dataKey="trend" stroke={trendColor} strokeWidth={3} dot={false} activeDot={false} isAnimationActive={false} />
+            )}
+            {avgLine > 0 && (
+              <ReferenceLine
+                y={avgLine}
+                stroke={C.avg}
+                strokeWidth={2}
+                ifOverflow="extendDomain"
+                // tutar, çizginin üstünde koyu gri etiket; yalnızca ok yükselişte yeşil, düşüşte kırmızı
+                label={(props: { viewBox?: { x?: number; y?: number; width?: number } }) => {
+                  const vb = props.viewBox ?? {};
+                  const text = `Ortalama ${formatMoney(avgLine)}`;
+                  const w = (text.length + 2) * 6.6 + 16;
+                  const h = 20;
+                  const x = (vb.x ?? 0) + (vb.width ?? 0) - w - 2;
+                  const y = (vb.y ?? 0) - h - 6;
+                  return (
+                    <g pointerEvents="none">
+                      <rect x={x} y={y} width={w} height={h} rx={10} fill={C.pillBg} />
+                      <text x={x + w / 2} y={y + h / 2} dy="0.35em" textAnchor="middle" fontSize={11} fontWeight={700}>
+                        <tspan fill={avgUp ? C.pillUp : C.pillDown}>{avgUp ? "▲" : "▼"} </tspan>
+                        <tspan fill={C.pillText}>{text}</tspan>
+                      </text>
+                    </g>
+                  );
+                }}
+              />
             )}
           </ComposedChart>
         </ResponsiveContainer>
@@ -1063,9 +1146,11 @@ function RecentCard({ data }: { data: DashboardSummary | undefined }) {
   );
 }
 
-function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undefined }) {
+const UPCOMING_DAYS = 30;
+
+function DueCard({ flow, items, upcoming }: { flow: "in" | "out"; items: DueItem[] | undefined; upcoming?: DueItem[] }) {
   const { blur, formatMoney } = useFmt();
-  const [filterMode, setFilterMode] = React.useState<"all" | "overdue">("all");
+  const [filterMode, setFilterMode] = React.useState<"all" | "overdue" | "upcoming">("all");
   const isIn = flow === "in";
   const rows = items ?? [];
   const total = rows.reduce((s, r) => s + r.amount, 0);
@@ -1075,7 +1160,21 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
   const accent = isIn ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600/80 dark:text-rose-400/80";
   const today = isoDate();
 
-  const displayRows = filterMode === "overdue" ? overdueItems : rows;
+  // Yaklaşan: vadesi önümüzdeki UPCOMING_DAYS günde gelecek (aynı mahsuplaşmış bakiyeden)
+  const upcomingLimit = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + UPCOMING_DAYS);
+    return isoDate(d);
+  })();
+  const upcomingRows = (upcoming ?? []).filter((r) => !!r.due && r.due > today && r.due <= upcomingLimit);
+  const upcomingTotal = upcomingRows.reduce((s, r) => s + r.amount, 0);
+
+  const displayRows = filterMode === "overdue" ? overdueItems : filterMode === "upcoming" ? upcomingRows : rows;
+  const segBtn = (active: boolean) =>
+    cn(
+      "px-2.5 py-1 rounded-md transition flex items-center gap-1",
+      active ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold" : "text-slate-600 dark:text-slate-400 hover:text-slate-900",
+    );
 
   return (
     <div
@@ -1115,20 +1214,11 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {overdueCount > 0 && (
-            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-semibold p-0.5 bg-slate-50 dark:bg-slate-800/80">
-              <button
-                type="button"
-                onClick={() => setFilterMode("all")}
-                className={cn(
-                  "px-2.5 py-1 rounded-md transition",
-                  filterMode === "all"
-                    ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-bold"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900",
-                )}
-              >
-                Tümü ({rows.length})
-              </button>
+          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-semibold p-0.5 bg-slate-50 dark:bg-slate-800/80">
+            <button type="button" onClick={() => setFilterMode("all")} className={segBtn(filterMode === "all")} title="Vadesi bugün gelen ve geçmiş">
+              Vadesi gelen ({rows.length})
+            </button>
+            {overdueCount > 0 && (
               <button
                 type="button"
                 onClick={() => setFilterMode("overdue")}
@@ -1142,8 +1232,12 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                 <TriangleAlert size={11} />
                 Gecikenler ({overdueCount})
               </button>
-            </div>
-          )}
+            )}
+            <button type="button" onClick={() => setFilterMode("upcoming")} className={segBtn(filterMode === "upcoming")} title={`Vadesi önümüzdeki ${UPCOMING_DAYS} günde gelecek`}>
+              <CalendarClock size={11} />
+              Yaklaşan ({upcomingRows.length})
+            </button>
+          </div>
           <Link
             href={isIn ? "/musteriler" : "/tedarikciler"}
             className="text-xs font-bold text-brand-600 dark:text-brand-400 hover:underline shrink-0"
@@ -1153,13 +1247,21 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
         </div>
       </div>
 
+      {filterMode === "upcoming" && upcomingRows.length > 0 && (
+        <div className="mb-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs dark:bg-slate-800/60">
+          <span className="text-slate-500 dark:text-slate-400">Önümüzdeki {UPCOMING_DAYS} günde {isIn ? "tahsil edilecek" : "ödenecek"}</span>
+          <b className={cn("tabular-nums text-sm", accent)}>{formatMoney(upcomingTotal)}</b>
+        </div>
+      )}
       {!items ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">Yükleniyor…</p>
       ) : displayRows.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
           {filterMode === "overdue"
             ? (isIn ? "Gecikmiş tahsilat bulunmuyor. Harika!" : "Gecikmiş ödeme bulunmuyor. Harika!")
-            : (isIn ? "Vadesi gelen tahsilat yok." : "Vadesi gelen ödeme yok.")}
+            : filterMode === "upcoming"
+              ? `Önümüzdeki ${UPCOMING_DAYS} günde vadesi gelen ${isIn ? "tahsilat" : "ödeme"} yok.`
+              : (isIn ? "Vadesi gelen tahsilat yok." : "Vadesi gelen ödeme yok.")}
         </p>
       ) : (
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1246,7 +1348,7 @@ function DueCard({ flow, items }: { flow: "in" | "out"; items: DueItem[] | undef
                     <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700/90 dark:bg-amber-950/40 dark:text-amber-300/90 border border-amber-200/70 dark:border-amber-900/60">
                       <Clock size={10} /> Bugün vadeli
                     </span>
-                  ) : daysLeft !== null && daysLeft > 0 && daysLeft <= 3 ? (
+                  ) : daysLeft !== null && daysLeft > 0 && (daysLeft <= 3 || filterMode === "upcoming") ? (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                       {daysLeft === 1 ? "Yarın" : `${daysLeft} gün kaldı`}
                     </span>
@@ -1353,6 +1455,8 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
         </button>
       </div>
 
+      <QuickActionBar />
+
       <SummaryStrip data={data} />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3">
@@ -1394,6 +1498,8 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
 
       <SalesChartCard data={data} />
 
+      <IncomeExpenseCard hidden={hidden} />
+
       {/* ----------------------------------------------------------------- */}
       {/* TAHSİLATLAR VE ÖDEMELER (Göz Önünde - Vurgulu)                   */}
       {/* ----------------------------------------------------------------- */}
@@ -1430,8 +1536,8 @@ export function PusulamPanel({ data }: { data: DashboardSummary | undefined }) {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <DueCard flow="in" items={dues?.incoming} />
-          <DueCard flow="out" items={dues?.outgoing} />
+          <DueCard flow="in" items={dues?.incoming} upcoming={dues?.upcomingIn} />
+          <DueCard flow="out" items={dues?.outgoing} upcoming={dues?.upcomingOut} />
         </div>
       </section>
 

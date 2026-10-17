@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useContactBalances, useRows } from "@/lib/data";
+import { useContactBalances, useRows, type ContactBalance } from "@/lib/data";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { formatDate, isoDate } from "@/lib/format";
 
@@ -15,7 +15,7 @@ import { formatDate, isoDate } from "@/lib/format";
  * Veritabanında hiçbir kayıt değiştirilmez; yalnızca gösterim hesaplanır.
  */
 
-type OpenDoc = {
+export type OpenDoc = {
   id: string;
   doc_type: string;
   number: string | null;
@@ -83,19 +83,109 @@ function splitByDue(docs: OpenDoc[], net: number, today: string): { overdue: Due
     part.count++;
     left = r2(left - share);
   }
-  if (left > 0.009) upcoming.amount = r2(upcoming.amount + left);
   return { overdue, upcoming };
+}
+
+export const OPEN_DOC_SELECT = "id, doc_type, number, contact_id, due_date, issue_date, total, paid_amount, exchange_rate, description, contact:contacts(name)";
+export const OPEN_DOC_STATUS_EXCLUDE = '("draft","cancelled","converted")';
+
+/** Vadesi gelen/geçen tahsilat ve ödemeler, cari bakiyesiyle mahsuplaşmış (panel ve REN AI ortak) */
+export function computeNettedDues(
+  openDocs: OpenDoc[],
+  balances: ContactBalance[],
+  contactNames: Map<string, string>,
+  today: string,
+): { incoming: DueItem[]; outgoing: DueItem[]; upcomingIn: DueItem[]; upcomingOut: DueItem[] } {
+  const incoming: DueItem[] = [];
+  const outgoing: DueItem[] = [];
+  // Vadesi henüz gelmemiş (yaklaşan) kısım — aynı mahsuplaşmış bakiyeden
+  const upcomingIn: DueItem[] = [];
+  const upcomingOut: DueItem[] = [];
+  const names = new Map(contactNames);
+  const byContact = new Map<string, { ins: OpenDoc[]; outs: OpenDoc[] }>();
+  for (const d of openDocs) {
+    if (remainingTry(d) <= 0.009) continue;
+    const isIn = IN_TYPES.includes(d.doc_type);
+    if (!d.contact_id) {
+      // Carisiz belge (kategori masrafı, maaş): mahsup edilemez, tek tek listelenir
+      const due = dueOf(d);
+      const cfg = DOC_TYPES[d.doc_type as DocType];
+      const item: DueItem = {
+        key: d.id,
+        kind: "document",
+        title: `${cfg?.label ?? "Belge"}${d.description ? ` · ${d.description}` : ""}`,
+        subtitle: `${d.number ? `${d.number} · ` : ""}Vade: ${formatDate(due)}`,
+        href: cfg ? `${cfg.base}/detay?id=${d.id}` : "/masraflar",
+        amount: remainingTry(d),
+        due,
+        days_overdue: due < today ? dayDiff(due, today) : 0,
+      };
+      if (due > today) (isIn ? upcomingIn : upcomingOut).push(item);
+      else (isIn ? incoming : outgoing).push(item);
+      continue;
+    }
+    const g = byContact.get(d.contact_id) ?? { ins: [], outs: [] };
+    (isIn ? g.ins : g.outs).push(d);
+    byContact.set(d.contact_id, g);
+    if (d.contact?.name && !names.has(d.contact_id)) names.set(d.contact_id, d.contact.name);
+  }
+
+  // Bakiyesi olan her cari (açık belgesi olmasa da: açılış bakiyesi vb.)
+  for (const b of balances) {
+    const net = r2(Number(b.balance) || 0);
+    if (Math.abs(net) <= 0.009) continue;
+    const g = byContact.get(b.contact_id) ?? { ins: [], outs: [] };
+    const isIn = net > 0;
+    // Yalnızca vadesi gelen belgelerin tutarı listelenir; carinin vadesi gelmeyen borcu gösterilmez
+    const { overdue: part, upcoming: soon } = splitByDue(isIn ? g.ins : g.outs, Math.abs(net), today);
+    const receivable = r2(g.ins.reduce((s, d) => s + remainingTry(d), 0));
+    const payable = r2(g.outs.reduce((s, d) => s + remainingTry(d), 0));
+    if (soon.amount > 0.009 && soon.due) {
+      // splitByDue en eski vadeyi yazar; yaklaşanda en yakın vade = en eski gelecek vade
+      (isIn ? upcomingIn : upcomingOut).push({
+        key: b.contact_id,
+        kind: "contact",
+        title: names.get(b.contact_id) ?? "Cari",
+        subtitle: `${soon.count} belge · Vade: ${formatDate(soon.due)}`,
+        href: `/cariler/detay?id=${b.contact_id}`,
+        amount: soon.amount,
+        due: soon.due,
+        days_overdue: -dayDiff(today, soon.due),
+      });
+    }
+    if (part.amount <= 0.009 || !part.due) continue;
+    const item: DueItem = {
+      key: b.contact_id,
+      kind: "contact",
+      title: names.get(b.contact_id) ?? "Cari",
+      subtitle: `${part.count} açık belge · Vade: ${formatDate(part.due)}`,
+      href: `/cariler/detay?id=${b.contact_id}`,
+      amount: part.amount,
+      due: part.due,
+      days_overdue: dayDiff(part.due, today),
+      offset: receivable > 0 && payable > 0 ? { receivable, payable } : undefined,
+    };
+    (isIn ? incoming : outgoing).push(item);
+  }
+
+  // Vadesi geçenler önce, sonra yaklaşan vadeye göre; vadesizler en sonda
+  const order = (a: DueItem, b: DueItem) => (a.due ?? "9999").localeCompare(b.due ?? "9999");
+  incoming.sort(order);
+  outgoing.sort(order);
+  upcomingIn.sort(order);
+  upcomingOut.sort(order);
+  return { incoming, outgoing, upcomingIn, upcomingOut };
 }
 
 export function useNettedDues() {
   const today = isoDate();
   const docs = useRows<OpenDoc>("documents", {
-    select: "id, doc_type, number, contact_id, due_date, issue_date, total, paid_amount, exchange_rate, description, contact:contacts(name)",
+    select: OPEN_DOC_SELECT,
     params: ["netted_open_docs"],
     filter: (q) =>
       q
         .in("payment_status", ["unpaid", "partial"])
-        .not("status", "in", '("draft","cancelled","converted")')
+        .not("status", "in", OPEN_DOC_STATUS_EXCLUDE)
         .in("doc_type", [...IN_TYPES, ...OUT_TYPES]),
     limit: 2000,
   });
@@ -103,69 +193,9 @@ export function useNettedDues() {
   const contacts = useRows<{ id: string; name: string }>("contacts", { select: "id, name", params: ["netted_names"] });
 
   const result = React.useMemo(() => {
-    const incoming: DueItem[] = [];
-    const outgoing: DueItem[] = [];
     if (!docs.data || !balances.data) return null;
-
     const names = new Map((contacts.data ?? []).map((c) => [c.id, c.name]));
-    const byContact = new Map<string, { ins: OpenDoc[]; outs: OpenDoc[] }>();
-    for (const d of docs.data) {
-      if (remainingTry(d) <= 0.009) continue;
-      const isIn = IN_TYPES.includes(d.doc_type);
-      if (!d.contact_id) {
-        // Carisiz belge (kategori masrafı, maaş): mahsup edilemez, tek tek listelenir
-        const due = dueOf(d);
-        if (due > today) continue;
-        const cfg = DOC_TYPES[d.doc_type as DocType];
-        const item: DueItem = {
-          key: d.id,
-          kind: "document",
-          title: `${cfg?.label ?? "Belge"}${d.description ? ` · ${d.description}` : ""}`,
-          subtitle: `${d.number ? `${d.number} · ` : ""}Vade: ${formatDate(due)}`,
-          href: cfg ? `${cfg.base}/detay?id=${d.id}` : "/masraflar",
-          amount: remainingTry(d),
-          due,
-          days_overdue: due < today ? dayDiff(due, today) : 0,
-        };
-        (isIn ? incoming : outgoing).push(item);
-        continue;
-      }
-      const g = byContact.get(d.contact_id) ?? { ins: [], outs: [] };
-      (isIn ? g.ins : g.outs).push(d);
-      byContact.set(d.contact_id, g);
-      if (d.contact?.name && !names.has(d.contact_id)) names.set(d.contact_id, d.contact.name);
-    }
-
-    // Bakiyesi olan her cari (açık belgesi olmasa da: açılış bakiyesi vb.)
-    for (const b of balances.data) {
-      const net = r2(Number(b.balance) || 0);
-      if (Math.abs(net) <= 0.009) continue;
-      const g = byContact.get(b.contact_id) ?? { ins: [], outs: [] };
-      const isIn = net > 0;
-      // Yalnızca vadesi gelen belgelerin tutarı listelenir; carinin vadesi gelmeyen borcu gösterilmez
-      const { overdue: part } = splitByDue(isIn ? g.ins : g.outs, Math.abs(net), today);
-      if (part.amount <= 0.009 || !part.due) continue;
-      const receivable = r2(g.ins.reduce((s, d) => s + remainingTry(d), 0));
-      const payable = r2(g.outs.reduce((s, d) => s + remainingTry(d), 0));
-      const item: DueItem = {
-        key: b.contact_id,
-        kind: "contact",
-        title: names.get(b.contact_id) ?? "Cari",
-        subtitle: `${part.count} açık belge · Vade: ${formatDate(part.due)}`,
-        href: `/cariler/detay?id=${b.contact_id}`,
-        amount: part.amount,
-        due: part.due,
-        days_overdue: dayDiff(part.due, today),
-        offset: receivable > 0 && payable > 0 ? { receivable, payable } : undefined,
-      };
-      (isIn ? incoming : outgoing).push(item);
-    }
-
-    // Vadesi geçenler önce, sonra yaklaşan vadeye göre; vadesizler en sonda
-    const order = (a: DueItem, b: DueItem) => (a.due ?? "9999").localeCompare(b.due ?? "9999");
-    incoming.sort(order);
-    outgoing.sort(order);
-    return { incoming, outgoing };
+    return computeNettedDues(docs.data, balances.data, names, today);
   }, [docs.data, balances.data, contacts.data, today]);
 
   return { data: result, isLoading: docs.isLoading || balances.isLoading };
