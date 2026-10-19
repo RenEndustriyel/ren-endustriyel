@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.13";
+export const LATEST_VERSION = "2.8.14";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.14",
+    date: "19 Ekim 2026",
+    title: "Toplu Fiyat Düzenleme",
+    items: [
+      {
+        type: "yeni",
+        title: "Stoklar > Toplu Fiyat Düzenleme",
+        description: "Seçilen ürünlerin satış veya alış fiyatı yüzde ya da TL olarak artırılıp azaltılabilir veya yeni fiyat yazılabilir. Kategori ve arama ile süzme, kuruş/tam TL/5 TL yuvarlama, en yakın 5 TL katına yuvarlanmış önerilen fiyat sütunu, satır bazında elle düzeltme ve güncellemeden önce eski-yeni fiyat karşılaştırması vardır.",
+      },
+    ],
+  },
   {
     version: "2.8.13",
     date: "17 Ekim 2026",

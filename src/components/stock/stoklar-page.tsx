@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight, Download, Eraser, Info, Pencil, Search, Trash2, Upload, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
-import { newId, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, useWarehouses, type Row } from "@/lib/data";
+import { newId, useCategories, useProducts, useRows, useRpc, useSave, useUnits, useUpdate, useWarehouses, type Row } from "@/lib/data";
 import { exportExcel, readSpreadsheet, toNumber } from "@/lib/excel";
 import { formatMoney, formatQty, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { NumberInput } from "@/components/ui/money-input";
 import { fold } from "@/lib/search";
 
-type Tab = "depolar" | "sayim" | "eksi";
+type Tab = "depolar" | "sayim" | "eksi" | "fiyat";
 type Product = Row<"products">;
 type WarehouseRow = Row<"warehouses">;
 
@@ -714,16 +714,289 @@ function NegativeTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Toplu fiyat düzenleme
+// ---------------------------------------------------------------------------
+
+type PriceField = "sale_price" | "purchase_price";
+type PriceMode = "yuzde" | "tl" | "sabit";
+type Rounding = "yok" | "kurus" | "tam" | "bes";
+
+const roundPrice = (v: number, r: Rounding) => {
+  if (r === "tam") return Math.round(v);
+  if (r === "bes") return Math.round(v / 5) * 5;
+  return Math.round(v * 100) / 100;
+};
+
+function PriceTab() {
+  const { canWrite } = useOrg();
+  const confirm = useConfirm();
+  const products = useProducts();
+  const categories = useCategories();
+  const update = useUpdate("products");
+  const [q, setQ] = React.useState("");
+  const [cat, setCat] = React.useState("");
+  const [field, setField] = React.useState<PriceField>("sale_price");
+  const [mode, setMode] = React.useState<PriceMode>("yuzde");
+  const [dir, setDir] = React.useState<1 | -1>(1);
+  const [amount, setAmount] = React.useState(0);
+  const [rounding, setRounding] = React.useState<Rounding>("kurus");
+  // fiyatlar bu esasa çevrilerek gösterilir, hesaplanır ve kaydedilir
+  const [vatIncl, setVatIncl] = React.useState(true);
+  // varsayılan: kapsamdaki tüm ürünler seçili; işareti kaldırılanlar burada tutulur
+  const [off, setOff] = React.useState<Record<string, boolean>>({});
+  const [manual, setManual] = React.useState<Record<string, number>>({});
+  const [busy, setBusy] = React.useState(false);
+
+  const rows = React.useMemo(() => {
+    const query = normalize(q.trim());
+    return (products.data ?? [])
+      .filter((p) => p.is_active)
+      .filter((p) => !cat || p.category_id === cat)
+      .filter((p) => !query || normalize(`${p.name} ${p.code ?? ""} ${p.barcode ?? ""}`).includes(query));
+  }, [products.data, q, cat]);
+
+  const inclField = field === "sale_price" ? "sale_price_includes_vat" : "purchase_price_includes_vat";
+  /** Kayıtlı fiyat, seçilen KDV esasına (dahil/hariç) çevrilmiş olarak */
+  const oldOf = (p: Product) => {
+    const v = Number(p[field]) || 0;
+    const k = 1 + (Number(p.vat_rate) || 0) / 100;
+    const stored = !!p[inclField];
+    return stored === vatIncl ? v : Math.round((vatIncl ? v * k : v / k) * 100) / 100;
+  };
+  const calc = (p: Product) => {
+    if (manual[p.id] !== undefined) return manual[p.id];
+    const old = oldOf(p);
+    const v = mode === "yuzde" ? old * (1 + (dir * amount) / 100) : mode === "tl" ? old + dir * amount : amount;
+    return Math.max(0, roundPrice(v, rounding));
+  };
+  const picked = rows.filter((p) => !off[p.id]);
+  const allSelected = rows.length > 0 && picked.length === rows.length;
+  const toggleAll = () => setOff(allSelected ? Object.fromEntries(rows.map((p) => [p.id, true])) : {});
+  const fieldLabel = field === "sale_price" ? "satış" : "alış";
+  /** Önerilen fiyat: yeni fiyatın en yakın 5 TL katı (87,55 → 90; 86 → 85) */
+  const suggest = (p: Product) => {
+    const v = calc(p);
+    return v > 0 ? Math.max(5, Math.round(v / 5) * 5) : 0;
+  };
+  const chosenNew = picked.filter((p) => calc(p) !== oldOf(p));
+  const chosenSug = picked.filter((p) => suggest(p) > 0 && suggest(p) !== oldOf(p));
+
+  const apply = async (kind: "yeni" | "onerilen") => {
+    const chosen = kind === "yeni" ? chosenNew : chosenSug;
+    const priceOf = kind === "yeni" ? calc : suggest;
+    if (!chosen.length) return toast.error("Fiyatı değişecek ürün yok");
+    const ok = await confirm({
+      title: `${chosen.length} ürünün ${fieldLabel} fiyatı ${kind === "onerilen" ? "önerilen fiyata " : ""}güncellensin mi?`,
+      description: "Yalnızca ürün kartındaki fiyat değişir; kesilmiş faturalar ve teklifler etkilenmez. Değişiklikler İşlem Geçmişi'nde görünür.",
+      confirmText: `Fiyatları güncelle (KDV ${vatIncl ? "dahil" : "hariç"})`,
+    });
+    if (!ok) return;
+    setBusy(true);
+    let done = 0;
+    try {
+      for (const p of chosen) {
+        // fiyat seçilen esasla kaydedilir (90 TL KDV dahil → tam 90 kalır)
+        await update.update(p.id, { [field]: priceOf(p), [inclField]: vatIncl });
+        done++;
+      }
+      toast.success(`${done} ürünün ${fieldLabel} fiyatı güncellendi`);
+      setOff({});
+      setManual({});
+    } catch {
+      toast.error(`${done} ürün güncellendi, kalanlar güncellenemedi — tekrar deneyebilirsiniz`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const seg = (active: boolean) =>
+    cn(
+      "px-3 py-1.5 rounded-lg text-sm font-semibold transition",
+      active ? "bg-brand-500 text-white" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
+    );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Toplu Fiyat Düzenleme</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Tüm ürünlere veya bir kategoriye yüzde / TL artış uygulayın. En sağda en yakın 5 TL'ye yuvarlanmış önerilen fiyat çıkar; tek düğmeyle hepsine uygulanır.
+          </p>
+        </div>
+        {canWrite && (
+          <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => apply("yeni")} disabled={!chosenNew.length || busy} className="btn-ghost disabled:opacity-50">
+            {`Yeni fiyatları kaydet (${chosenNew.length})`}
+          </button>
+          <button type="button" onClick={() => apply("onerilen")} disabled={!chosenSug.length || busy} className="btn-primary disabled:opacity-50">
+            {busy ? "Güncelleniyor…" : `Önerilen fiyatları uygula (${chosenSug.length})`}
+          </button>
+          </div>
+        )}
+      </div>
+
+      <div className="card p-4 flex flex-wrap items-end gap-4">
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Ürünler</div>
+          <select value={cat} onChange={(e) => { setCat(e.target.value); setOff({}); }} className="input h-10 w-auto">
+            <option value="">Tüm ürünler</option>
+            {(categories.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Fiyat</div>
+          <div className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
+            <button type="button" className={seg(field === "sale_price")} onClick={() => { setField("sale_price"); setManual({}); }}>Satış</button>
+            <button type="button" className={seg(field === "purchase_price")} onClick={() => { setField("purchase_price"); setManual({}); }}>Alış</button>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">KDV</div>
+          <div className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
+            <button type="button" className={seg(vatIncl)} onClick={() => { setVatIncl(true); setManual({}); }}>KDV Dahil</button>
+            <button type="button" className={seg(!vatIncl)} onClick={() => { setVatIncl(false); setManual({}); }}>KDV Hariç</button>
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">İşlem</div>
+          <div className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
+            <button type="button" className={seg(mode === "yuzde")} onClick={() => setMode("yuzde")}>% Yüzde</button>
+            <button type="button" className={seg(mode === "tl")} onClick={() => setMode("tl")}>TL</button>
+            <button type="button" className={seg(mode === "sabit")} onClick={() => setMode("sabit")}>Yeni fiyat</button>
+          </div>
+        </div>
+        {mode !== "sabit" && (
+          <div>
+            <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Yön</div>
+            <div className="flex gap-1 rounded-xl border border-slate-200 dark:border-slate-700 p-1">
+              <button type="button" className={seg(dir === 1)} onClick={() => setDir(1)}>Artır</button>
+              <button type="button" className={seg(dir === -1)} onClick={() => setDir(-1)}>Azalt</button>
+            </div>
+          </div>
+        )}
+        <div className="w-36">
+          <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            {mode === "yuzde" ? "Oran (%)" : mode === "tl" ? "Tutar (TL)" : "Yeni fiyat"}
+          </div>
+          <NumberInput value={amount} decimals={2} onChange={(v) => { setAmount(Math.max(0, v)); setManual({}); }} className="h-10 text-center" aria-label="Değer" />
+        </div>
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-600 dark:text-slate-300">Yuvarlama</div>
+          <select value={rounding} onChange={(e) => setRounding(e.target.value as Rounding)} className="input h-10">
+            <option value="kurus">Kuruş (0,01)</option>
+            <option value="tam">Tam TL</option>
+            <option value="bes">5 TL'ye</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ürün adı, kod veya barkod" className="input pl-9" />
+        </div>
+        <span className="self-center text-sm text-slate-600 dark:text-slate-300">{picked.length} / {rows.length} ürün seçili</span>
+      </div>
+
+      <div className="card p-0 overflow-x-auto">
+        <table className="w-full min-w-[860px] text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 dark:border-slate-700 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+              <th className="px-3 py-2.5 w-10">
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Tümünü seç" />
+              </th>
+              <th className="px-3 py-2.5 text-left">Ürün</th>
+              <th className="px-3 py-2.5 text-center w-36">Eski {fieldLabel} fiyatı</th>
+              <th className="px-3 py-2.5 text-center w-40">Yeni {fieldLabel} fiyatı</th>
+              <th className="px-3 py-2.5 text-center w-28">Fark</th>
+              <th className="px-3 py-2.5 text-center w-32">Önerilen fiyat ({vatIncl ? "KDV dahil" : "KDV hariç"})</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-10 text-center text-slate-600 dark:text-slate-300">Ürün bulunamadı.</td>
+              </tr>
+            ) : (
+              rows.map((p) => {
+                const old = oldOf(p);
+                const nw = calc(p);
+                const diff = nw - old;
+                const cur = (field === "sale_price" ? p.sale_currency : p.purchase_currency) || "TRY";
+                return (
+                  <tr key={p.id} className={cn(!off[p.id] && "bg-brand-50/60 dark:bg-brand-900/20")}>
+                    <td className="px-3 py-2 text-center">
+                      <input type="checkbox" checked={!off[p.id]} onChange={(e) => setOff((o) => ({ ...o, [p.id]: !e.target.checked }))} aria-label={`${p.name} seç`} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link href={`/urunler/${p.id}`} className="font-medium hover:text-brand-600 dark:hover:text-brand-400">{p.name}</Link>
+                      <div className="text-xs text-slate-600 dark:text-slate-300">{[p.code, p.barcode].filter(Boolean).join(" · ")}</div>
+                    </td>
+                    <td className="px-3 py-2 text-center tabular-nums">
+                      {formatMoney(old, cur)}
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{vatIncl ? "KDV dahil" : "KDV hariç"} · %{Number(p.vat_rate) || 0}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <NumberInput
+                        value={nw}
+                        decimals={2}
+                        onChange={(v) => {
+                          setManual((m) => ({ ...m, [p.id]: Math.max(0, v) }));
+                          setOff((o) => ({ ...o, [p.id]: false }));
+                        }}
+                        className={cn("h-9 text-center", manual[p.id] !== undefined && "ring-1 ring-amber-400")}
+                        aria-label="Yeni fiyat"
+                      />
+                    </td>
+                    <td className={cn("px-3 py-2 text-center font-semibold tabular-nums", diff > 0 ? "text-emerald-700 dark:text-emerald-400" : diff < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-500")}>
+                      {diff === 0 ? "—" : `${diff > 0 ? "+" : ""}${formatMoney(diff, cur)}`}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {(() => {
+                        const sg = suggest(p);
+                        return sg > 0 && sg !== nw ? (
+                          <button
+                            type="button"
+                            title="Bu fiyatı yeni fiyat olarak kullan"
+                            onClick={() => {
+                              setManual((m) => ({ ...m, [p.id]: sg }));
+                              setOff((o) => ({ ...o, [p.id]: false }));
+                            }}
+                            className="rounded-lg border border-brand-300 dark:border-brand-700 px-2.5 py-1 font-semibold tabular-nums text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30"
+                          >
+                            {formatMoney(sg, cur)}
+                          </button>
+                        ) : (
+                          <span className="tabular-nums text-slate-500">{sg > 0 ? formatMoney(sg, cur) : "—"}</span>
+                        );
+                      })()}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sayfa
 // ---------------------------------------------------------------------------
 
 export function StoklarPage() {
   const sp = useSearchParams();
-  const [tab, setTab] = React.useState<Tab>(() => (["sayim", "eksi"].includes(sp.get("sekme") ?? "") ? (sp.get("sekme") as Tab) : "depolar"));
+  const [tab, setTab] = React.useState<Tab>(() => (["sayim", "eksi", "fiyat"].includes(sp.get("sekme") ?? "") ? (sp.get("sekme") as Tab) : "depolar"));
   const tabs: { id: Tab; label: string }[] = [
     { id: "depolar", label: "Depolar & Transfer" },
     { id: "sayim", label: "Stok Sayım & Düzeltme" },
     { id: "eksi", label: "Eksi Stok Girişi" },
+    { id: "fiyat", label: "Toplu Fiyat Düzenleme" },
   ];
   return (
     <div className="flex flex-col h-full">
@@ -746,7 +1019,7 @@ export function StoklarPage() {
           ))}
         </div>
       </div>
-      <div className="flex-1 min-h-0">{tab === "depolar" ? <WarehousesTab /> : tab === "sayim" ? <CountTab /> : <NegativeTab />}</div>
+      <div className="flex-1 min-h-0">{tab === "depolar" ? <WarehousesTab /> : tab === "sayim" ? <CountTab /> : tab === "eksi" ? <NegativeTab /> : <PriceTab />}</div>
     </div>
   );
 }
