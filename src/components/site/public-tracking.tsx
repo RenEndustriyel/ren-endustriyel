@@ -1,16 +1,13 @@
 "use client";
 
-import Script from "next/script";
 import { useEffect, useState } from "react";
-import { ADSENSE_CLIENT } from "./site-data";
+import { ADSENSE_CLIENT, GA_ID } from "./site-data";
 
 /**
  * Herkese açık sayfalar (kurumsal site + mağaza) için Google Analytics 4 ve AdSense.
  * ERP ekranlarına eklenmez. Kimlikler boşsa hiçbir şey yüklenmez.
  * Google Consent Mode v2: izin verilene kadar çerez/kişiselleştirme kapalı (KVKK).
  */
-export const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "";
-
 const CONSENT_KEY = "ren-cerez-izni";
 
 type Choice = "granted" | "denied";
@@ -61,17 +58,11 @@ export function PublicTracking() {
         dangerouslySetInnerHTML={{
           __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.gtag=gtag;
 gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500});
-try{var c=localStorage.getItem('${CONSENT_KEY}');if(c==='granted'){gtag('consent','update',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});}}catch(e){}`,
+try{var c=localStorage.getItem('${CONSENT_KEY}');if(c==='granted'){gtag('consent','update',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});}}catch(e){}${GA_ID ? `
+gtag('js',new Date());gtag('config','${GA_ID}');` : ""}`,
         }}
       />
-      {GA_ID && (
-        <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
-          <Script id="ga-init" strategy="afterInteractive">
-            {`gtag('js',new Date());gtag('config','${GA_ID}');`}
-          </Script>
-        </>
-      )}
+      {GA_ID && <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />}
       {ADSENSE_CLIENT && (
         // Düz <script>: AdSense doğrulaması etiketi sunucu HTML'inde arar (next/script yalnızca preload bırakıyordu)
         <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />

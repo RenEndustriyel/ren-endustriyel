@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.16";
+export const LATEST_VERSION = "2.8.17";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.17",
+    date: "20 Ekim 2026",
+    title: "Google Analytics Ziyaretçi Takibi",
+    items: [
+      {
+        type: "yeni",
+        title: "Ziyaretçi Analizi",
+        description: "Kurumsal site ve mağazaya Google Analytics 4 eklendi: ziyaretçi sayısı, bakılan sayfalar ve gelinen kaynaklar izlenir. Çerez izni verilmeden analiz çerezi yazılmaz; ERP ekranları izlenmez.",
+      },
+    ],
+  },
   {
     version: "2.8.16",
     date: "20 Ekim 2026",

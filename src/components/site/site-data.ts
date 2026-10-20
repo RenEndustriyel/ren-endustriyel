@@ -277,3 +277,6 @@ export const fmtDate = (d: string) => new Date(d).toLocaleDateString("tr-TR", { 
 
 /** Google AdSense yayıncı kimliği (public-tracking ve meta etiketi) */
 export const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-8419150929794664";
+
+/** Google Analytics 4 ölçüm kimliği */
+export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-P5P23KL5S9";
