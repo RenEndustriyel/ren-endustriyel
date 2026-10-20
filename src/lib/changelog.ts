@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.14";
+export const LATEST_VERSION = "2.8.15";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.15",
+    date: "20 Ekim 2026",
+    title: "Google AdSense ve Çerez İzni",
+    items: [
+      {
+        type: "yeni",
+        title: "Kurumsal Sitede AdSense",
+        description: "Herkese açık sayfalara Google AdSense kodu ve ads.txt eklendi; ERP ekranlarında reklam ve izleme yoktur. Ziyaretçilere KVKK uyumlu çerez izni şeridi gösterilir.",
+      },
+    ],
+  },
   {
     version: "2.8.14",
     date: "19 Ekim 2026",

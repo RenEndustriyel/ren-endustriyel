@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PublicTracking } from "@/components/site/public-tracking";
 import { SITE_URL } from "@/components/site/site-data";
 import { SiteHeader } from "@/components/site/site-header";
 import { MobileContactBar, SiteFooter } from "@/components/site/site-ui";
@@ -16,6 +17,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <main>{children}</main>
       <SiteFooter />
       <MobileContactBar />
+      <PublicTracking />
     </div>
   );
 }

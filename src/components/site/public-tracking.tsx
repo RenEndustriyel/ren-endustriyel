@@ -1,0 +1,100 @@
+"use client";
+
+import Script from "next/script";
+import { useEffect, useState } from "react";
+
+/**
+ * Herkese açık sayfalar (kurumsal site + mağaza) için Google Analytics 4 ve AdSense.
+ * ERP ekranlarına eklenmez. Kimlikler boşsa hiçbir şey yüklenmez.
+ * Google Consent Mode v2: izin verilene kadar çerez/kişiselleştirme kapalı (KVKK).
+ */
+export const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "";
+export const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-8419150929794664";
+
+const CONSENT_KEY = "ren-cerez-izni";
+
+type Choice = "granted" | "denied";
+
+function readChoice(): Choice | null {
+  try {
+    const v = localStorage.getItem(CONSENT_KEY);
+    return v === "granted" || v === "denied" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyConsent(choice: Choice) {
+  const w = window as unknown as { gtag?: (...args: unknown[]) => void };
+  w.gtag?.("consent", "update", {
+    ad_storage: choice,
+    ad_user_data: choice,
+    ad_personalization: choice,
+    analytics_storage: choice,
+  });
+}
+
+export function PublicTracking() {
+  const [choice, setChoice] = useState<Choice | null | undefined>(undefined);
+
+  useEffect(() => {
+    const c = readChoice();
+    setChoice(c);
+    if (c) applyConsent(c);
+  }, []);
+
+  if (!GA_ID && !ADSENSE_CLIENT) return null;
+
+  const decide = (c: Choice) => {
+    try {
+      localStorage.setItem(CONSENT_KEY, c);
+    } catch {}
+    applyConsent(c);
+    setChoice(c);
+  };
+
+  return (
+    <>
+      <script
+        id="consent-default"
+        suppressHydrationWarning
+        dangerouslySetInnerHTML={{
+          __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}window.gtag=gtag;
+gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500});
+try{var c=localStorage.getItem('${CONSENT_KEY}');if(c==='granted'){gtag('consent','update',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});}}catch(e){}`,
+        }}
+      />
+      {GA_ID && (
+        <>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
+          <Script id="ga-init" strategy="afterInteractive">
+            {`gtag('js',new Date());gtag('config','${GA_ID}');`}
+          </Script>
+        </>
+      )}
+      {ADSENSE_CLIENT && (
+        <Script
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
+          strategy="afterInteractive"
+          crossOrigin="anonymous"
+        />
+      )}
+      {choice === null && (
+        <div className="fixed inset-x-3 bottom-20 z-[60] mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-xl lg:bottom-4">
+          <p>
+            Sitemizi geliştirmek ve size uygun reklamlar göstermek için çerezler kullanıyoruz. Kabul etmezseniz yalnızca
+            zorunlu çerezler kullanılır.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button type="button" onClick={() => decide("denied")} className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-50">
+              Reddet
+            </button>
+            <button type="button" onClick={() => decide("granted")} className="rounded-lg bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-700">
+              Kabul Et
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

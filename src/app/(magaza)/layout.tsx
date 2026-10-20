@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PublicTracking } from "@/components/site/public-tracking";
 import { SITE_URL } from "@/components/site/site-data";
 import { StoreFloating } from "@/components/store/store-floating";
 import { StoreFooter } from "@/components/store/store-footer";
@@ -19,6 +20,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
       <main>{children}</main>
       <StoreFooter />
       <StoreFloating />
+      <PublicTracking />
     </div>
   );
 }
