@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.17";
+export const LATEST_VERSION = "2.8.18";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.18",
+    date: "20 Ekim 2026",
+    title: "Mağaza Fiyatları Kaldırıldı",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Tüm Ürünlerde “Fiyat sorunuz”",
+        description: "Mağazadaki örnek fiyatlar silindi; tüm ürünler “Fiyat sorunuz” olarak listelenir.",
+      },
+    ],
+  },
   {
     version: "2.8.17",
     date: "20 Ekim 2026",
