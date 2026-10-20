@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ADSENSE_CLIENT, GA_ID } from "./site-data";
 
@@ -31,7 +32,33 @@ function applyConsent(choice: Choice) {
   });
 }
 
+/** Kendi trafik sayacımız (/api/ziyaret): çerezsiz, kişi tanımlamaz; izin şeridinden bağımsız çalışır */
+function sendVisit(e: string, p: string) {
+  try {
+    const body = JSON.stringify({ e, p, r: e === "pageview" ? document.referrer : undefined });
+    if (!navigator.sendBeacon?.("/api/ziyaret", body)) fetch("/api/ziyaret", { method: "POST", body, keepalive: true }).catch(() => {});
+  } catch {}
+}
+
+function useVisitCounter() {
+  const pathname = usePathname();
+  useEffect(() => {
+    if (pathname) sendVisit("pageview", pathname);
+  }, [pathname]);
+  useEffect(() => {
+    const onClick = (ev: MouseEvent) => {
+      const a = (ev.target as Element | null)?.closest?.("a");
+      const href = a?.getAttribute("href") ?? "";
+      const e = /wa.me|whatsapp/i.test(href) ? "whatsapp" : href.startsWith("tel:") ? "phone" : /teklif/i.test(href) ? "teklif" : null;
+      if (e) sendVisit(e, location.pathname);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
+}
+
 export function PublicTracking() {
+  useVisitCounter();
   const [choice, setChoice] = useState<Choice | null | undefined>(undefined);
 
   useEffect(() => {

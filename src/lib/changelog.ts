@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.19";
+export const LATEST_VERSION = "2.8.20";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.20",
+    date: "20 Ekim 2026",
+    title: "Site Trafiği Raporu",
+    items: [
+      {
+        type: "yeni",
+        title: "Raporlar > Site Trafiği",
+        description: "Kurumsal site ve mağazanın ziyaretçi sayısı, şu an sitede olanlar, günlük grafik, en çok bakılan sayfalar, gelinen kaynaklar, şehir, cihaz ve WhatsApp/telefon/teklif tıklamaları. Çerezsiz sayım, kişi bilgisi tutulmaz; yalnızca sahip ve yönetici görür.",
+      },
+    ],
+  },
   {
     version: "2.8.19",
     date: "20 Ekim 2026",
