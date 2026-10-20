@@ -280,3 +280,17 @@ export const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-
 
 /** Google Analytics 4 ölçüm kimliği */
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-P5P23KL5S9";
+
+/** Markaların resmi sitelerinden alınan logolar (public/images/markalar); olmayanlar yazıyla gösterilir */
+export const BRAND_LOGOS: Record<string, string> = {
+  Domestos: "/images/markalar/domestos.png",
+  Cif: "/images/markalar/cif.png",
+  Omo: "/images/markalar/omo.png",
+  Tex: "/images/markalar/tex.png",
+  Bingo: "/images/markalar/bingo.png",
+  Selpak: "/images/markalar/selpak.png",
+  Familia: "/images/markalar/familia.png",
+  Papia: "/images/markalar/papia.png",
+  Sleepy: "/images/markalar/sleepy.svg",
+  Asperox: "/images/markalar/asperox.png",
+};

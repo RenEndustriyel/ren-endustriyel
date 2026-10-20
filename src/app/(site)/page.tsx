@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, CalendarClock, FileText, Package, ShieldCheck, Truck } from "lucide-react";
 import { CtaBand, SectionTitle } from "@/components/site/site-ui";
-import { BRANDS, CONTACT, POSTS, PRODUCT_GROUPS, SECTORS } from "@/components/site/site-data";
+import { BRAND_LOGOS, BRANDS, CONTACT, POSTS, PRODUCT_GROUPS, SECTORS } from "@/components/site/site-data";
 
 export const metadata: Metadata = {
   title: { absolute: "Ren Endüstriyel · Toptan Temizlik, Hijyen ve Kağıt Ürünleri · Susurluk / Balıkesir" },
@@ -197,7 +197,13 @@ export default function HomePage() {
           <SectionTitle kicker="Markalar" title="Güvendiğiniz markalar stoğumuzda" />
           <div className="mt-8 grid grid-cols-2 gap-x-5 border-t border-[#dfe4dd] sm:grid-cols-4 lg:grid-cols-6">
             {BRANDS.map((b) => (
-              <span key={b} className="border-b border-[#dfe4dd] py-4 text-sm font-bold text-[#4f5b52]">
+              <span key={b} className="flex items-center gap-3 border-b border-[#dfe4dd] py-4 text-sm font-bold text-[#4f5b52]">
+                {BRAND_LOGOS[b] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={BRAND_LOGOS[b]} alt={`${b} logosu`} loading="lazy" className="h-10 w-14 shrink-0 object-contain" />
+                ) : (
+                  <span aria-hidden className="h-10 w-14 shrink-0" />
+                )}
                 {b.toLocaleUpperCase("tr-TR")}
               </span>
             ))}

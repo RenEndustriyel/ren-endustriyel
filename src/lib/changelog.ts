@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.18";
+export const LATEST_VERSION = "2.8.19";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.19",
+    date: "20 Ekim 2026",
+    title: "Marka Logoları",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Ana Sayfada Marka Logoları",
+        description: "Kurumsal sitenin Markalar bölümünde 10 markanın resmi logosu adının yanında gösterilir.",
+      },
+    ],
+  },
   {
     version: "2.8.18",
     date: "20 Ekim 2026",
