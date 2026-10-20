@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.15";
+export const LATEST_VERSION = "2.8.16";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.16",
+    date: "20 Ekim 2026",
+    title: "AdSense Doğrulama Düzeltmesi",
+    items: [
+      {
+        type: "duzeltme",
+        title: "AdSense Kodu Sayfada Görünür",
+        description: "AdSense kodu sayfa kaynağına doğrudan yazılıyor ve google-adsense-account meta etiketi eklendi; Google doğrulaması kodu bulamıyordu.",
+      },
+    ],
+  },
   {
     version: "2.8.15",
     date: "20 Ekim 2026",

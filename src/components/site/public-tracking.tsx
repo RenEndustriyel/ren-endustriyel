@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useState } from "react";
+import { ADSENSE_CLIENT } from "./site-data";
 
 /**
  * Herkese açık sayfalar (kurumsal site + mağaza) için Google Analytics 4 ve AdSense.
@@ -9,7 +10,6 @@ import { useEffect, useState } from "react";
  * Google Consent Mode v2: izin verilene kadar çerez/kişiselleştirme kapalı (KVKK).
  */
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? "";
-export const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-8419150929794664";
 
 const CONSENT_KEY = "ren-cerez-izni";
 
@@ -73,11 +73,8 @@ try{var c=localStorage.getItem('${CONSENT_KEY}');if(c==='granted'){gtag('consent
         </>
       )}
       {ADSENSE_CLIENT && (
-        <Script
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-          strategy="afterInteractive"
-          crossOrigin="anonymous"
-        />
+        // Düz <script>: AdSense doğrulaması etiketi sunucu HTML'inde arar (next/script yalnızca preload bırakıyordu)
+        <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`} crossOrigin="anonymous" />
       )}
       {choice === null && (
         <div className="fixed inset-x-3 bottom-20 z-[60] mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-xl lg:bottom-4">

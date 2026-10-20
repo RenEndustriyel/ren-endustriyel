@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { PublicTracking } from "@/components/site/public-tracking";
-import { SITE_URL } from "@/components/site/site-data";
+import { ADSENSE_CLIENT, SITE_URL } from "@/components/site/site-data";
 import { SiteHeader } from "@/components/site/site-header";
 import { MobileContactBar, SiteFooter } from "@/components/site/site-ui";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  other: { "google-adsense-account": ADSENSE_CLIENT },
   openGraph: { siteName: "Ren Endüstriyel", locale: "tr_TR", type: "website", images: ["/images/ren-logo-3d.png"] },
 };
 

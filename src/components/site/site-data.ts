@@ -274,3 +274,6 @@ export const POSTS: BlogPost[] = [
 ];
 
 export const fmtDate = (d: string) => new Date(d).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Istanbul" });
+
+/** Google AdSense yayıncı kimliği (public-tracking ve meta etiketi) */
+export const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-8419150929794664";
