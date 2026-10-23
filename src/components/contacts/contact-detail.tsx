@@ -1247,7 +1247,7 @@ export function ContactDetail({ id }: { id: string }) {
                         <React.Fragment key={`${r.kind}-${r.ref_id}`}>
                         <tr
                           className="group cursor-pointer transition-colors hover:bg-slate-50/80 dark:hover:bg-[#1a2534]/50"
-                          onClick={() => setSelectedRow(r)}
+                          onClick={() => (r.kind === "document" ? openDocPreview(r.ref_id) : setSelectedRow(r))}
                         >
                           {/* Tarih */}
                           <td className="px-3.5 py-3 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium text-xs">
@@ -1364,7 +1364,7 @@ export function ContactDetail({ id }: { id: string }) {
                                 type="button"
                                 className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-white dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition"
                                 title="İncele / Detay"
-                                onClick={() => setSelectedRow(r)}
+                                onClick={() => (r.kind === "document" ? openDocPreview(r.ref_id) : setSelectedRow(r))}
                               >
                                 <Eye className="size-3.5" />
                               </button>

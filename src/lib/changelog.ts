@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.22";
+export const LATEST_VERSION = "2.8.23";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.23",
+    date: "23 Ekim 2026",
+    title: "Cari Ekstreden Belge Önizleme",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Faturaya Tıklayınca Önizleme",
+        description: "Cari ekstresinde alış veya satış faturasının satırına tıklayınca doğrudan ürünlü belge önizlemesi (yazdır ekranı) açılır.",
+      },
+    ],
+  },
   {
     version: "2.8.22",
     date: "23 Ekim 2026",
