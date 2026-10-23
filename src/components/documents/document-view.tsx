@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Link2,
   ArrowLeft,
+  Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRows, useRpc, useUnits, useProducts, useContactBalances, type Row } from "@/lib/data";
@@ -153,9 +154,10 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
     return { totalCost, totalProfit, profitMargin };
   })();
 
+  const [pdfVatIncl, setPdfVatIncl] = React.useState(false);
   const pdf = async (mode: "share" | "download" | "open" | "print") => {
     const { shareDocumentPdf } = await import("@/lib/pdf/share");
-    await shareDocumentPdf(org!, docForPdf, mode);
+    await shareDocumentPdf(org!, docForPdf, mode, null, { vatIncluded: pdfVatIncl });
   };
 
   const remove = async () => {
@@ -227,6 +229,18 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
                 <Pencil /> Düzenle
               </Button>
             )}
+            <Button size="sm" variant="outline" onClick={() => setPrintOpen(true)} title="Belgeyi ürünleriyle önizle">
+              <Eye /> <span className="hidden sm:inline">Önizle</span>
+            </Button>
+            <select
+              value={pdfVatIncl ? "incl" : "excl"}
+              onChange={(e) => setPdfVatIncl(e.target.value === "incl")}
+              className="h-8 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs font-semibold"
+              title="PDF / çıktıda fiyatlar"
+            >
+              <option value="excl">KDV Hariç</option>
+              <option value="incl">KDV Dahil</option>
+            </select>
             <Button size="sm" variant="outline" onClick={() => pdf("open")} title="PDF olarak aç ve yazdır">
               <Printer /> <span className="hidden sm:inline">Yazdır / PDF</span>
             </Button>
@@ -585,7 +599,7 @@ export function DocumentView({ id, type }: { id: string; type: DocType }) {
         />
       )}
 
-      <DocumentPrintModal
+      <DocumentPrintModal hideEdit
         open={printOpen}
         onOpenChange={setPrintOpen}
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

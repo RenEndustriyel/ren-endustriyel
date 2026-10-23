@@ -131,6 +131,8 @@ export type PdfDocument = {
   notes?: string | null;
   terms?: string | null;
   showPrices?: boolean;
+  /** Fiyat/tutar sütunları: KDV hariç (varsayılan) veya KDV dahil */
+  vatIncluded?: boolean;
   contact_balance_info?: {
     previous_balance?: number | null;
     this_amount?: number | null;
@@ -499,9 +501,9 @@ export function SalesNotePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg }) {
         <View style={{ flexDirection: "row" }} fixed>
           <Text style={[sn.th, { width: "44%" }]}>Açıklama</Text>
           <Text style={[sn.th, { width: "14%", textAlign: "right" }]}>Miktar</Text>
-          <Text style={[sn.th, { width: "14%", textAlign: "right" }]}>Fiyat</Text>
+          <Text style={[sn.th, { width: "14%", textAlign: "right" }]}>{doc.vatIncluded ? "Fiyat (KDV Dahil)" : "Fiyat (KDV Hariç)"}</Text>
           <Text style={[sn.th, { width: "12%", textAlign: "right" }]}>İndirim (%)</Text>
-          <Text style={[sn.th, { width: "16%", textAlign: "right" }]}>Tutar (KDV Hariç)</Text>
+          <Text style={[sn.th, { width: "16%", textAlign: "right" }]}>{doc.vatIncluded ? "Tutar (KDV Dahil)" : "Tutar (KDV Hariç)"}</Text>
         </View>
         {doc.lines.map((l, i) => (
           <View key={i} style={{ flexDirection: "row" }} wrap={false}>
@@ -509,7 +511,7 @@ export function SalesNotePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg }) {
             <Text style={[sn.td, { width: "14%", textAlign: "right" }]}>{qf(l.quantity)} {l.unit || "ad"}</Text>
             <Text style={[sn.td, { width: "14%", textAlign: "right" }]}>{nf(l.unit_price)} ₺</Text>
             <Text style={[sn.td, { width: "12%", textAlign: "right" }]}>%{Number(l.discount_rate || 0).toFixed(2)}</Text>
-            <Text style={[sn.td, { width: "16%", textAlign: "right", fontWeight: 700 }]}>{nf(l.net_amount)} ₺</Text>
+            <Text style={[sn.td, { width: "16%", textAlign: "right", fontWeight: 700 }]}>{nf(doc.vatIncluded ? l.total_amount : l.net_amount)} ₺</Text>
           </View>
         ))}
 
@@ -749,7 +751,8 @@ export function DocumentPdf({ doc, org, logo }: { doc: PdfDocument; org: PdfOrg;
   );
 }
 
-export type PdfStatementRow = { entry_date: string; label: string; number?: string | null; description?: string | null; debit: number; credit: number; balance: number };
+export type PdfStatementLine = { name: string; quantity: number; unit?: string | null; unit_price: number; discount_rate?: number | null; vat_rate?: number | null; total: number };
+export type PdfStatementRow = { entry_date: string; label: string; number?: string | null; description?: string | null; debit: number; credit: number; balance: number; lines?: PdfStatementLine[] };
 
 export function StatementPdf({
   org,
@@ -819,7 +822,8 @@ export function StatementPdf({
           <Text style={[s.td, { width: W[5] }, s.right]}>{nf(carried)}</Text>
         </View>
         {rows.map((r, i) => (
-          <View key={i} style={s.row} wrap={false}>
+          <React.Fragment key={i}>
+          <View style={s.row} wrap={false}>
             <Text style={[s.td, { width: W[0] }]}>{df(r.entry_date)}</Text>
             <Text style={[s.td, { width: W[1] }]}>{r.label}{r.number ? `\n${r.number}` : ""}</Text>
             <Text style={[s.td, { width: W[2] }]}>{r.description && r.description !== r.number ? r.description : ""}</Text>
@@ -827,6 +831,19 @@ export function StatementPdf({
             <Text style={[s.td, { width: W[4] }, s.right]}>{r.credit ? nf(r.credit) : ""}</Text>
             <Text style={[s.td, { width: W[5] }, s.right]}>{nf(r.balance)}</Text>
           </View>
+          {r.lines && r.lines.length > 0 ? (
+            <View key={`l${i}`} style={{ marginLeft: "12%", marginBottom: 4, borderLeftWidth: 1.5, borderColor: C.line, paddingLeft: 6 }}>
+              {r.lines.map((l, j) => (
+                <View key={j} style={{ flexDirection: "row", paddingVertical: 1.5 }} wrap={false}>
+                  <Text style={{ width: "52%", fontSize: 7.5, color: C.muted }}>{l.name}</Text>
+                  <Text style={{ width: "16%", fontSize: 7.5, color: C.muted, textAlign: "right" }}>{nf(l.quantity)} {l.unit || ""}</Text>
+                  <Text style={{ width: "16%", fontSize: 7.5, color: C.muted, textAlign: "right" }}>x {nf(l.unit_price)}{l.discount_rate ? ` -%${nf(l.discount_rate)}` : ""}</Text>
+                  <Text style={{ width: "16%", fontSize: 7.5, color: C.muted, textAlign: "right" }}>{nf(l.total)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          </React.Fragment>
         ))}
         <View style={s.totals} wrap={false}>
           <View style={s.grand}>

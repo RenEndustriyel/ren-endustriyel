@@ -100,7 +100,7 @@ export async function shareStatementPdf({
 }: {
   org: Org;
   contact: Tables<"contacts">;
-  rows: { entry_date: string; ref_type: string; number: string | null; description: string | null; debit: number; credit: number; balance: number }[];
+  rows: { entry_date: string; ref_type: string; number: string | null; description: string | null; debit: number; credit: number; balance: number; lines?: import("./templates").PdfStatementLine[] }[];
   carried: number;
   from: string;
   to: string;
@@ -126,6 +126,7 @@ export async function shareStatementPdf({
           debit: Number(r.debit),
           credit: Number(r.credit),
           balance: Number(r.balance),
+          lines: r.lines,
         }))}
       />,
     );
@@ -307,7 +308,9 @@ export async function shareDocumentPdf(
   doc: DocForPdf,
   mode: "share" | "download" | "open" | "print" = "open",
   targetWin?: Window | null,
+  opts?: { vatIncluded?: boolean },
 ) {
+  const vatIncluded = !!opts?.vatIncluded;
   const t = toast.loading("PDF hazırlanıyor…");
   try {
     const { DocumentPdf } = await import("./templates");
@@ -389,7 +392,13 @@ export async function shareDocumentPdf(
             description: l.description || l.product_name || "",
             quantity: Number(l.quantity),
             unit: l.unit_name,
-            unit_price: Number(l.unit_price),
+            // Belgedeki fiyat KDV dahil/hariç girilmiş olabilir; çıktıda seçilen biçime çevrilir
+            unit_price: (() => {
+              const p = Number(l.unit_price) || 0;
+              const k = 1 + (Number(l.vat_rate) || 0) / 100;
+              const excl = doc.prices_include_vat ? p / k : p;
+              return vatIncluded ? excl * k : excl;
+            })(),
             discount_rate: Number(l.discount_rate),
             vat_rate: Number(l.vat_rate),
             net_amount: Number(l.net_amount),
@@ -405,6 +414,7 @@ export async function shareDocumentPdf(
           notes: doc.notes,
           terms: doc.terms,
           showPrices: !isDelivery,
+          vatIncluded,
           contact_balance_info: balanceInfo,
         }}
       />,

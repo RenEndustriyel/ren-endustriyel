@@ -34,6 +34,7 @@ import {
   Search,
   X,
   Sparkles,
+  ListTree,
 } from "lucide-react";
 import {
   useRow,
@@ -46,9 +47,10 @@ import {
   newId,
   type Row,
 } from "@/lib/data";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { formatDate, formatMoney, isoDate } from "@/lib/format";
+import { supabase } from "@/lib/supabase/client";
+import { formatDate, formatMoney, isoDate, formatNumber } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { DOC_TYPES, PAYMENT_STATUS, docFlow, statusLabel, type DocType } from "@/lib/doc-types";
 import { PaymentDialog } from "@/components/cash/payment-dialog";
@@ -105,9 +107,23 @@ export function ContactDetail({ id }: { id: string }) {
   // Modallar
   const [editOpen, setEditOpen] = React.useState(false);
   const [ekstreModalOpen, setEkstreModalOpen] = React.useState(false);
+  const [withLines, setWithLines] = React.useState(true);
   const [adjustmentOpen, setAdjustmentOpen] = React.useState(false);
   const [selectedRow, setSelectedRow] = React.useState<StatementRow | null>(null);
   const [printDoc, setPrintDoc] = React.useState<Row<"documents"> | null>(null);
+  // Önizle: belge listede yoksa veritabanından çekilir, yine doğrudan önizleme açılır
+  const openDocPreview = async (docId: string | null | undefined) => {
+    if (!docId) return;
+    const found = (docs.data ?? []).find((x) => x.id === docId);
+    if (found) return setPrintDoc(found);
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*, contact:contacts(name, phone, email), lines:document_lines(*)")
+      .eq("id", docId)
+      .maybeSingle();
+    if (error || !data) return void toast.error("Belge bulunamadı");
+    setPrintDoc(data as never);
+  };
   const [editTxn, setEditTxn] = React.useState<Row<"transactions"> | null>(null);
   const [payDoc, setPayDoc] = React.useState<Row<"documents"> | null>(null);
   const [payFlow, setPayFlow] = React.useState<"in" | "out" | null>(null);
@@ -447,7 +463,17 @@ export function ContactDetail({ id }: { id: string }) {
     router.replace(isSupplier ? "/cariler/tedarikciler" : "/cariler/musteriler");
   };
 
-  const exportStatement = () =>
+  const exportStatement = async () => {
+    type LineRow = { entry_date: string; number: string | null; name: string; quantity: number; unit: string | null; unit_price: number; discount_rate: number; vat_rate: number; total: number };
+    let lineRows: LineRow[] = [];
+    if (withLines) {
+      try {
+        const map = await fetchStatementLines();
+        lineRows = rows.flatMap((r) => (r.kind === "document" && r.ref_id ? (map.get(r.ref_id) ?? []).map((l) => ({ entry_date: r.entry_date, number: r.number, ...l })) : []));
+      } catch (e) {
+        toast.error("Ürün detayları alınamadı: " + (e as Error).message);
+      }
+    }
     exportExcel(`ekstre-${c.name}`, [
       {
         name: "Ekstre",
@@ -483,11 +509,79 @@ export function ContactDetail({ id }: { id: string }) {
           { header: "Bakiye", value: (r) => Number(r.balance), type: "money" },
         ],
       },
+      ...((lineRows.length
+        ? [
+            {
+              name: "Ürün Detayı",
+              title: `${c.name} — Ekstre Ürün Detayı (${formatDate(from)} - ${formatDate(to)})`,
+              rows: lineRows,
+              columns: [
+                { header: "Tarih", value: (r: LineRow) => r.entry_date, type: "date" as const },
+                { header: "Belge no", value: (r: LineRow) => r.number },
+                { header: "Ürün", value: (r: LineRow) => r.name, width: 40 },
+                { header: "Miktar", value: (r: LineRow) => r.quantity, type: "number" as const },
+                { header: "Birim", value: (r: LineRow) => r.unit },
+                { header: "Birim Fiyat", value: (r: LineRow) => r.unit_price, type: "money" as const },
+                { header: "İskonto %", value: (r: LineRow) => r.discount_rate, type: "number" as const },
+                { header: "KDV %", value: (r: LineRow) => r.vat_rate, type: "number" as const },
+                { header: "Tutar", value: (r: LineRow) => r.total, type: "money" as const },
+              ],
+            },
+          ]
+          : []) as never[]),
     ]);
+  };
+
+  // Ekstredeki belgelerin ürün kalemleri (detaylı ekstre için)
+  const fetchStatementLines = async (src: { kind?: string | null; ref_id?: string | null }[] = rows) => {
+    const ids = [...new Set(src.filter((r) => r.kind === "document" && r.ref_id).map((r) => r.ref_id as string))].sort();
+    const map = new Map<string, { name: string; quantity: number; unit: string | null; unit_price: number; discount_rate: number; vat_rate: number; total: number }[]>();
+    for (let i = 0; i < ids.length; i += 150) {
+      const part = ids.slice(i, i + 150);
+      const res = await supabase.from("document_lines").select("*, unit:units(name)").in("document_id", part);
+      if (res.error) throw res.error;
+      const list = ((res.data ?? []) as Record<string, any>[]).filter((l) => !l.deleted_at);
+      list.sort((a, b) => Number(a.position ?? a.sort_order ?? a.line_no ?? 0) - Number(b.position ?? b.sort_order ?? b.line_no ?? 0));
+      for (const l of list) {
+        const name = l.description || l.product_name;
+        if (!name) continue;
+        const arr = map.get(l.document_id) ?? [];
+        arr.push({
+          name,
+          quantity: Number(l.quantity) || 0,
+          unit: l.unit?.name ?? l.unit_name ?? null,
+          unit_price: Number(l.unit_price) || 0,
+          discount_rate: Number(l.discount_rate) || 0,
+          vat_rate: Number(l.vat_rate) || 0,
+          total: Number(l.total_amount ?? l.total ?? 0),
+        });
+        map.set(l.document_id, arr);
+      }
+    }
+    return map;
+  };
+
+  // Ekrandaki ekstre: faturaların altında ürünler
+  const [detailed, setDetailed] = React.useState(false);
+  const screenDocIds = displayRows.filter((r) => r.kind === "document" && r.ref_id).map((r) => r.ref_id as string).sort().join(",");
+  const screenLines = useQuery({
+    queryKey: ["ekstre_kalemleri", id, screenDocIds],
+    enabled: detailed && !!screenDocIds,
+    queryFn: () => fetchStatementLines(displayRows),
+  });
 
   const handlePdf = async (mode: "download" | "open") => {
+    let pdfRows: (typeof rows[number] & { lines?: { name: string; quantity: number; unit: string | null; unit_price: number; discount_rate: number; vat_rate: number; total: number }[] })[] = rows;
+    if (withLines) {
+      try {
+        const map = await fetchStatementLines();
+        pdfRows = rows.map((r) => (r.kind === "document" && r.ref_id ? { ...r, lines: map.get(r.ref_id) } : r));
+      } catch (e) {
+        toast.error("Ürün detayları alınamadı: " + (e as Error).message);
+      }
+    }
     const { shareStatementPdf } = await import("@/lib/pdf/share");
-    await shareStatementPdf({ org: org!, contact: c, rows, carried, from, to, mode });
+    await shareStatementPdf({ org: org!, contact: c, rows: pdfRows as never, carried, from, to, mode });
   };
 
   /** Kalan tutarı olan, ödemesi yapılabilir belge (satış → tahsilat, alış → ödeme) */
@@ -1065,6 +1159,15 @@ export function ContactDetail({ id }: { id: string }) {
                 <Button
                   size="sm"
                   variant="outline"
+                  onClick={() => setDetailed((v) => !v)}
+                  className={cn("h-8 text-xs font-bold border-slate-300 dark:border-[#233144]", detailed ? "bg-[#00b49c] text-white hover:bg-[#009e89] border-[#00b49c]" : "bg-slate-50 dark:bg-[#16202c] text-slate-800 dark:text-slate-200")}
+                  title="Faturaların altında ürünleri göster"
+                >
+                  <ListTree className="size-3.5 mr-1" /> {detailed ? "Detaylı Ekstre: Açık" : "Detaylı Ekstre"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={handleAutoReconcile}
                   disabled={reconciling}
                   className="h-8 text-xs font-bold border-teal-300 dark:border-teal-700/60 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/50"
@@ -1088,6 +1191,9 @@ export function ContactDetail({ id }: { id: string }) {
               </div>
             )}
 
+            {detailed && screenLines.isFetching && (
+              <div className="mb-2 text-xs text-slate-500">Ürün detayları yükleniyor…</div>
+            )}
             {statement.isPending ? (
               <div className="space-y-2 py-8">
                 <Skeleton className="h-8 w-full bg-slate-50 dark:bg-[#16202c]" />
@@ -1136,9 +1242,10 @@ export function ContactDetail({ id }: { id: string }) {
                       const rBal = Number(r.balance || 0);
                       const isRowZero = Math.abs(rBal) <= 0.009;
 
+                      const subLines = detailed && r.kind === "document" && r.ref_id ? screenLines.data?.get(r.ref_id) : undefined;
                       return (
+                        <React.Fragment key={`${r.kind}-${r.ref_id}`}>
                         <tr
-                          key={`${r.kind}-${r.ref_id}`}
                           className="group cursor-pointer transition-colors hover:bg-slate-50/80 dark:hover:bg-[#1a2534]/50"
                           onClick={() => setSelectedRow(r)}
                         >
@@ -1248,11 +1355,7 @@ export function ContactDetail({ id }: { id: string }) {
                                   type="button"
                                   className="h-7 w-7 rounded-lg border border-slate-300 dark:border-[#233144] bg-white dark:bg-[#16202c] text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition"
                                   title="Belge Önizle / Yazdır"
-                                  onClick={() => {
-                                    const d = (docs.data ?? []).find((x) => x.id === r.ref_id);
-                                    if (d) setPrintDoc(d);
-                                    else setSelectedRow(r);
-                                  }}
+                                  onClick={() => openDocPreview(r.ref_id)}
                                 >
                                   <Printer className="size-3.5" />
                                 </button>
@@ -1288,6 +1391,27 @@ export function ContactDetail({ id }: { id: string }) {
                             </div>
                           </td>
                         </tr>
+                        {subLines && subLines.length > 0 && (
+                          <tr className="bg-slate-50/50 dark:bg-[#16202c]/40">
+                            <td />
+                            <td colSpan={7} className="px-3.5 pb-3 pt-0">
+                              <table className="w-full text-xs border-l-2 border-[#00b49c]/50">
+                                <tbody>
+                                  {subLines.map((l, j) => (
+                                    <tr key={j} className="text-slate-600 dark:text-slate-400">
+                                      <td className="pl-3 py-1">{l.name}</td>
+                                      <td className="py-1 text-right num whitespace-nowrap">{formatNumber(l.quantity)} {l.unit ?? ""}</td>
+                                      <td className="py-1 text-right num whitespace-nowrap">x {formatMoney(l.unit_price)}{l.discount_rate ? " (-%" + formatNumber(l.discount_rate) + ")" : ""}</td>
+                                      <td className="py-1 text-right num whitespace-nowrap">KDV %{formatNumber(l.vat_rate)}</td>
+                                      <td className="py-1 pr-2 text-right num font-semibold whitespace-nowrap text-slate-800 dark:text-slate-200">{formatMoney(l.total)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
@@ -1894,6 +2018,10 @@ export function ContactDetail({ id }: { id: string }) {
                   className="h-9 w-40 bg-white dark:bg-[#131b26] border-slate-300 dark:border-[#233144] text-slate-900 dark:text-white"
                 />
               </label>
+              <label className="flex items-center gap-2 h-9 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                <input type="checkbox" className="size-4 accent-[#00b49c]" checked={withLines} onChange={(e) => setWithLines(e.target.checked)} />
+                Ürün detaylı
+              </label>
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
@@ -2206,13 +2334,9 @@ export function ContactDetail({ id }: { id: string }) {
                 <Button
                   className="w-full justify-center gap-2 font-bold bg-[#00b49c] hover:bg-[#009e89] text-white"
                   onClick={() => {
-                    const doc = (docs.data ?? []).find((d) => d.id === selectedRow?.ref_id);
-                    if (doc) {
-                      setSelectedRow(null);
-                      setPrintDoc(doc);
-                    } else {
-                      router.push(`${DOC_TYPES[selectedRow.ref_type as DocType]?.base ?? "/satislar/faturalar"}/detay?id=${selectedRow.ref_id}`);
-                    }
+                    const refId = selectedRow?.ref_id;
+                    setSelectedRow(null);
+                    openDocPreview(refId);
                   }}
                 >
                   <Printer className="size-4" /> Belgeyi Önizle ve Yazdır

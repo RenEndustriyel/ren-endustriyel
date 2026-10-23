@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import { Dialog as D } from "radix-ui";
-import { Printer, Mail, Copy, X, MessageCircle, Check, Download, Loader2 } from "lucide-react";
+import { Printer, Mail, Copy, X, MessageCircle, Check, Download, Loader2, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useOrg } from "@/providers/org-provider";
+import { DOC_TYPES, type DocType } from "@/lib/doc-types";
 import { formatQty, formatDate, formatMoney } from "@/lib/format";
 import type { Tables } from "@/lib/supabase/client";
 import { useRows, useUnits } from "@/lib/data";
@@ -46,6 +49,8 @@ interface Props {
   contactPhone?: string;
   onDownloadPdf?: () => void;
   onPrintPdf?: () => void;
+  /** Düzenle butonunu gizle (ör. zaten düzenle butonu olan detay sayfasında) */
+  hideEdit?: boolean;
 }
 
 function getDocumentTitle(docType?: string): string {
@@ -143,8 +148,12 @@ export function DocumentPrintModal({
   contactPhone,
   onDownloadPdf,
   onPrintPdf,
+  hideEdit,
 }: Props) {
+  const router = useRouter();
+  const { canWrite } = useOrg();
   const [copied, setCopied] = React.useState(false);
+  const [vatIncluded, setVatIncluded] = React.useState(false);
 
   // Veritabanı satırlarını çek (eğer önceden tam çekilmediyse)
   const dbLines = useRows<DocumentLine>("document_lines", {
@@ -168,6 +177,8 @@ export function DocumentPrintModal({
 
   // Kod içindeki örnek kayıtlar (veritabanında yok)
   const isSampleDoc = /^(sample|sale)-/.test(doc.id || "");
+  const editBase = DOC_TYPES[doc.doc_type as DocType]?.base;
+  const editHref = !hideEdit && canWrite && !isSampleDoc && doc.id && editBase && doc.status !== "cancelled" ? `${editBase}/duzenle?id=${doc.id}` : null;
 
   const contactName =
     doc.contact?.name ||
@@ -263,7 +274,7 @@ export function DocumentPrintModal({
     setIsPdfGenerating(true);
     try {
       const { shareDocumentPdf } = await import("@/lib/pdf/share");
-      await shareDocumentPdf(org as never, buildPdfDoc(), "download");
+      await shareDocumentPdf(org as never, buildPdfDoc(), "download", null, { vatIncluded });
     } catch (err) {
       toast.error("PDF indirilemedi: " + ((err as Error)?.message || "Bilinmeyen hata"));
     } finally {
@@ -287,7 +298,7 @@ export function DocumentPrintModal({
     setIsPdfGenerating(true);
     try {
       const { shareDocumentPdf } = await import("@/lib/pdf/share");
-      await shareDocumentPdf(org as never, buildPdfDoc(), "open", win);
+      await shareDocumentPdf(org as never, buildPdfDoc(), "open", win, { vatIncluded });
     } catch (err) {
       win?.close();
       toast.error("PDF açılamadı: " + ((err as Error)?.message || "Bilinmeyen hata"));
@@ -491,6 +502,30 @@ export function DocumentPrintModal({
 
             {/* Sağ Aksiyon Butonları */}
             <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* PDF fiyat biçimi */}
+              <select
+                value={vatIncluded ? "incl" : "excl"}
+                onChange={(e) => setVatIncluded(e.target.value === "incl")}
+                className="h-8 rounded-xl border border-slate-300 dark:border-[#1e3544] bg-white dark:bg-[#142530] px-2 text-xs font-semibold text-slate-800 dark:text-slate-100"
+                title="PDF / çıktıda fiyatlar"
+              >
+                <option value="excl">KDV Hariç</option>
+                <option value="incl">KDV Dahil</option>
+              </select>
+
+              {/* Düzenle */}
+              {editHref && (
+                <button
+                  type="button"
+                  onClick={() => { onOpenChange(false); router.push(editHref); }}
+                  className="inline-flex items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition shadow-xs"
+                  title="Belgeyi düzenle"
+                >
+                  <Pencil size={14} />
+                  <span className="hidden sm:inline">Düzenle</span>
+                </button>
+              )}
+
               {/* WhatsApp */}
               <button
                 type="button"

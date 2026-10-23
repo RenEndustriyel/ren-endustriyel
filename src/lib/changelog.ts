@@ -14,9 +14,31 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.20";
+export const LATEST_VERSION = "2.8.21";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.21",
+    date: "23 Ekim 2026",
+    title: "Belge Önizleme ve Detaylı Ekstre",
+    items: [
+      {
+        type: "yeni",
+        title: "Detaylı Cari Ekstre",
+        description: "Cari sayfasındaki ekstrede Detaylı Ekstre düğmesiyle her faturanın altında ürünler (miktar, fiyat, KDV, tutar) görünür. Ekstre PDF’inde ve Excel’inde de ürün detayı vardır (Ürün detaylı seçeneği).",
+      },
+      {
+        type: "yeni",
+        title: "Önizlemede Düzenle",
+        description: "Satış/alış belgesine tıklayınca açılan önizleme penceresine Düzenle düğmesi eklendi. Belge detay sayfasına görünür Önizle düğmesi eklendi; cari ekstresinden önizleme her zaman doğrudan açılır.",
+      },
+      {
+        type: "iyilestirme",
+        title: "PDF’te KDV Hariç / Dahil Fiyat",
+        description: "Fatura, teklif, sipariş ve iade çıktılarında fiyatlar varsayılan olarak KDV hariç çıkar; dilerseniz KDV dahil seçilebilir. KDV dahil girilmiş belgelerde fiyat sütunu artık tutarla uyumlu.",
+      },
+    ],
+  },
   {
     version: "2.8.20",
     date: "20 Ekim 2026",
