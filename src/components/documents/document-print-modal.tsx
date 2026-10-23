@@ -6,6 +6,7 @@ import { Printer, Mail, Copy, X, MessageCircle, Check, Download, Loader2, Pencil
 import { useRouter } from "next/navigation";
 import { useOrg } from "@/providers/org-provider";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
+import { tc } from "@/lib/title-case";
 import { formatQty, formatDate, formatMoney } from "@/lib/format";
 import type { Tables } from "@/lib/supabase/client";
 import { useRows, useUnits } from "@/lib/data";
@@ -599,7 +600,7 @@ export function DocumentPrintModal({
               {/* Sol: Firma Bilgileri */}
               <div className="space-y-0.5">
                 <h2 className="font-extrabold text-lg sm:text-xl text-slate-900 dark:text-white tracking-tight">
-                  {orgName}
+                  {tc(orgName)}
                 </h2>
                 <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                   {orgOwner}
@@ -615,8 +616,8 @@ export function DocumentPrintModal({
 
               {/* Sağ: Belge Başlığı & Meta Bilgiler */}
               <div className="text-left sm:text-right space-y-0.5 self-stretch sm:self-auto">
-                <div className="font-extrabold text-xl sm:text-2xl text-slate-900 dark:text-white uppercase tracking-tight">
-                  {docTitle}
+                <div className="font-extrabold text-xl sm:text-2xl text-slate-900 dark:text-white tracking-tight">
+                  {tc(docTitle)}
                 </div>
                 <div className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-widest">
                   {docSubtitle}

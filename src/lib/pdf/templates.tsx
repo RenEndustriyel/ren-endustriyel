@@ -1,3 +1,4 @@
+import { tc } from "@/lib/title-case";
 import * as React from "react";
 import { Document, Page, Text, View, Image, StyleSheet, Font } from "@react-pdf/renderer";
 import { amountInWords } from "./words";
@@ -80,7 +81,7 @@ function OrgHeader({ org, logo }: { org: PdfOrg; logo?: string | null }) {
       {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image, HTML değil */}
       {logo ? <Image src={logo} style={s.logo} /> : null}
       <View style={{ maxWidth: 250 }}>
-        <Text style={s.orgName}>{org.legal_name || org.name}</Text>
+        <Text style={s.orgName}>{tc(org.legal_name || org.name)}</Text>
         <Text style={s.small}>{[org.address, [org.district, org.city].filter(Boolean).join("/")].filter(Boolean).join(" ")}</Text>
         {org.tax_number ? <Text style={s.small}>VKN/TCKN: {org.tax_number}{org.tax_office ? ` · ${org.tax_office} V.D.` : ""}</Text> : null}
         <Text style={s.small}>{[org.phone, org.email, org.website].filter(Boolean).join(" · ")}</Text>
@@ -162,7 +163,7 @@ const inv = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  titleText: { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 },
+  titleText: { fontSize: 10, fontWeight: 700, letterSpacing: 0.5 },
   companyBar: {
     borderBottomWidth: 1,
     borderColor: "#000000",
@@ -236,7 +237,7 @@ const sn = StyleSheet.create({
   page: { fontFamily: "Roboto", fontSize: 8.5, color: "#18181b", paddingTop: 28, paddingBottom: 36, paddingHorizontal: 32 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 8 },
   companyCol: { width: "42%" },
-  companyTitle: { fontSize: 10, fontWeight: 700, textTransform: "uppercase" },
+  companyTitle: { fontSize: 10, fontWeight: 700 },
   companySub: { fontSize: 8, color: "#3f3f46", lineHeight: 1.35 },
   titleCenter: { width: "34%", alignItems: "center", justifyContent: "center", paddingTop: 4 },
   titleText: { fontSize: 13, fontWeight: 700, letterSpacing: 1 },
@@ -302,12 +303,12 @@ export function GibInvoicePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg; log
         <View style={inv.outerBox}>
           {/* Üst Başlık (SATIŞ FATURASI) */}
           <View style={inv.titleBar}>
-            <Text style={inv.titleText}>{title}</Text>
+            <Text style={inv.titleText}>{tc(title)}</Text>
           </View>
 
           {/* Şirket Adı ve Sayfa No */}
           <View style={inv.companyBar}>
-            <Text style={inv.companyName}>{orgName}</Text>
+            <Text style={inv.companyName}>{tc(orgName)}</Text>
             <Text style={inv.pageSlash}>/</Text>
           </View>
 
@@ -472,14 +473,14 @@ export function SalesNotePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg }) {
       <Page size="A4" style={sn.page}>
         <View style={sn.header}>
           <View style={sn.companyCol}>
-            <Text style={sn.companyTitle}>{orgName}</Text>
+            <Text style={sn.companyTitle}>{tc(orgName)}</Text>
             <Text style={sn.companySub}>Endüstriyel Temizlik Ürünleri</Text>
             <Text style={sn.companySub}>{orgAddress}</Text>
             <Text style={sn.companySub}>{orgCity}</Text>
           </View>
 
           <View style={sn.titleCenter}>
-            <Text style={sn.titleText}>{title}</Text>
+            <Text style={sn.titleText}>{tc(title)}</Text>
           </View>
 
           <View style={sn.dateCol}>
@@ -603,7 +604,7 @@ export function DocumentPdf({ doc, org, logo }: { doc: PdfDocument; org: PdfOrg;
         <View style={s.header}>
           <OrgHeader org={org} logo={logo} />
           <View>
-            <Text style={s.title}>{doc.title.toLocaleUpperCase("tr-TR")}</Text>
+            <Text style={[s.title, { textAlign: "center" }]}>{tc(doc.title)}</Text>
             {doc.number ? (
               <View style={s.metaRow}>
                 <Text style={s.metaLabel}>Belge No</Text>
@@ -792,11 +793,13 @@ export function StatementPdf({
       <Page size="A4" style={s.page}>
         <View style={s.header}>
           <OrgHeader org={org} logo={logo} />
-          <View>
-            <Text style={s.title}>{title}</Text>
-            <View style={s.metaRow}>
-              <Text style={s.metaLabel}>Dönem</Text>
-              <Text style={[s.metaValue, { width: 130 }]}>{df(from)} – {df(to)}</Text>
+          <View style={{ alignItems: "center", alignSelf: "flex-start" }}>
+            <Text style={[s.title, { textAlign: "center" }]}>
+              {tc(title)}
+            </Text>
+            <View style={[s.metaRow, { justifyContent: "center", marginTop: 4 }]}>
+              <Text style={{ color: C.muted, marginRight: 6 }}>Dönem</Text>
+              <Text style={{ fontWeight: 700 }}>{df(from)} – {df(to)}</Text>
             </View>
           </View>
         </View>
@@ -902,7 +905,7 @@ export function ListReportPdf({
         {/* Başlık ortada; filtre/dönem bilgisi hemen altında küçük yazıyla */}
         <View style={{ alignItems: "center", marginTop: 12, marginBottom: 12 }}>
           <Text style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
-            {title.toLocaleLowerCase("tr-TR").replace(/(^|[\s/(])\p{L}/gu, (m) => m.toLocaleUpperCase("tr-TR"))}
+            {tc(title)}
           </Text>
           {subtitle ? <Text style={{ fontSize: 8, color: C.muted, marginTop: 3 }}>{subtitle}</Text> : null}
         </View>

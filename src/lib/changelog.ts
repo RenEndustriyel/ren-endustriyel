@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.23";
+export const LATEST_VERSION = "2.8.24";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.24",
+    date: "23 Ekim 2026",
+    title: "Çıktılarda Başlık Düzeni",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Baş Harfleri Büyük Başlıklar",
+        description: "Tüm PDF çıktılarında ve belge önizlemesinde firma adı ve belge başlıkları (Hesap Ekstresi, Satış Faturası, Teklif Notu…) yalnızca baş harfleri büyük yazılır; başlıklar sağdaki bilgi satırlarına göre ortalandı.",
+      },
+    ],
+  },
   {
     version: "2.8.23",
     date: "23 Ekim 2026",
