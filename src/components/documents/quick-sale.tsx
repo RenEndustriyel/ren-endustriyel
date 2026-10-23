@@ -43,6 +43,8 @@ type CartLine = {
   unit_price: number;
   list_price: number;
   vat_rate: number;
+  /** KDV'siz satışta ürünün asıl KDV oranı (KDV'li satışa dönünce geri yüklenir) */
+  orig_vat?: number;
   unit: string;
 };
 
@@ -106,6 +108,34 @@ export function QuickSalePage() {
   });
 
   const [cart, setCart] = React.useState<CartLine[]>([]);
+  /**
+   * KDV tutarı elle değiştirilir: fiyatlar ve TOPLAM aynen kalır, yalnızca içindeki KDV payı değişir.
+   * 0 yazılırsa satış KDV'siz kaydedilir (ör. 100 TL'nin tamamı KDV'siz satış tutarı olur).
+   */
+  const setManualVat = (target: number) => {
+    target = Math.max(0, r2(target));
+    if (!cart.length) return;
+    const baseOf = (l: CartLine) => l.orig_vat ?? (l.vat_rate > 0 ? l.vat_rate : l.product ? Number(l.product.vat_rate ?? 20) : 20);
+    const vatFor = (factor: number) =>
+      calcDocument(
+        { prices_include_vat: true, discount_type: discountType, discount_value: discountValue, exchange_rate: 1 },
+        cart.map((l) => ({ quantity: l.quantity, unit_price: l.unit_price, discount_rate: 0, vat_rate: baseOf(l) * factor })),
+      ).vat_total;
+    let factor = 0;
+    if (target > 0.004) {
+      // Ürünlerin asıl oranları orantılı ölçeklenir; aranan KDV tutarı bulunur
+      let lo = 0;
+      let hi = 1;
+      while (vatFor(hi) < target && hi < 1e6) hi *= 2;
+      for (let i = 0; i < 60; i++) {
+        const mid = (lo + hi) / 2;
+        if (vatFor(mid) < target) lo = mid;
+        else hi = mid;
+      }
+      factor = hi;
+    }
+    setCart((c) => c.map((l) => ({ ...l, vat_rate: Math.round(baseOf(l) * factor * 10000) / 10000, orig_vat: baseOf(l) })));
+  };
   const [query, setQuery] = React.useState("");
   const [contactId, setContactId] = React.useState<string | null>(null);
   const [discountType, setDiscountType] = React.useState<"amount" | "rate">("amount");
@@ -222,7 +252,9 @@ export function QuickSalePage() {
     setCart((prev) => {
       const i = prev.findIndex((l) => l.product_id === p.id);
       if (i >= 0) return prev.map((l, j) => (j === i ? { ...l, quantity: r2(l.quantity + qty) } : l));
-      const price = priceOf(p);
+      const fullPrice = priceOf(p);
+      const vat = Number(p.vat_rate ?? 20);
+      const price = fullPrice;
       return [
         ...prev,
         {
@@ -233,7 +265,7 @@ export function QuickSalePage() {
           quantity: qty,
           unit_price: price,
           list_price: price,
-          vat_rate: Number(p.vat_rate ?? 20),
+          vat_rate: vat,
           unit: (units.data ?? []).find((u) => u.id === p.unit_id)?.code || "ad",
         },
       ];
@@ -354,7 +386,7 @@ export function QuickSalePage() {
           prices_include_vat: true,
           discount_type: discountType,
           discount_value: discountValue,
-          description: `POS Satışı · ${label}`,
+          description: `POS Satışı · ${label}${calc.vat_total <= 0.004 ? " · KDV'siz" : ""}`,
         },
         p_lines: cart.map((l) => ({
           product_id: l.product_id,
@@ -624,9 +656,26 @@ export function QuickSalePage() {
             </div>
 
             <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-700 dark:text-slate-200">Ara toplam ({cart.length} kalem)</span>
-                <span className="font-semibold tabular-nums">{formatMoney(grossTotal)}</span>
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                <span className="relative shrink-0 inline-flex items-center gap-2">
+                  <span className="absolute left-0 whitespace-nowrap">Ara toplam ({cart.length} kalem)</span>
+                  <span className="invisible" aria-hidden>İndirim</span>
+                  <span className="invisible inline-flex border text-xs font-bold" aria-hidden>
+                    <span className="px-2.5 py-1.5">₺ Nakit</span>
+                    <span className="px-2.5 py-1.5">% İskonto</span>
+                  </span>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <NumberInput
+                    value={grossTotal}
+                    onChange={() => {}}
+                    readOnly
+                    tabIndex={-1}
+                    suffix="₺"
+                    aria-label="Ara toplam"
+                    className="h-8 text-right font-semibold bg-slate-50 dark:bg-slate-800/60 cursor-default"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -667,9 +716,27 @@ export function QuickSalePage() {
                   <span className="tabular-nums">−{formatMoney(discountAmount)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-700 dark:text-slate-200">
-                <span>KDV (dahil)</span>
-                <span className="tabular-nums">{formatMoney(calc.vat_total)}</span>
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                {/* Kutu üstteki İndirim kutusuyla aynı hizada ve genişlikte olsun diye görünmez yer tutucu */}
+                <span className="relative shrink-0 inline-flex items-center gap-2">
+                  <span className="absolute left-0 whitespace-nowrap">KDV{calc.vat_total <= 0.004 && cart.length ? " (KDV'siz)" : ""}</span>
+                  <span className="invisible" aria-hidden>İndirim</span>
+                  <span className="invisible inline-flex border text-xs font-bold" aria-hidden>
+                    <span className="px-2.5 py-1.5">₺ Nakit</span>
+                    <span className="px-2.5 py-1.5">% İskonto</span>
+                  </span>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <NumberInput
+                    value={calc.vat_total}
+                    onChange={setManualVat}
+                    suffix="₺"
+                    disabled={cart.length === 0}
+                    title="KDV tutarını elle değiştirebilirsiniz; toplam değişmez, yalnızca içindeki KDV payı değişir. 0 yazarsanız KDV'siz satış kaydedilir."
+                    aria-label="KDV tutarı"
+                    className="h-8 text-right"
+                  />
+                </div>
               </div>
             </div>
 

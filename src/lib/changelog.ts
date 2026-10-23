@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.21";
+export const LATEST_VERSION = "2.8.22";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.22",
+    date: "23 Ekim 2026",
+    title: "Hızlı Satışta KDV Tutarı",
+    items: [
+      {
+        type: "yeni",
+        title: "KDV Tutarı Elle Değiştirilebilir",
+        description: "Hızlı Satışta KDV tutarı otomatik hesaplanır, istenirse elle değiştirilir. Toplam değişmez, yalnızca içindeki KDV payı değişir; 0 yazılırsa satış KDV’siz kaydedilir. Ara toplam, indirim ve KDV kutuları aynı hizada.",
+      },
+    ],
+  },
   {
     version: "2.8.21",
     date: "23 Ekim 2026",
