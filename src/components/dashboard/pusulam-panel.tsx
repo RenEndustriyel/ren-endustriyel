@@ -219,11 +219,9 @@ function SummaryStrip({ data }: { data: DashboardSummary | undefined }) {
 
 type ChartMode = "daily" | "weekly" | "monthly";
 /** future: henüz gelmemiş gün (grafikte boş kalır, hesaplara girmez) */
-type ChartPoint = { label: string; amount: number; from: string; to: string; future?: boolean; ma?: number };
+type ChartPoint = { label: string; amount: number; from: string; to: string; future?: boolean; cum?: number; cumPrev?: number };
 
 const WEEKS = 8;
-/** Günlük görünümde hareketli ortalama penceresi (gün) */
-const MA_DAYS = 7;
 /** Grafik çizgi renkleri; gece temasında daha açık tonlar (koyu zeminde belirgin olsun) */
 const CHART_COLORS = {
   light: { up: "#16a34a", down: "#dc2626", avg: "#475569", pillBg: "#334155", pillText: "#ffffff", pillUp: "#4ade80", pillDown: "#f87171", ma: "#4f46e5" },
@@ -238,14 +236,12 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
   const C = CHART_COLORS[useTheme().resolved === "dark" ? "dark" : "light"];
 
   const today = parseDay(String(data?.today ?? isoDate(new Date())).slice(0, 10));
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const firstMonday = new Date(today);
   firstMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7) - (WEEKS - 1) * 7);
   // Panel özeti yalnızca son 30 günü verir; bu ayın tamamı ve 8 hafta için satışları ayrıca oku (panel ile aynı kurallar)
-  // 7 günlük hareketli ortalama için ayın ilk gününden 6 gün öncesi de gerekir
-  const maStart = new Date(monthStart);
-  maStart.setDate(monthStart.getDate() - (MA_DAYS - 1));
-  const rangeFrom = isoDate(firstMonday < maStart ? firstMonday : maStart);
+  // Günlükte geçen ayla birikimli kıyas için geçen ayın başından itibaren oku
+  const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const rangeFrom = isoDate(firstMonday < prevMonthStart ? firstMonday : prevMonthStart);
   const rangeTo = isoDate(today);
   const salesDocs = useRows<{ issue_date: string; doc_type: string; total_try: number }>("documents", {
     select: "issue_date,doc_type,total_try",
@@ -269,24 +265,26 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
 
     if (mode === "daily") {
       // Yalnızca bu ay: 1'inden ay sonuna kadar her gün; satış olmayan gün 0, henüz gelmemiş günler boş
+      // Birikimli ciro: ay başından o güne toplam; geçen ayın aynı gününe kadarki toplamla kıyas
       const lastDay = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+      const prevDays = new Date(t.getFullYear(), t.getMonth(), 0).getDate();
+      let cum = 0;
+      let cumPrev = 0;
       return Array.from({ length: lastDay }, (_, i) => {
         const dt = new Date(t.getFullYear(), t.getMonth(), i + 1);
         const date = isoDate(dt);
-        // o gün dahil son 7 günün ortalaması (önceki ayın günleri de sayılır)
-        let sum = 0;
-        for (let k = 0; k < MA_DAYS; k++) {
-          const d = new Date(dt);
-          d.setDate(dt.getDate() - k);
-          sum += byDate.get(isoDate(d)) ?? 0;
-        }
+        const amount = byDate.get(date) ?? 0;
+        cum += amount;
+        // geçen ay daha kısaysa son günün toplamında kalır
+        if (i < prevDays) cumPrev += byDate.get(isoDate(new Date(t.getFullYear(), t.getMonth() - 1, i + 1))) ?? 0;
         return {
           label: `${dt.getDate()} ${MONTHS_SHORT[dt.getMonth()]}`,
-          amount: byDate.get(date) ?? 0,
+          amount,
           from: date,
           to: date,
           future: dt > t,
-          ma: Math.round(sum / MA_DAYS),
+          cum,
+          cumPrev,
         };
       });
     }
@@ -344,7 +342,10 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
     };
   }, [actual, total]);
   // gelmemiş günlerde satış alanı ve trend çizilmez
-  const chartData = points.map((p, i) => ({ ...p, amount: p.future ? null : p.amount, trend: p.future ? null : (trend?.values[i] ?? null), ma: p.future || p.ma == null ? null : p.ma }));
+  const chartData = points.map((p, i) => ({ ...p, amount: p.future ? null : p.amount, trend: p.future ? null : (trend?.values[i] ?? null), cum: p.future || p.cum == null ? null : p.cum, cumPrev: p.cumPrev ?? null }));
+  // günlükte bu ay, geçen ayın aynı gününe göre önde mi
+  const lastActual = [...chartData].reverse().find((p) => p.cum != null);
+  const cumAhead = lastActual ? (lastActual.cum ?? 0) >= (lastActual.cumPrev ?? 0) : true;
   const trendColor = trend?.up ? C.up : C.down;
 
   // Ortalama çizgisi: günlükte bu ayın günlük ortalaması (kartlarla aynı), haftalık/aylıkta gösterilen dönemlerin ortalaması
@@ -360,11 +361,33 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
     return actual.length > 1 ? (total - actual[actual.length - 1].amount) / (actual.length - 1) : null;
   })();
   const avgUp = prevAvg == null || avgLine >= prevAvg;
+
+  // Haftalık/aylık görünümde ortalama kartları: grafikteki dönemlerden (bu dönem, geçen dönem, ortalama, en iyi)
+  const periodCards = React.useMemo(() => {
+    if (mode === "daily" || !actual.length) return [];
+    const w = mode === "weekly";
+    const unit = w ? "hafta" : "ay";
+    const n = actual.length;
+    const cur = actual[n - 1];
+    const prev = n > 1 ? actual[n - 2] : null;
+    const prev2 = n > 2 ? actual[n - 3] : null;
+    const avg = total / n;
+    const best = actual.reduce((b, p) => (p.amount > b.amount ? p : b), actual[0]);
+    const pct = (a: number, b: number | undefined | null) => (b ? ((a - b) / Math.abs(b)) * 100 : null);
+    return [
+      { title: w ? "Bu Hafta" : "Bu Ay", value: cur.amount, sub: `${cur.label} itibarıyla`, badge: "devam ediyor", change: pct(cur.amount, prev?.amount), compLabel: w ? "geçen haftaya göre" : "geçen aya göre", href: salesUrl(cur.from, cur.to) },
+      ...(prev ? [{ title: w ? "Geçen Hafta" : "Geçen Ay", value: prev.amount, sub: prev.label, badge: null, change: pct(prev.amount, prev2?.amount), compLabel: w ? "önceki haftaya göre" : "önceki aya göre", href: salesUrl(prev.from, prev.to) }] : []),
+      { title: `${unit === "hafta" ? "Haftalık" : "Aylık"} Ortalama`, value: avg, sub: `Son ${n} ${unit}`, badge: null, change: pct(cur.amount, avg), compLabel: `bu ${unit} ortalamaya göre`, href: salesUrl(actual[0].from, cur.to) },
+      { title: w ? "En İyi Hafta" : "En İyi Ay", value: best.amount, sub: best.label, badge: null, change: null, compLabel: `Son ${n} ${w ? "haftanın" : "ayın"} en yüksek cirosu`, href: salesUrl(best.from, best.to) },
+    ];
+  }, [mode, actual, total]);
   const avgColor = avgUp ? C.up : C.down;
+  // günlükte ortalama, birikimli ölçeğe çevrilir: n. günde "günlük ortalama × n"
+  const chartRows = mode === "daily" ? chartData.map((p, i) => ({ ...p, avgPace: Math.round(avgLine * (i + 1)) })) : chartData;
   const avgChange = prevAvg ? ((avgLine - prevAvg) / prevAvg) * 100 : null;
   const prevLabel = mode === "daily" ? "düne göre" : mode === "weekly" ? "geçen haftaya göre" : "geçen aya göre";
   const avgLabel = mode === "daily" ?"Bu ayın günlük ortalaması" : mode === "weekly" ? "Haftalık ortalama" : "Aylık ortalama";
-  const periodLabel = mode === "daily" ? "Bu ay, günlük" : mode === "weekly" ? "Son 8 hafta" : "Son 12 ay";
+  const periodLabel = mode === "daily" ? "Bu ay, birikimli" : mode === "weekly" ? "Son 8 hafta" : "Son 12 ay";
 
   const openPoint = (p: ChartPoint | undefined) => {
     if (p && !p.future) router.push(salesUrl(p.from, p.to));
@@ -426,7 +449,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                 : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200",
             )}
           >
-            <span>⚡ Günlük Satış Ortalamaları</span>
+            <span>⚡ {mode === "daily" ? "Günlük" : mode === "weekly" ? "Haftalık" : "Aylık"} Satış Ortalamaları</span>
           </button>
           <button
             type="button"
@@ -442,12 +465,43 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </button>
         </div>
         <span className="text-[11px] text-slate-500 dark:text-slate-400">
-          {metricView === "average" ? "Günde ortalama yapılan ciro ve tempo" : "Dönem toplamları ve artış/azalış"}
+          {metricView === "average"
+            ? mode === "daily" ? "Günde ortalama yapılan ciro ve tempo" : mode === "weekly" ? "Haftada yapılan ciro (son 8 hafta)" : "Ayda yapılan ciro (son 12 ay)"
+            : "Dönem toplamları ve artış/azalış"}
         </span>
       </div>
 
-      {/* Metrik Kartları */}
-      {metricView === "average" ? (
+      {/* Metrik Kartları: haftalık/aylık seçiliyken grafikteki dönemlerden hesaplanır */}
+      {metricView === "average" && mode !== "daily" ? (
+        <div className={cn("mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4", hidden && "blur-md select-none")}>
+          {periodCards.map((c) => (
+            <Link
+              key={c.title}
+              href={c.href}
+              className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800/40 min-w-0"
+            >
+              <div className="flex items-center justify-between gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <span className="truncate">{c.title}</span>
+                {c.badge && <span className="text-[10px] text-slate-400 normal-case shrink-0">{c.badge}</span>}
+              </div>
+              <div className="text-base sm:text-lg font-extrabold tabular-nums mt-0.5 text-brand-600 dark:text-brand-400 truncate">
+                {formatMoney(c.value)}
+              </div>
+              <div className="text-[11px] text-slate-500 truncate mt-0.5">{c.sub}</div>
+              <div className="mt-1 text-xs font-semibold">
+                {c.change != null && Number.isFinite(c.change) ? (
+                  <span className={cn("flex items-center gap-0.5", c.change >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                    <span aria-hidden>{c.change >= 0 ? "▲" : "▼"}</span>%{Math.abs(c.change).toFixed(1).replace(".", ",")}
+                    <span className="font-normal text-slate-500 dark:text-slate-400 ml-0.5">{c.compLabel}</span>
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-normal text-slate-400">{c.compLabel ?? "Karşılaştırma yok"}</span>
+                )}
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : metricView === "average" ? (
         <div className={cn("mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4", hidden && "blur-md select-none")}>
           {/* 1. Bu Ay Günlük Ort. */}
           {compare.dailyAverages && (() => {
@@ -648,6 +702,39 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </div>
         </div>
       )}
+      {mode === "daily" ? (
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[#0f9b8e]" /> Bu ay (ay başından bugüne toplam)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="w-5 border-t-2 border-dashed border-slate-400" /> Geçen ay (aynı güne kadar)
+        </span>
+        {avgLine > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-5 border-t-2" style={{ borderColor: avgColor }} /> Günlük ortalama temposu ({formatMoney(avgLine)} / gün)
+            {avgChange != null && Number.isFinite(avgChange) && (
+              <strong style={{ color: avgColor }}>
+                {avgUp ? "▲" : "▼"} %{Math.abs(avgChange).toFixed(1).replace(".", ",")} {prevLabel}
+              </strong>
+            )}
+          </span>
+        )}
+        {lastActual && (lastActual.cumPrev ?? 0) > 0 && (() => {
+          const diff = (((lastActual.cum ?? 0) - (lastActual.cumPrev ?? 0)) / (lastActual.cumPrev ?? 1)) * 100;
+          return (
+            <span
+              className={cn(
+                "ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold",
+                cumAhead ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
+              )}
+            >
+              {cumAhead ? "▲" : "▼"} Geçen aya göre {cumAhead ? "önde" : "geride"} (%{Math.abs(diff).toFixed(1).replace(".", ",")})
+            </span>
+          );
+        })()}
+      </div>
+      ) : (
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600 dark:text-slate-300">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm bg-[#0f9b8e]" /> Satış
@@ -659,7 +746,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
         )}
         {avgLine > 0 && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-5 border-t-2" style={{ borderColor: C.avg }} /> {avgLabel} ({formatMoney(avgLine)})
+            <span className="w-5 border-t-2" style={{ borderColor: avgColor }} /> {avgLabel} ({formatMoney(avgLine)})
             {avgChange != null && Number.isFinite(avgChange) && (
               <strong style={{ color: avgColor }}>
                 {avgUp ? "▲" : "▼"} %{Math.abs(avgChange).toFixed(1).replace(".", ",")} {prevLabel}
@@ -679,10 +766,11 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
           </span>
         )}
       </div>
+      )}
       <div className={cn("h-[270px] w-full min-w-0", hidden && "blur-md pointer-events-none select-none")}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
-            data={chartData}
+            data={chartRows}
             margin={{ top: 30, right: 16, bottom: 0, left: 0 }}
             onClick={(state) => {
               const idx = Number((state as { activeTooltipIndex?: number | string } | null)?.activeTooltipIndex);
@@ -721,12 +809,16 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs shadow-lg">
                     <div className="font-semibold mb-0.5">{label}</div>
                     <div className="tabular-nums">Satış: {formatMoney(Number((payload[0].payload as ChartPoint).amount) || 0)}</div>
-                    {mode === "daily" && (payload[0].payload as { ma: number | null }).ma != null && (
-                      <div className="tabular-nums text-indigo-600 dark:text-indigo-300">
-                        7 günlük ort.: {formatMoney(Number((payload[0].payload as { ma: number }).ma))}
-                      </div>
-                    )}
-                    {trend && (payload[0].payload as { trend: number | null }).trend != null && (
+                    {mode === "daily" && (() => {
+                      const p = payload[0].payload as { cum: number | null; cumPrev: number | null };
+                      return (
+                        <>
+                          {p.cum != null && <div className="tabular-nums font-semibold text-brand-600 dark:text-brand-400">Bu ay toplam: {formatMoney(p.cum)}</div>}
+                          {p.cumPrev != null && <div className="tabular-nums text-slate-500 dark:text-slate-400">Geçen ay aynı gün: {formatMoney(p.cumPrev)}</div>}
+                        </>
+                      );
+                    })()}
+                    {mode !== "daily" && trend && (payload[0].payload as { trend: number | null }).trend != null && (
                       <div className="tabular-nums text-slate-500 dark:text-slate-400">
                         {Number((payload[0].payload as ChartPoint).amount) >= Number((payload[0].payload as { trend: number }).trend)
                           ? "▲ Eğilimin üstünde"
@@ -738,7 +830,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                 ) : null
               }
             />
-            {/* günlükte ham satış çizilmez (çok dalgalı); yalnızca 7 günlük ortalama eğrisi görünür */}
+            {/* günlükte ham satış çizilmez (çok dalgalı); birikimli ciro gösterilir */}
             {mode !== "daily" && (
             <Area
               type="monotone"
@@ -763,25 +855,54 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
             </Area>
             )}
             {mode === "daily" && (
-              // 7 günlük hareketli ortalama: yumuşak eğri (monotone: aşırı salınım yapmaz, sıfırın altına inmez)
+              // Geçen ayın birikimli cirosu: kesikli gri çizgi (kıyas)
               <Line
                 type="monotone"
-                dataKey="ma"
-                name="7 günlük ortalama"
-                stroke={C.ma}
-                strokeWidth={3}
+                dataKey="cumPrev"
+                name="Geçen ay"
+                stroke="#94a3b8"
+                strokeWidth={2}
+                strokeDasharray="6 4"
                 dot={false}
-                activeDot={{ r: 5, fill: C.ma, strokeWidth: 0, onClick: (_e: unknown, p: unknown) => openPoint((p as { payload?: ChartPoint })?.payload) }}
+                activeDot={false}
                 isAnimationActive={false}
               />
             )}
-            {trend && (
+            {mode === "daily" && (
+              // Bu ayın birikimli cirosu: hiç inmez, ay boyunca yükselir
+              <Area
+                type="monotone"
+                dataKey="cum"
+                name="Bu ay"
+                stroke="#0f9b8e"
+                strokeWidth={3}
+                fill="url(#salesFill)"
+                fillOpacity={0.8}
+                dot={false}
+                activeDot={{ r: 5, fill: "#0f9b8e", strokeWidth: 0, onClick: (_e: unknown, p: unknown) => openPoint((p as { payload?: ChartPoint })?.payload) }}
+                isAnimationActive={false}
+              />
+            )}
+            {mode === "daily" && avgLine > 0 && (
+              // Günlük ortalama temposu: günlük ortalama × gün (birikimli ölçekte ortalama çizgisi); yükselişte yeşil, düşüşte kırmızı
+              <Line
+                type="linear"
+                dataKey="avgPace"
+                name="Günlük ortalama temposu"
+                stroke={avgColor}
+                strokeWidth={2}
+                dot={false}
+                activeDot={false}
+                isAnimationActive={false}
+              />
+            )}
+            {mode !== "daily" && trend && (
               <Line type="linear" dataKey="trend" stroke={trendColor} strokeWidth={3} dot={false} activeDot={false} isAnimationActive={false} />
             )}
-            {avgLine > 0 && (
+            {mode !== "daily" && avgLine > 0 && (
               <ReferenceLine
                 y={avgLine}
-                stroke={C.avg}
+                stroke={avgColor}
                 strokeWidth={2}
                 ifOverflow="extendDomain"
                 // tutar, çizginin üstünde koyu gri etiket; yalnızca ok yükselişte yeşil, düşüşte kırmızı

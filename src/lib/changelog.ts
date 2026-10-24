@@ -14,9 +14,31 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.24";
+export const LATEST_VERSION = "2.8.25";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.25",
+    date: "24 Ekim 2026",
+    title: "Panel Satış Grafiği Yenilendi",
+    items: [
+      {
+        type: "iyilestirme",
+        title: "Günlükte Birikimli Ciro",
+        description: "Günlük görünüm artık ay başından bugüne toplam ciroyu geçen ayın aynı günüyle kıyaslar; geçen aya göre önde/geride etiketi ve günlük ortalama temposu çizgisi gösterilir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Ortalama Çizgisi Yöne Göre Renkli",
+        description: "Günlük, haftalık ve aylık görünümde ortalama çizgisi yükselişte yeşil, düşüşte kırmızı olur.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Döneme Göre Ortalama Kartları",
+        description: "Satış ortalamaları kartları seçili sekmeye göre değişir: haftalıkta bu hafta, geçen hafta, haftalık ortalama ve en iyi hafta; aylıkta aynısı aylık olarak.",
+      },
+    ],
+  },
   {
     version: "2.8.24",
     date: "23 Ekim 2026",
