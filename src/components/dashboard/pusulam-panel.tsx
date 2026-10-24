@@ -219,13 +219,15 @@ function SummaryStrip({ data }: { data: DashboardSummary | undefined }) {
 
 type ChartMode = "daily" | "weekly" | "monthly";
 /** future: henüz gelmemiş gün (grafikte boş kalır, hesaplara girmez) */
-type ChartPoint = { label: string; amount: number; from: string; to: string; future?: boolean };
+type ChartPoint = { label: string; amount: number; from: string; to: string; future?: boolean; ma?: number };
 
 const WEEKS = 8;
+/** Günlük görünümde hareketli ortalama penceresi (gün) */
+const MA_DAYS = 7;
 /** Grafik çizgi renkleri; gece temasında daha açık tonlar (koyu zeminde belirgin olsun) */
 const CHART_COLORS = {
-  light: { up: "#16a34a", down: "#dc2626", avg: "#475569", pillBg: "#334155", pillText: "#ffffff", pillUp: "#4ade80", pillDown: "#f87171" },
-  dark: { up: "#4ade80", down: "#f87171", avg: "#e2e8f0", pillBg: "#e2e8f0", pillText: "#0f172a", pillUp: "#15803d", pillDown: "#b91c1c" },
+  light: { up: "#16a34a", down: "#dc2626", avg: "#475569", pillBg: "#334155", pillText: "#ffffff", pillUp: "#4ade80", pillDown: "#f87171", ma: "#4f46e5" },
+  dark: { up: "#4ade80", down: "#f87171", avg: "#e2e8f0", pillBg: "#e2e8f0", pillText: "#0f172a", pillUp: "#15803d", pillDown: "#b91c1c", ma: "#a5b4fc" },
 };
 
 function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
@@ -240,7 +242,10 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
   const firstMonday = new Date(today);
   firstMonday.setDate(today.getDate() - ((today.getDay() + 6) % 7) - (WEEKS - 1) * 7);
   // Panel özeti yalnızca son 30 günü verir; bu ayın tamamı ve 8 hafta için satışları ayrıca oku (panel ile aynı kurallar)
-  const rangeFrom = isoDate(firstMonday < monthStart ? firstMonday : monthStart);
+  // 7 günlük hareketli ortalama için ayın ilk gününden 6 gün öncesi de gerekir
+  const maStart = new Date(monthStart);
+  maStart.setDate(monthStart.getDate() - (MA_DAYS - 1));
+  const rangeFrom = isoDate(firstMonday < maStart ? firstMonday : maStart);
   const rangeTo = isoDate(today);
   const salesDocs = useRows<{ issue_date: string; doc_type: string; total_try: number }>("documents", {
     select: "issue_date,doc_type,total_try",
@@ -268,7 +273,21 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
       return Array.from({ length: lastDay }, (_, i) => {
         const dt = new Date(t.getFullYear(), t.getMonth(), i + 1);
         const date = isoDate(dt);
-        return { label: `${dt.getDate()} ${MONTHS_SHORT[dt.getMonth()]}`, amount: byDate.get(date) ?? 0, from: date, to: date, future: dt > t };
+        // o gün dahil son 7 günün ortalaması (önceki ayın günleri de sayılır)
+        let sum = 0;
+        for (let k = 0; k < MA_DAYS; k++) {
+          const d = new Date(dt);
+          d.setDate(dt.getDate() - k);
+          sum += byDate.get(isoDate(d)) ?? 0;
+        }
+        return {
+          label: `${dt.getDate()} ${MONTHS_SHORT[dt.getMonth()]}`,
+          amount: byDate.get(date) ?? 0,
+          from: date,
+          to: date,
+          future: dt > t,
+          ma: Math.round(sum / MA_DAYS),
+        };
       });
     }
 
@@ -325,7 +344,7 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
     };
   }, [actual, total]);
   // gelmemiş günlerde satış alanı ve trend çizilmez
-  const chartData = points.map((p, i) => ({ ...p, amount: p.future ? null : p.amount, trend: p.future ? null : (trend?.values[i] ?? null) }));
+  const chartData = points.map((p, i) => ({ ...p, amount: p.future ? null : p.amount, trend: p.future ? null : (trend?.values[i] ?? null), ma: p.future || p.ma == null ? null : p.ma }));
   const trendColor = trend?.up ? C.up : C.down;
 
   // Ortalama çizgisi: günlükte bu ayın günlük ortalaması (kartlarla aynı), haftalık/aylıkta gösterilen dönemlerin ortalaması
@@ -702,6 +721,11 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                   <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs shadow-lg">
                     <div className="font-semibold mb-0.5">{label}</div>
                     <div className="tabular-nums">Satış: {formatMoney(Number((payload[0].payload as ChartPoint).amount) || 0)}</div>
+                    {mode === "daily" && (payload[0].payload as { ma: number | null }).ma != null && (
+                      <div className="tabular-nums text-indigo-600 dark:text-indigo-300">
+                        7 günlük ort.: {formatMoney(Number((payload[0].payload as { ma: number }).ma))}
+                      </div>
+                    )}
                     {trend && (payload[0].payload as { trend: number | null }).trend != null && (
                       <div className="tabular-nums text-slate-500 dark:text-slate-400">
                         {Number((payload[0].payload as ChartPoint).amount) >= Number((payload[0].payload as { trend: number }).trend)
@@ -714,6 +738,8 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                 ) : null
               }
             />
+            {/* günlükte ham satış çizilmez (çok dalgalı); yalnızca 7 günlük ortalama eğrisi görünür */}
+            {mode !== "daily" && (
             <Area
               type="monotone"
               dataKey="amount"
@@ -735,6 +761,20 @@ function SalesChartCard({ data }: { data: DashboardSummary | undefined }) {
                 formatter={(v: unknown) => (Number(v) > 0 ? formatCompact(Number(v)) : "")}
               />
             </Area>
+            )}
+            {mode === "daily" && (
+              // 7 günlük hareketli ortalama: yumuşak eğri (monotone: aşırı salınım yapmaz, sıfırın altına inmez)
+              <Line
+                type="monotone"
+                dataKey="ma"
+                name="7 günlük ortalama"
+                stroke={C.ma}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 5, fill: C.ma, strokeWidth: 0, onClick: (_e: unknown, p: unknown) => openPoint((p as { payload?: ChartPoint })?.payload) }}
+                isAnimationActive={false}
+              />
+            )}
             {trend && (
               <Line type="linear" dataKey="trend" stroke={trendColor} strokeWidth={3} dot={false} activeDot={false} isAnimationActive={false} />
             )}
