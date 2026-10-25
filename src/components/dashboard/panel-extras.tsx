@@ -11,6 +11,7 @@ import { tableKey } from "@/lib/data";
 import { formatCompact, formatMoney, isoDate } from "@/lib/format";
 import { useOrg } from "@/providers/org-provider";
 import { cn } from "@/lib/utils";
+import { IskontoHesapButton } from "./iskonto-hesap";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -39,6 +40,7 @@ export function QuickActionBar() {
           {q.label}
         </Link>
       ))}
+      <IskontoHesapButton />
     </div>
   );
 }

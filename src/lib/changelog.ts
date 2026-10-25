@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.25";
+export const LATEST_VERSION = "2.8.26";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.26",
+    date: "25 Ekim 2026",
+    title: "Hesap Makinesi",
+    items: [
+      {
+        type: "yeni",
+        title: "İskonto ve Kâr Hesap Makinesi",
+        description: "Sol menünün altındaki Hesap Makinesi her sayfadan açılır: zincirleme iskonto düşme (ör. 10+5), alış fiyatına kâr ekleme ve alış/satıştan kâr oranı bulma. Sonuç kopyalanabilir, hiçbir kayıt değişmez.",
+      },
+    ],
+  },
   {
     version: "2.8.25",
     date: "24 Ekim 2026",

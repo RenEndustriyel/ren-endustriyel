@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { IskontoHesapButton } from "@/components/dashboard/iskonto-hesap";
 import {
   LayoutGrid,
   Sparkles,
@@ -300,6 +301,8 @@ export function Sidebar() {
               <ExternalLink size={12} className="shrink-0" />
             </button>
 
+            <IskontoHesapButton variant="sidebar" />
+
             <Link
               href="/ayarlar"
               className={cn(
@@ -323,6 +326,7 @@ export function Sidebar() {
             >
               <Sparkles size={16} />
             </button>
+            <IskontoHesapButton variant="icon" />
             <Link
               href="/ayarlar"
               className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
