@@ -14,9 +14,21 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.26";
+export const LATEST_VERSION = "2.8.27";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.27",
+    date: "27 Ekim 2026",
+    title: "Çıktı ve Belgelerde Adet Küsuratları Sadeleştirildi",
+    items: [
+      {
+        type: "duzeltme",
+        title: "Adet ve Miktar Küsuratları Düzeltildi",
+        description: "PDF fatura, ekstre ve belge çıktılarında tam adetlerin “1,00 ADET” yerine sade ve net olarak “1 ADET” şeklinde görünmesi sağlandı; gereksiz ondalık sıfırlar temizlendi.",
+      },
+    ],
+  },
   {
     version: "2.8.26",
     date: "25 Ekim 2026",

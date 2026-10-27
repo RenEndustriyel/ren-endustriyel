@@ -32,7 +32,11 @@ export function formatCompact(value: number): string {
 }
 
 export function formatQty(value: number | string | null | undefined): string {
-  return qtyFmt.format(Number(value ?? 0));
+  if (typeof value === "number") return qtyFmt.format(Number.isFinite(value) ? value : 0);
+  if (!value) return "0";
+  const cleaned = String(value).trim().replace(/\s/g, "").replace(",", ".");
+  const num = parseFloat(cleaned);
+  return qtyFmt.format(Number.isFinite(num) ? num : 0);
 }
 
 const dateFmt = new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });

@@ -31,7 +31,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useGrowthHealth, type PeriodType, type GrowthPoint } from "./use-growth-health";
-import { formatCompact, formatMoney, formatNumber } from "@/lib/format";
+import { formatCompact, formatMoney, formatQty } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -215,7 +215,7 @@ export function GrowthHealthBoard({
               <span className="text-muted">Satış Hacmi:</span>
               <span className={cn(kpi.satisHacmiGrowth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-danger")}>
                 {kpi.satisHacmiGrowth >= 0 ? "+" : ""}{kpi.satisHacmiGrowth}%
-                <span className="ml-1 text-[10.5px] font-normal text-muted">({formatNumber(kpi.currentVolume)} adet)</span>
+                <span className="ml-1 text-[10.5px] font-normal text-muted">({formatQty(kpi.currentVolume)} adet)</span>
               </span>
             </div>
           </div>
@@ -386,7 +386,7 @@ export function GrowthHealthBoard({
                     <div className="rounded-lg border border-border bg-surface p-2 text-xs shadow-lg">
                       <div className="font-semibold text-text">{item.label}</div>
                       <div className="text-muted">Hacim İndeksi: <strong className="text-primary">{item.volumeIndex}</strong></div>
-                      <div className="text-muted">Satış Adedi: <strong className="text-text">{formatNumber(item.volume)}</strong></div>
+                      <div className="text-muted">Satış Adedi: <strong className="text-text">{formatQty(item.volume)}</strong></div>
                     </div>
                   );
                 }}
@@ -434,7 +434,7 @@ export function GrowthHealthBoard({
                     <td className="p-3 text-right num font-medium text-text">{formatMoney(p.netRevenue)}</td>
                     <td className="p-3 text-right num font-medium text-text">{formatMoney(p.grossProfit)}</td>
                     <td className="p-3 text-right num font-bold text-amber-600 dark:text-amber-400">%{p.profitMargin}</td>
-                    <td className="p-3 text-right num text-muted">{formatNumber(p.volume)}</td>
+                    <td className="p-3 text-right num text-muted">{formatQty(p.volume)}</td>
                     <td className="p-3 text-right num font-bold text-sky-600 dark:text-sky-400">{p.volumeIndex}</td>
                     <td className="p-3 text-right num text-text">{p.activeContacts}</td>
                     <td className="p-3 text-right num">

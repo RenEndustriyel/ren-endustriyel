@@ -51,7 +51,11 @@ const s = StyleSheet.create({
 });
 
 const nf = (n: number, d = 2) => Number(n ?? 0).toLocaleString("tr-TR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const qf = (n: number) => Number(n ?? 0).toLocaleString("tr-TR", { maximumFractionDigits: 3 });
+const qf = (n: number | string | null | undefined) => {
+  if (n == null) return "0";
+  const num = typeof n === "number" ? n : parseFloat(String(n).replace(/\s/g, "").replace(",", "."));
+  return (Number.isFinite(num) ? num : 0).toLocaleString("tr-TR", { maximumFractionDigits: 3 });
+};
 const df = (d?: string | null) => (d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("tr-TR") : "");
 const sym = (c: string) => (c === "USD" ? "$" : c === "EUR" ? "€" : "₺");
 const formatBal = (n?: number | null) => {
@@ -384,7 +388,7 @@ export function GibInvoicePdf({ doc, org }: { doc: PdfDocument; org: PdfOrg; log
             {doc.lines.map((l, i) => (
               <View key={i} style={inv.tableRow} wrap={false}>
                 <Text style={[inv.tdText, inv.colStok]}>{(l.description || "—").toUpperCase()}</Text>
-                <Text style={[inv.tdText, inv.colMiktar]}>{nf(l.quantity)} {(l.unit || "ADET").toUpperCase()}</Text>
+                <Text style={[inv.tdText, inv.colMiktar]}>{qf(l.quantity)} {(l.unit || "ADET").toUpperCase()}</Text>
                 <Text style={[inv.tdText, inv.colFiyat]}>{nf(l.unit_price)}</Text>
                 <Text style={[inv.tdText, inv.colKdv]}>{Math.round(Number(l.vat_rate || 0))}</Text>
                 <Text style={[inv.tdText, inv.colIsk]}>{nf(l.discount_rate || 0)}</Text>
@@ -839,7 +843,7 @@ export function StatementPdf({
               {r.lines.map((l, j) => (
                 <View key={j} style={{ flexDirection: "row", paddingVertical: 1.5 }} wrap={false}>
                   <Text style={{ width: "52%", fontSize: 7.5, color: C.muted }}>{l.name}</Text>
-                  <Text style={{ width: "16%", fontSize: 7.5, color: C.muted, textAlign: "right" }}>{nf(l.quantity)} {l.unit || ""}</Text>
+                  <Text style={{ width: "16%", fontSize: 7.5, color: C.muted, textAlign: "right" }}>{qf(l.quantity)} {l.unit || ""}</Text>
                   <Text style={{ width: "16%", fontSize: 7.5, color: C.muted, textAlign: "right" }}>x {nf(l.unit_price)}{l.discount_rate ? ` -%${nf(l.discount_rate)}` : ""}</Text>
                   <Text style={{ width: "16%", fontSize: 7.5, color: C.muted, textAlign: "right" }}>{nf(l.total)}</Text>
                 </View>

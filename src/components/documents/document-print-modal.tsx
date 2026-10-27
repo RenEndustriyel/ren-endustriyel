@@ -324,7 +324,7 @@ export function DocumentPrintModal({
 
   const handleCopy = async () => {
     const linesSummary = finalLines
-      .map((l) => `- ${l.description || l.product_name}: ${l.quantity} ad. x ${formatMoney(l.unit_price || 0)} = ${formatMoney(l.total_amount || l.total || 0)}`)
+      .map((l) => `- ${l.description || l.product_name}: ${formatQty(l.quantity)} ad. x ${formatMoney(l.unit_price || 0)} = ${formatMoney(l.total_amount || l.total || 0)}`)
       .join("\n");
     const summary = `${orgName}\n${docTitle} (No: ${docNumber})\nTarih: ${invoiceDate}\nCari: ${contactName}\n\nKalemler:\n${linesSummary}\n\nAra Toplam: ${formatMoney(subtotal)}\nKDV: ${formatMoney(vatTotal)}\nGenel Toplam: ${formatMoney(grandTotal)}\nÖdeme Durumu: ${paymentStatusLabel}`;
     try {

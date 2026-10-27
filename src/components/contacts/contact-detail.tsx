@@ -50,7 +50,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
-import { formatDate, formatMoney, isoDate, formatNumber } from "@/lib/format";
+import { formatDate, formatMoney, isoDate, formatNumber, formatQty } from "@/lib/format";
 import { exportExcel } from "@/lib/excel";
 import { DOC_TYPES, PAYMENT_STATUS, docFlow, statusLabel, type DocType } from "@/lib/doc-types";
 import { PaymentDialog } from "@/components/cash/payment-dialog";
@@ -1400,7 +1400,7 @@ export function ContactDetail({ id }: { id: string }) {
                                   {subLines.map((l, j) => (
                                     <tr key={j} className="text-slate-600 dark:text-slate-400">
                                       <td className="pl-3 py-1">{l.name}</td>
-                                      <td className="py-1 text-right num whitespace-nowrap">{formatNumber(l.quantity)} {l.unit ?? ""}</td>
+                                      <td className="py-1 text-right num whitespace-nowrap">{formatQty(l.quantity)} {l.unit ?? ""}</td>
                                       <td className="py-1 text-right num whitespace-nowrap">x {formatMoney(l.unit_price)}{l.discount_rate ? " (-%" + formatNumber(l.discount_rate) + ")" : ""}</td>
                                       <td className="py-1 text-right num whitespace-nowrap">KDV %{formatNumber(l.vat_rate)}</td>
                                       <td className="py-1 pr-2 text-right num font-semibold whitespace-nowrap text-slate-800 dark:text-slate-200">{formatMoney(l.total)}</td>
