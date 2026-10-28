@@ -53,7 +53,8 @@ export const PUSULAM_SIDEBAR_NAV = [
 ];
 
 export const B2B_SIDEBAR_NAV = [
-  { href: "/urunler", label: "Ürünler ve Fiyatlar", icon: Tag, color: "text-violet-500", also: ["/stok/urunler"] },
+  { href: "/urunler", label: "Ürünler & Sipariş Ver", icon: Tag, color: "text-violet-500", also: ["/stok/urunler"] },
+  { href: "/siparislerim", label: "Siparişlerim & Takip", icon: ShoppingCart, color: "text-emerald-500", also: ["/siparislerim/detay"] },
 ];
 
 /** Menü öğesinin aktif olup olmadığı (alt sayfalar ve iç adresler dahil) */

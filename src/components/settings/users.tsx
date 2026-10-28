@@ -14,6 +14,7 @@ import { Input, NativeSelect } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useContacts } from "@/lib/data";
 
 const ROLE_HELP: Record<Role, string> = {
   owner: "Tüm yetkiler",
@@ -43,8 +44,15 @@ export function UsersSettings() {
   const [createFullName, setCreateFullName] = React.useState("");
   const [createPassword, setCreatePassword] = React.useState("");
   const [createRole, setCreateRole] = React.useState<Role>("b2b");
+  const [createContactId, setCreateContactId] = React.useState("");
   const [showCreatePassword, setShowCreatePassword] = React.useState(false);
   const [creatingUser, setCreatingUser] = React.useState(false);
+
+  const contactsQuery = useContacts();
+  const customerContacts = React.useMemo(
+    () => (contactsQuery.data ?? []).filter((c) => c.kind === "customer"),
+    [contactsQuery.data]
+  );
 
   // Yöneticinin diğer üyelere sıfırlama linki gönderme state'i
   const [resettingUserId, setResettingUserId] = React.useState<string | null>(null);
@@ -269,6 +277,7 @@ export function UsersSettings() {
           password: createPassword,
           fullName: createFullName.trim() || undefined,
           role: createRole,
+          contactId: createRole === "b2b" ? createContactId || undefined : undefined,
         }),
       });
 
@@ -290,6 +299,7 @@ export function UsersSettings() {
       setCreateFullName("");
       setCreatePassword("");
       setCreateRole("b2b");
+      setCreateContactId("");
       qc.invalidateQueries({ queryKey: ["members"] });
       qc.invalidateQueries({ queryKey: ["invitations"] });
     } catch (err: any) {
@@ -542,6 +552,30 @@ export function UsersSettings() {
                     </button>
                   </div>
                 </div>
+
+                {createRole === "b2b" && (
+                  <div className="sm:col-span-2 lg:col-span-4 rounded-xl bg-brand-50/60 dark:bg-brand-950/40 p-3 border border-brand-200/60 dark:border-brand-900/60">
+                    <label className="mb-1 block text-xs font-semibold text-brand-900 dark:text-brand-200" htmlFor="create-contact">
+                      Bağlı Cari Müşteri (Siparişlerin Düşeceği Cari Kartı)
+                    </label>
+                    <NativeSelect
+                      id="create-contact"
+                      value={createContactId}
+                      onChange={(e) => setCreateContactId(e.target.value)}
+                      className="bg-white dark:bg-slate-900"
+                    >
+                      <option value="">— Cari Müşteri Seçin (İsteğe bağlı) —</option>
+                      {customerContacts.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.city ? `(${c.city})` : ""}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                    <p className="mt-1 text-[11px] text-brand-700 dark:text-brand-300">
+                      Müşteri bu girişle sipariş verdiğinde, sipariş doğrudan burada seçtiğiniz cari adına oluşturulur ve geçmiş siparişlerini takip edebilir.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">

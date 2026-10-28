@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Zap, Users, Tag, Menu } from "lucide-react";
+import { LayoutGrid, Zap, Users, Tag, Menu, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrg } from "@/providers/org-provider";
 import { MobileMenuSheet } from "./mobile-menu";
@@ -17,6 +17,7 @@ export function MobileNav() {
   const isSatisActive = pathname.startsWith("/hizli-satis");
   const isMusteriActive = pathname.startsWith("/cariler/musteriler") || pathname.startsWith("/musteriler");
   const isUrunActive = pathname.startsWith("/stok/urunler") || pathname.startsWith("/urunler");
+  const isSiparisActive = pathname.startsWith("/siparislerim");
 
   return (
     <>
@@ -27,7 +28,7 @@ export function MobileNav() {
       >
         <div
           className="grid h-14"
-          style={{ gridTemplateColumns: isB2B ? "repeat(2, minmax(0px, 1fr))" : "repeat(5, minmax(0px, 1fr))" }}
+          style={{ gridTemplateColumns: isB2B ? "repeat(3, minmax(0px, 1fr))" : "repeat(5, minmax(0px, 1fr))" }}
         >
           {/* Sadece B2B olmayan kullanıcılara Panel, Satış, Müşteriler görünür */}
           {!isB2B && (
@@ -123,6 +124,29 @@ export function MobileNav() {
             </span>
             <span className="leading-none truncate max-w-[4.5rem]">Ürünler</span>
           </Link>
+
+          {/* B2B için Siparişlerim sekmesi */}
+          {isB2B && (
+            <Link
+              href="/siparislerim"
+              className={cn(
+                "flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition active:scale-95",
+                isSiparisActive
+                  ? "text-brand-600 dark:text-brand-400"
+                  : "text-slate-400 dark:text-slate-500"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex items-center justify-center h-7 w-11 rounded-full transition",
+                  isSiparisActive ? "bg-brand-50 dark:bg-brand-950/60" : ""
+                )}
+              >
+                <ShoppingCart size={20} className={isSiparisActive ? "text-brand-600 dark:text-brand-400" : "text-emerald-500"} />
+              </span>
+              <span className="leading-none truncate max-w-[4.5rem]">Siparişler</span>
+            </Link>
+          )}
 
           {/* 5. Menü */}
           <button

@@ -14,9 +14,31 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.31";
+export const LATEST_VERSION = "2.8.32";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.32",
+    date: "28 Ekim 2026",
+    title: "Gelişmiş B2B Sipariş Portalı ve Canlı Sipariş Süreç Takibi",
+    items: [
+      {
+        type: "yeni",
+        title: "B2B Ürün Kataloğu ve Hızlı Sipariş Modülü",
+        description: "B2B müşterileri ve bayiler için doğrudan ürün fiyatlarını, görsellerini ve stoklarını görüp sepete ekleyerek tek tıkla sipariş verebilecekleri özel arayüz geliştirildi.",
+      },
+      {
+        type: "yeni",
+        title: "Canlı Sipariş Takip Paneli (Siparişlerim)",
+        description: "Müşterilerin verdikleri siparişlerin Alındı, Hazırlanıyor, Kargoda/Sevk ve Teslim Edildi aşamalarını görsel ilerleme çubuğuyla anlık canlı takip edebilmeleri sağlandı.",
+      },
+      {
+        type: "iyilestirme",
+        title: "B2B Kullanıcı & Cari Kart Eşleştirmesi",
+        description: "Kullanıcı oluştururken B2B müşterisinin doğrudan firmanızdaki Cari Kartına bağlanabilmesi ve verilen siparişlerin doğrudan bu cari hesabına düşmesi sağlandı.",
+      },
+    ],
+  },
   {
     version: "2.8.31",
     date: "28 Ekim 2026",

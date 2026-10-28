@@ -33,12 +33,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { orgId, email, password, fullName, role } = body as {
+    const { orgId, email, password, fullName, role, contactId } = body as {
       orgId?: string;
       email?: string;
       password?: string;
       fullName?: string;
       role?: string;
+      contactId?: string;
     };
 
     if (!orgId || !email || !password || !role) {
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
           full_name: fullName?.trim() || trimmedEmail.split("@")[0],
           is_b2b: isB2B,
           role: isB2B ? "b2b" : role,
+          contact_id: contactId || undefined,
         },
       });
 
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
             full_name: fullName?.trim() || trimmedEmail.split("@")[0],
             is_b2b: isB2B,
             role: isB2B ? "b2b" : role,
+            contact_id: contactId || undefined,
           },
         },
       });
@@ -154,23 +157,28 @@ export async function POST(req: NextRequest) {
       needsEmailConfirmation = !signUpData.session && !(signUpData.user as any)?.confirmed_at;
     }
 
-    // 3. Eğer B2B ise firma ayarlarındaki b2b_emails listesine de ekleyelim
+    // 3. Eğer B2B ise firma ayarlarındaki b2b_emails ve b2b_contacts listelerine de ekleyelim
     if (isB2B) {
       try {
         const { data: orgData } = await callerClient.from("organizations").select("settings").eq("id", orgId).single();
         const existingSettings = (orgData?.settings && typeof orgData.settings === "object" ? orgData.settings : {}) as Record<string, any>;
         const currentB2BEmails: string[] = Array.isArray(existingSettings.b2b_emails) ? existingSettings.b2b_emails : [];
-        if (!currentB2BEmails.includes(trimmedEmail)) {
-          await callerClient
-            .from("organizations")
-            .update({
-              settings: {
-                ...existingSettings,
-                b2b_emails: [...currentB2BEmails, trimmedEmail],
-              },
-            })
-            .eq("id", orgId);
-        }
+        const currentB2BContacts: Record<string, string> =
+          existingSettings.b2b_contacts && typeof existingSettings.b2b_contacts === "object" ? existingSettings.b2b_contacts : {};
+
+        const nextEmails = currentB2BEmails.includes(trimmedEmail) ? currentB2BEmails : [...currentB2BEmails, trimmedEmail];
+        const nextContacts = contactId ? { ...currentB2BContacts, [trimmedEmail]: contactId } : currentB2BContacts;
+
+        await callerClient
+          .from("organizations")
+          .update({
+            settings: {
+              ...existingSettings,
+              b2b_emails: nextEmails,
+              b2b_contacts: nextContacts,
+            },
+          })
+          .eq("id", orgId);
       } catch {
         // settings güncellemesi opsiyonel yedek
       }

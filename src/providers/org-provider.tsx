@@ -26,6 +26,7 @@ type OrgState = {
   canWrite: boolean;
   isAdmin: boolean;
   isB2B: boolean;
+  b2bContactId: string | null;
   switchOrg: (id: string) => void;
   refresh: () => Promise<void>;
 };
@@ -78,6 +79,11 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
   const canWrite = !isB2BUser && (role === "owner" || role === "admin" || role === "staff");
   const isAdmin = !isB2BUser && (role === "owner" || role === "admin");
   const isB2B = isB2BUser || role === "b2b";
+  const b2bContactMap = ((org?.settings as any)?.b2b_contacts as Record<string, string>) || {};
+  const b2bContactId: string | null =
+    (user?.user_metadata?.contact_id as string | undefined) ||
+    (userEmail ? b2bContactMap[userEmail] : null) ||
+    null;
   const loading = query.isPending && !!user;
 
   const value: OrgState = React.useMemo(
@@ -89,10 +95,11 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
       canWrite,
       isAdmin,
       isB2B,
+      b2bContactId,
       switchOrg,
       refresh,
     }),
-    [memberships, org, role, loading, canWrite, isAdmin, isB2B, switchOrg, refresh],
+    [memberships, org, role, loading, canWrite, isAdmin, isB2B, b2bContactId, switchOrg, refresh],
   );
 
   return <OrgContext.Provider value={value}>{children}</OrgContext.Provider>;

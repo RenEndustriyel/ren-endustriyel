@@ -78,15 +78,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
     if (!orgLoading && memberships.length === 0) router.replace("/kurulum");
-    // B2B kullanıcısı sadece /urunler sayfasına ve detayına erişebilir, diğer sayfalardan /urunler'e yönlendirilir
-    if (!orgLoading && isB2B && !pathname.startsWith("/urunler")) {
+    // B2B kullanıcısı sadece /urunler ve /siparislerim sayfalarına erişebilir, diğer sayfalardan /urunler'e yönlendirilir
+    if (!orgLoading && isB2B && !pathname.startsWith("/urunler") && !pathname.startsWith("/siparislerim")) {
       router.replace("/urunler");
     }
   }, [authLoading, session, orgLoading, memberships.length, isB2B, router, pathname]);
 
   if (authLoading || !session || !org) return <FullScreenLoader />;
-  // B2B kullanıcısı ürünler harici bir sayfadaysa yönlendirme bitene kadar hiçbir içerik veya veri gösterme
-  if (isB2B && !pathname.startsWith("/urunler")) return <FullScreenLoader />;
+  // B2B kullanıcısı izinli rotalar haricindeyse yönlendirme bitene kadar hiçbir içerik veya veri gösterme
+  if (isB2B && !pathname.startsWith("/urunler") && !pathname.startsWith("/siparislerim")) return <FullScreenLoader />;
 
   return (
     <ChangelogProvider>
