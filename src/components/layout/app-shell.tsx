@@ -85,6 +85,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [authLoading, session, orgLoading, memberships.length, isB2B, router, pathname]);
 
   if (authLoading || !session || !org) return <FullScreenLoader />;
+  // B2B kullanıcısı ürünler harici bir sayfadaysa yönlendirme bitene kadar hiçbir içerik veya veri gösterme
+  if (isB2B && !pathname.startsWith("/urunler")) return <FullScreenLoader />;
 
   return (
     <ChangelogProvider>

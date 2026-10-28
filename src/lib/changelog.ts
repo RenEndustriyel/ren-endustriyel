@@ -14,9 +14,26 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.30";
+export const LATEST_VERSION = "2.8.31";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.31",
+    date: "28 Ekim 2026",
+    title: "B2B Müşteri Güvenlik ve İzolasyon Sıkılaştırması",
+    items: [
+      {
+        type: "duzeltme",
+        title: "B2B Panel ve Yönetim Rotalarına Erişim Engellendi",
+        description: "B2B rolüne sahip kullanıcılar doğrudan “/panel” veya diğer yönetim sayfalarına gitse bile hiçbir veri sorgulanmaz ve yüklenmez; anında sadece yetkili oldukları “/urunler” ekranına kilitlenir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "B2B Menü ve Üst Bar Sadeleştirmesi",
+        description: "B2B müşterilerin üst barındaki bildirim menüsü, ayarlar ve mobil gezinmedeki yönetim bağlantıları tamamen gizlendi.",
+      },
+    ],
+  },
   {
     version: "2.8.30",
     date: "28 Ekim 2026",

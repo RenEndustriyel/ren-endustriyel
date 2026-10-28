@@ -7,9 +7,10 @@ import type { DashboardSummary } from "./types";
 
 import { reconcileContactAllocations } from "@/lib/reconcile-allocations";
 
-export function useDashboard(orgId: string) {
+export function useDashboard(orgId: string, enabled: boolean = true) {
   return useQuery({
     queryKey: ["dashboard", orgId],
+    enabled: enabled && !!orgId,
     queryFn: async () => {
       // Önce açık carilerdeki kısmi veya serbest tahsilatları açık belgelere otomatik eşle
       try {

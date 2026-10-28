@@ -42,7 +42,7 @@ export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { org, memberships, switchOrg } = useOrg();
+  const { org, memberships, switchOrg, isB2B } = useOrg();
   const { theme, setTheme } = useTheme();
   const palette = useCommandPalette();
 
@@ -150,9 +150,13 @@ export function Topbar() {
           <Search size={18} className="text-slate-500" />
         </button>
 
-        {/* Bildirimler (Pusulam: kritik stok, vadesi geçenler) */}
-        <OutboxStatus />
-        <NotificationsMenu />
+        {/* Bildirimler (Pusulam: kritik stok, vadesi geçenler) - B2B müşterilerine kapalı */}
+        {!isB2B && (
+          <>
+            <OutboxStatus />
+            <NotificationsMenu />
+          </>
+        )}
 
         {/* Koyu / Açık Mod Geçişi */}
         <button
@@ -178,10 +182,14 @@ export function Topbar() {
               {userName}
             </DropdownMenuLabel>
             <div className="text-xs text-slate-400 px-2 pb-1 truncate">{user?.email}</div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/ayarlar")} className="rounded-xl">
-              <Settings className="size-4 mr-2" /> Ayarlar
-            </DropdownMenuItem>
+            {!isB2B && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push("/ayarlar")} className="rounded-xl">
+                  <Settings className="size-4 mr-2" /> Ayarlar
+                </DropdownMenuItem>
+              </>
+            )}
             {memberships && memberships.length > 1 && (
               <>
                 <DropdownMenuSeparator />

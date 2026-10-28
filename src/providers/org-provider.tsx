@@ -63,16 +63,21 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
 
 
   const org = current?.organization ?? null;
+  const userEmail = user?.email?.toLowerCase().trim();
+  const b2bEmailList: string[] = Array.isArray((org?.settings as any)?.b2b_emails)
+    ? (org?.settings as any).b2b_emails.map((e: string) => String(e).toLowerCase().trim())
+    : [];
+
   const isB2BUser =
+    current?.role === "b2b" ||
     user?.user_metadata?.is_b2b === true ||
     user?.user_metadata?.role === "b2b" ||
-    (Array.isArray((org?.settings as any)?.b2b_emails) &&
-      (org?.settings as any).b2b_emails.includes(user?.email?.toLowerCase()));
+    (!!userEmail && b2bEmailList.includes(userEmail));
 
   const role: Role | null = isB2BUser ? "b2b" : (current?.role ?? null);
-  const canWrite = role === "owner" || role === "admin" || role === "staff";
-  const isAdmin = role === "owner" || role === "admin";
-  const isB2B = role === "b2b";
+  const canWrite = !isB2BUser && (role === "owner" || role === "admin" || role === "staff");
+  const isAdmin = !isB2BUser && (role === "owner" || role === "admin");
+  const isB2B = isB2BUser || role === "b2b";
   const loading = query.isPending && !!user;
 
   const value: OrgState = React.useMemo(
