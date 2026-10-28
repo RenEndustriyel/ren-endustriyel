@@ -113,7 +113,7 @@ export function ProductsList() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const confirm = useConfirm();
-  const { org, canWrite } = useOrg();
+  const { org, canWrite, isB2B } = useOrg();
   const products = useProducts();
   const units = useUnits();
   const cats = useCategories("product");
@@ -639,7 +639,14 @@ export function ProductsList() {
             <div className="space-y-6 pb-6">
               <div className="card p-0 overflow-hidden">
                 {/* Masaüstü Tablo Başlığı */}
-                <div className="hidden md:grid grid-cols-[minmax(0,1fr)_7rem_7rem_6rem_7.5rem] gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+                <div
+                  className={cn(
+                    "hidden md:grid gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40",
+                    isB2B
+                      ? "grid-cols-[minmax(0,1fr)_8rem_8rem]"
+                      : "grid-cols-[minmax(0,1fr)_7rem_7rem_6rem_7.5rem]"
+                  )}
+                >
                   <button
                     type="button"
                     onClick={() => handleSort("name")}
@@ -649,22 +656,24 @@ export function ProductsList() {
                     Ürün
                     <ArrowUpDown size={12} className="opacity-50" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSort("purchasePrice")}
-                    title="Alış: artan / azalan sırala"
-                    className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-slate-600 dark:hover:text-slate-200 justify-self-end"
-                  >
-                    Alış
-                    <ArrowUpDown size={12} className="opacity-50" />
-                  </button>
+                  {!isB2B && (
+                    <button
+                      type="button"
+                      onClick={() => handleSort("purchasePrice")}
+                      title="Alış: artan / azalan sırala"
+                      className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-slate-600 dark:hover:text-slate-200 justify-self-end"
+                    >
+                      Alış
+                      <ArrowUpDown size={12} className="opacity-50" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleSort("salePrice")}
                     title="Satış: artan / azalan sırala"
                     className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-slate-600 dark:hover:text-slate-200 justify-self-end"
                   >
-                    Satış
+                    Satış Fiyatı
                     <ArrowUpDown size={12} className="opacity-50" />
                   </button>
                   <button
@@ -676,7 +685,7 @@ export function ProductsList() {
                     Stok
                     <ArrowUpDown size={12} className="opacity-50" />
                   </button>
-                  <span />
+                  {!isB2B && <span />}
                 </div>
 
                 {/* Tablo Satırları */}
@@ -695,7 +704,12 @@ export function ProductsList() {
                           role="button"
                           tabIndex={0}
                           onClick={() => router.push(`/urunler/detay?id=${p.id}`)}
-                          className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_7rem_7rem_6rem_7.5rem] items-center gap-x-3 gap-y-0.5 px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition"
+                          className={cn(
+                            "grid items-center gap-x-3 gap-y-0.5 px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition",
+                            isB2B
+                              ? "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_8rem_8rem]"
+                              : "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1fr)_7rem_7rem_6rem_7.5rem]"
+                          )}
                         >
                           {/* Ürün Görseli & Adı */}
                           <div className="flex items-center gap-2.5 min-w-0">
@@ -728,10 +742,12 @@ export function ProductsList() {
                             </span>
                           </div>
 
-                          {/* Alış Fiyatı (Masaüstü) */}
-                          <span className="hidden md:block text-right text-sm tabular-nums text-slate-500">
-                            {formatMoney(p.purchase_price ?? 0)}
-                          </span>
+                          {/* Alış Fiyatı (Masaüstü - B2B'de gizli) */}
+                          {!isB2B && (
+                            <span className="hidden md:block text-right text-sm tabular-nums text-slate-500">
+                              {formatMoney(p.purchase_price ?? 0)}
+                            </span>
+                          )}
 
                           {/* Satış Fiyatı & Mobil Stok */}
                           <span className="text-right text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100 md:order-none">
@@ -756,38 +772,39 @@ export function ProductsList() {
                             {formatQty(p.stock_qty || 0)} {unitName(p.unit_id) || "ad"}
                           </span>
 
-                          {/* Aksiyon İkonları (Masaüstü) */}
-                          <span className="hidden md:flex justify-end gap-0.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleFavorite(p.id);
-                              }}
-                              className={cn(
-                                "p-1.5 transition",
-                                favorites.has(p.id) ? "text-amber-400" : "text-slate-300 hover:text-amber-400"
-                              )}
-                              title="Hızlı satışa ekle"
-                            >
-                              <Star size={15} fill={favorites.has(p.id) ? "currentColor" : "none"} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingProduct(p);
-                              }}
-                              className="text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 transition"
-                              title="Düzenle"
-                            >
-                              <Pencil size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(p);
+                          {/* Aksiyon İkonları (Masaüstü - B2B değilse) */}
+                          {!isB2B && (
+                            <span className="hidden md:flex justify-end gap-0.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleFavorite(p.id);
+                                }}
+                                className={cn(
+                                  "p-1.5 transition",
+                                  favorites.has(p.id) ? "text-amber-400" : "text-slate-300 hover:text-amber-400"
+                                )}
+                                title="Hızlı satışa ekle"
+                              >
+                                <Star size={15} fill={favorites.has(p.id) ? "currentColor" : "none"} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingProduct(p);
+                                }}
+                                className="text-slate-300 hover:text-slate-700 dark:hover:text-slate-200 p-1.5 transition"
+                                title="Düzenle"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(p);
                               }}
                               className="text-slate-300 hover:text-rose-500 p-1.5 transition"
                               title="Sil"
@@ -795,6 +812,7 @@ export function ProductsList() {
                               <Trash2 size={15} />
                             </button>
                           </span>
+                          )}
                         </div>
                       );
                     })

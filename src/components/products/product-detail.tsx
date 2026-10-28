@@ -61,7 +61,7 @@ interface TimelineItem {
 export function ProductDetail({ id }: { id: string }) {
   const router = useRouter();
   const confirm = useConfirm();
-  const { canWrite, role } = useOrg();
+  const { canWrite, role, isB2B } = useOrg();
 
   // Queries
   const product = useRow<Row<"products">>("products", id);
@@ -496,16 +496,18 @@ export function ProductDetail({ id }: { id: string }) {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-left border border-slate-300 dark:border-slate-700 shadow-xs">
-                <div className="text-[10px] uppercase text-slate-400 font-bold">Alış</div>
-                <div className="font-bold text-slate-900 dark:text-slate-100">
-                  {formatMoney(Number(p.purchase_price ?? 0))}
+            <div className={cn("grid gap-3 text-sm", isB2B ? "grid-cols-1" : "grid-cols-2")}>
+              {!isB2B && (
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-left border border-slate-300 dark:border-slate-700 shadow-xs">
+                  <div className="text-[10px] uppercase text-slate-400 font-bold">Alış</div>
+                  <div className="font-bold text-slate-900 dark:text-slate-100">
+                    {formatMoney(Number(p.purchase_price ?? 0))}
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="rounded-xl bg-brand-50 dark:bg-brand-900/30 p-2.5 text-left border border-brand-200 dark:border-brand-800 shadow-xs">
                 <div className="text-[10px] uppercase text-brand-600/80 dark:text-brand-400/80 font-bold">
-                  Satış
+                  Satış Fiyatı
                 </div>
                 <div className="font-bold text-brand-700 dark:text-brand-300">
                   {formatMoney(Number(p.sale_price ?? 0))}
@@ -516,8 +518,9 @@ export function ProductDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* 3. 4-METRIC STATS (Pusulam Birebir - Çerçeve İçi Renkli) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 3. 4-METRIC STATS (Pusulam Birebir - Çerçeve İçi Renkli - B2B değilse) */}
+      {!isB2B && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Toplam Satış */}
         <div className="rounded-2xl p-4 sm:p-5 text-white bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-soft min-w-0 overflow-hidden">
           <div className="text-xl sm:text-3xl font-bold tabular-nums truncate">
@@ -558,35 +561,38 @@ export function ProductDetail({ id }: { id: string }) {
           </div>
         </div>
       </div>
+      )}
 
-      {/* 4. 2 SUMMARY CARDS: ALIS & SATIS DETAYLARI (Belirgin Çerçeveli) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Stok Girişleri (Alış) */}
-        <div className="card p-4 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
-          <h3 className="font-semibold flex items-center gap-2 mb-3 text-sm text-slate-800 dark:text-slate-100">
-            <Scale size={16} className="text-amber-500" /> Stok Girişleri (Alış)
-          </h3>
-          <div className="space-y-2 text-sm">
-            <SummaryRow label="İlk giriş" value={stats.firstIn ? formatDate(stats.firstIn.date) : "—"} />
-            <SummaryRow label="Son giriş" value={stats.lastIn ? formatDate(stats.lastIn.date) : "—"} />
-            <SummaryRow label="Ort. alış" value={formatMoney(stats.avgBuy)} />
-            <SummaryRow label="Stok maliyeti" value={formatMoney(stats.stockValue)} />
+      {/* 4. 2 SUMMARY CARDS: ALIS & SATIS DETAYLARI (Belirgin Çerçeveli - B2B değilse) */}
+      {!isB2B && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Stok Girişleri (Alış) */}
+          <div className="card p-4 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+            <h3 className="font-semibold flex items-center gap-2 mb-3 text-sm text-slate-800 dark:text-slate-100">
+              <Scale size={16} className="text-amber-500" /> Stok Girişleri (Alış)
+            </h3>
+            <div className="space-y-2 text-sm">
+              <SummaryRow label="İlk giriş" value={stats.firstIn ? formatDate(stats.firstIn.date) : "—"} />
+              <SummaryRow label="Son giriş" value={stats.lastIn ? formatDate(stats.lastIn.date) : "—"} />
+              <SummaryRow label="Ort. alış" value={formatMoney(stats.avgBuy)} />
+              <SummaryRow label="Stok maliyeti" value={formatMoney(stats.stockValue)} />
+            </div>
+          </div>
+
+          {/* Satışlar (Çıkış) */}
+          <div className="card p-4 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
+            <h3 className="font-semibold flex items-center gap-2 mb-3 text-sm text-slate-800 dark:text-slate-100">
+              <ShoppingCart size={16} className="text-emerald-500" /> Satışlar (Çıkış)
+            </h3>
+            <div className="space-y-2 text-sm">
+              <SummaryRow label="İlk satış" value={stats.firstOut ? formatDate(stats.firstOut.date) : "—"} />
+              <SummaryRow label="Son satış" value={stats.lastOut ? formatDate(stats.lastOut.date) : "—"} />
+              <SummaryRow label="Ort. satış" value={formatMoney(stats.avgSale)} />
+              <SummaryRow label="Stok satış değeri" value={formatMoney(stats.stockSaleValue)} />
+            </div>
           </div>
         </div>
-
-        {/* Satışlar (Çıkış) */}
-        <div className="card p-4 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
-          <h3 className="font-semibold flex items-center gap-2 mb-3 text-sm text-slate-800 dark:text-slate-100">
-            <ShoppingCart size={16} className="text-emerald-500" /> Satışlar (Çıkış)
-          </h3>
-          <div className="space-y-2 text-sm">
-            <SummaryRow label="İlk satış" value={stats.firstOut ? formatDate(stats.firstOut.date) : "—"} />
-            <SummaryRow label="Son satış" value={stats.lastOut ? formatDate(stats.lastOut.date) : "—"} />
-            <SummaryRow label="Ort. satış" value={formatMoney(stats.avgSale)} />
-            <SummaryRow label="Stok satış değeri" value={formatMoney(stats.stockSaleValue)} />
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* 5. TAB NAVIGATION BUTTONS (Belirgin Çerçeveli) */}
       <div className="flex gap-2 flex-wrap">

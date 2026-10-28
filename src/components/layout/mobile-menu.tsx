@@ -14,7 +14,7 @@ import { InstallButton } from "./install-banner";
 
 /** Telefonda soldan açılan tam menü (masaüstü menüsüyle aynı Pusulam görünümü) */
 export function MobileMenuSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { org } = useOrg();
+  const { org, isB2B } = useOrg();
   const pathname = usePathname();
   const { openChangelog, hasUnread } = useChangelog();
   const close = () => onOpenChange(false);
@@ -68,39 +68,41 @@ export function MobileMenuSheet({ open, onOpenChange }: { open: boolean; onOpenC
             <SidebarNav onNavigate={close} />
           </div>
 
-          {/* Alt kısım: uygulamayı yükle, versiyon notları, Ayarlar */}
-          <div className="shrink-0 border-t border-slate-100 dark:border-slate-800 p-3 pb-safe space-y-1">
-            <InstallButton
-              variant="menuItem"
-              className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            />
-            <button
-              type="button"
-              onClick={handleOpenChangelog}
-              title="Sürüm Geçmişi ve Değişiklik Günlüğü"
-              className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition text-left"
-            >
-              <span className="flex items-center gap-2 min-w-0">
-                <Sparkles size={14} className="shrink-0" />
-                <span className="truncate">v{LATEST_VERSION} Versiyon Notları</span>
-                {hasUnread && <span className="size-2 rounded-full bg-emerald-500 shrink-0" />}
-              </span>
-              <ExternalLink size={12} className="shrink-0" />
-            </button>
-            <Link
-              href="/ayarlar"
-              onClick={close}
-              className={cn(
-                "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition",
-                settingsActive
-                  ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
-                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              )}
-            >
-              <Settings size={20} className={settingsActive ? "text-white" : "text-slate-400"} />
-              Ayarlar
-            </Link>
-          </div>
+          {/* Alt kısım: uygulamayı yükle, versiyon notları, Ayarlar (B2B değilse) */}
+          {!isB2B && (
+            <div className="shrink-0 border-t border-slate-100 dark:border-slate-800 p-3 pb-safe space-y-1">
+              <InstallButton
+                variant="menuItem"
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              />
+              <button
+                type="button"
+                onClick={handleOpenChangelog}
+                title="Sürüm Geçmişi ve Değişiklik Günlüğü"
+                className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition text-left"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <Sparkles size={14} className="shrink-0" />
+                  <span className="truncate">v{LATEST_VERSION} Versiyon Notları</span>
+                  {hasUnread && <span className="size-2 rounded-full bg-emerald-500 shrink-0" />}
+                </span>
+                <ExternalLink size={12} className="shrink-0" />
+              </button>
+              <Link
+                href="/ayarlar"
+                onClick={close}
+                className={cn(
+                  "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition",
+                  settingsActive
+                    ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                )}
+              >
+                <Settings size={20} className={settingsActive ? "text-white" : "text-slate-400"} />
+                Ayarlar
+              </Link>
+            </div>
+          )}
         </D.Content>
       </D.Portal>
     </D.Root>

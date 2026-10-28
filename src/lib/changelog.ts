@@ -14,9 +14,75 @@ export interface ChangelogRelease {
   items: ChangelogItem[];
 }
 
-export const LATEST_VERSION = "2.8.27";
+export const LATEST_VERSION = "2.8.30";
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
+  {
+    version: "2.8.30",
+    date: "28 Ekim 2026",
+    title: "Takvim, Günlük Ajanda ve Canlı Saat Bildirimi",
+    items: [
+      {
+        type: "yeni",
+        title: "Takvim ve Günlük Ajanda Modülü",
+        description: "Menüye “Takvim” modülü eklendi. Günlük yapacaklarımızı ve yaptıklarımızı not alıp listeleyebileceğimiz kapsamlı bir ajanda sunuldu.",
+      },
+      {
+        type: "yeni",
+        title: "Saatinde Sesli ve Masaüstü Bildirim Sistemi",
+        description: "Belirlenen saatte hoş bir bildirim sesi çalar ve masaüstü bildirimi verir. Bildirim üzerinden doğrudan görevi tamamlama veya 10 dakika erteleme yapılabilir.",
+      },
+      {
+        type: "yeni",
+        title: "Bildirimleri Sil ve Temizle Seçeneği",
+        description: "Takvim ekranına “Bildirimleri Sil” butonu eklendi. Seçili günün bildirimleri, tamamlanmış olanlar, geçmiş kayıtlar veya tüm bildirimler tek tıkla toplu olarak temizlenebilir.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Hızlı Günlük Görev ve Not Ekleme",
+        description: "Seçilen gün için tek satırda yapılacak iş veya doğrudan yapılan iş notu kaydedilebilir; tamamlanan işler yeşil tikle “Yaptıklarımız” listesine aktarılır.",
+      },
+    ],
+  },
+  {
+    version: "2.8.29",
+    date: "27 Ekim 2026",
+    title: "B2B Bayi Sistemi ve Doğrudan Kullanıcı Oluşturma",
+    items: [
+      {
+        type: "yeni",
+        title: "Doğrudan Kullanıcı ve B2B Bayi Oluşturma",
+        description: "Ayarlar → Kullanıcılar sekmesine doğrudan şifre belirleyerek kullanıcı oluşturma özelliği eklendi. Yönetici; ad soyad, e-posta, rol ve şifre belirleyerek anında kullanıcı oluşturabilir.",
+      },
+      {
+        type: "yeni",
+        title: "Özel B2B Müşteri / Bayi Portalı",
+        description: "B2B rolündeki kullanıcılar giriş yaptıklarında sol menüde yalnızca “Ürünler ve Fiyatlar” ekranını görür. Tüm finansal kayıtlar, alış maliyetleri, kasalar, cari ve muhasebe menüleri B2B kullanıcılarına tamamen kapalıdır.",
+      },
+      {
+        type: "iyilestirme",
+        title: "Fiyat ve Maliyet Gizliliği Koruması",
+        description: "B2B kullanıcıları için ürün listesi ve ürün detay sayfalarında firmanın alış maliyeti, kâr marjı ve stok hareketleri gizlendi; yalnızca satış fiyatları ve stok durumu gösterilir.",
+      },
+    ],
+  },
+  {
+    version: "2.8.28",
+    date: "27 Ekim 2026",
+    title: "Şifre Değiştirme ve Sıfırlama Eklendi",
+    items: [
+      {
+        type: "yeni",
+        title: "Şifre Değiştirme ve Güvenlik Yönetimi",
+        description: "Ayarlar → Kullanıcılar sekmesine şifre güncelleme kartı eklendi. Oturum açmış kullanıcılar doğrudan yeni şifre belirleyebilir veya kendi e-postalarına şifre sıfırlama bağlantısı isteyebilir.",
+      },
+      {
+        type: "yeni",
+        title: "Çalışanlara Şifre Sıfırlama E-postası Gönderme",
+        description: "Yöneticiler, kullanıcı listesindeki diğer çalışanların yanındaki “Şifre Sıfırla” butonuyla tek tıkla ilgili çalışanın e-posta adresine sıfırlama bağlantısı gönderebilir.",
+      },
+    ],
+  },
   {
     version: "2.8.27",
     date: "27 Ekim 2026",

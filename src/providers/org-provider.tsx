@@ -6,7 +6,7 @@ import { supabase, type Tables } from "@/lib/supabase/client";
 import { useAuth } from "./auth-provider";
 import { useLocalStorage } from "@/lib/use-local-storage";
 
-export type Role = "owner" | "admin" | "staff" | "accountant";
+export type Role = "owner" | "admin" | "staff" | "accountant" | "b2b";
 export type Organization = Tables<"organizations">;
 export type MembershipWithOrg = { role: Role; organization: Organization };
 
@@ -15,6 +15,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin: "Yönetici",
   staff: "Personel",
   accountant: "Muhasebeci",
+  b2b: "B2B Müşteri / Bayi",
 };
 
 type OrgState = {
@@ -24,6 +25,7 @@ type OrgState = {
   loading: boolean;
   canWrite: boolean;
   isAdmin: boolean;
+  isB2B: boolean;
   switchOrg: (id: string) => void;
   refresh: () => Promise<void>;
 };
@@ -60,10 +62,17 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
   }, [qc]);
 
 
-  const role = current?.role ?? null;
   const org = current?.organization ?? null;
+  const isB2BUser =
+    user?.user_metadata?.is_b2b === true ||
+    user?.user_metadata?.role === "b2b" ||
+    (Array.isArray((org?.settings as any)?.b2b_emails) &&
+      (org?.settings as any).b2b_emails.includes(user?.email?.toLowerCase()));
+
+  const role: Role | null = isB2BUser ? "b2b" : (current?.role ?? null);
   const canWrite = role === "owner" || role === "admin" || role === "staff";
   const isAdmin = role === "owner" || role === "admin";
+  const isB2B = role === "b2b";
   const loading = query.isPending && !!user;
 
   const value: OrgState = React.useMemo(
@@ -74,10 +83,11 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
       loading,
       canWrite,
       isAdmin,
+      isB2B,
       switchOrg,
       refresh,
     }),
-    [memberships, org, role, loading, canWrite, isAdmin, switchOrg, refresh],
+    [memberships, org, role, loading, canWrite, isAdmin, isB2B, switchOrg, refresh],
   );
 
   return <OrgContext.Provider value={value}>{children}</OrgContext.Provider>;

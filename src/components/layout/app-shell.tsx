@@ -12,6 +12,7 @@ import { AutoReconcileRunner } from "./auto-reconcile-runner";
 import { RecurringExpenseRunner } from "./recurring-expense-runner";
 import { RenAiPurchaseWatch } from "./ren-ai-purchase-watch";
 import { OutboxRunner } from "./outbox-status";
+import { CalendarNotificationRunner } from "./calendar-notification-runner";
 import { MobileNav } from "./mobile-nav";
 import { OfflineBanner } from "./online-status";
 import { InstallBanner } from "./install-banner";
@@ -65,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { session, loading: authLoading } = useAuth();
-  const { org, loading: orgLoading, memberships } = useOrg();
+  const { org, loading: orgLoading, memberships, isB2B } = useOrg();
   const [stored] = useLocalStorage("ren-sidebar");
   const collapsed = stored === "collapsed";
   const isPosPage = pathname === "/hizli-satis";
@@ -77,18 +78,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return;
     }
     if (!orgLoading && memberships.length === 0) router.replace("/kurulum");
-  }, [authLoading, session, orgLoading, memberships.length, router, pathname]);
+    // B2B kullanıcısı sadece /urunler sayfasına ve detayına erişebilir, diğer sayfalardan /urunler'e yönlendirilir
+    if (!orgLoading && isB2B && !pathname.startsWith("/urunler")) {
+      router.replace("/urunler");
+    }
+  }, [authLoading, session, orgLoading, memberships.length, isB2B, router, pathname]);
 
   if (authLoading || !session || !org) return <FullScreenLoader />;
 
   return (
     <ChangelogProvider>
       <CommandPaletteProvider>
-        <Warmup />
-        <AutoReconcileRunner />
-        <RecurringExpenseRunner />
-        <RenAiPurchaseWatch />
-        <OutboxRunner />
+        {!isB2B && (
+          <>
+            <Warmup />
+            <AutoReconcileRunner />
+            <RecurringExpenseRunner />
+            <RenAiPurchaseWatch />
+            <OutboxRunner />
+            <CalendarNotificationRunner />
+          </>
+        )}
         <div className="min-h-dvh flex w-full max-w-[100vw] overflow-x-hidden bg-slate-100 dark:bg-slate-950">
           <div className="contents">
             <Sidebar />

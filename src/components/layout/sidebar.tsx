@@ -18,6 +18,7 @@ import {
   FileText,
   Wallet,
   Bell,
+  CalendarDays,
   ChartColumn,
   GripVertical,
   PanelLeftClose,
@@ -31,12 +32,13 @@ import { useLocalStorage } from "@/lib/use-local-storage";
 import { useChangelog } from "./changelog-context";
 import { LATEST_VERSION } from "@/lib/changelog";
 
-// Kullanıcının Pusulam hesabındaki menüyle birebir (14 öğe): sıra, adres ve ikon renkleri.
+// Menü listesi: sıra, adres ve ikon renkleri
 // `also`: aynı modülün uygulamadaki iç adresleri (bu sayfalardayken de öğe seçili görünür)
 export const PUSULAM_SIDEBAR_NAV = [
   { href: "/panel", label: "Panel", icon: LayoutGrid, color: "text-brand-500", also: ["/"] },
   { href: "/numex-ai", label: "REN AI", icon: Sparkles, color: "text-purple-500 animate-pulse-slow", also: ["/yapay-zeka"] },
   { href: "/hizli-satis", label: "Hızlı Satış", icon: Zap, color: "text-amber-500" },
+  { href: "/takvim", label: "Takvim", icon: CalendarDays, color: "text-blue-500", also: ["/ajanda"] },
   { href: "/urunler", label: "Ürünler", icon: Tag, color: "text-violet-500", also: ["/stok/urunler"] },
   { href: "/alislar", label: "Alışlar", icon: Scale, color: "text-amber-500", also: ["/giderler/alis-faturalari", "/giderler/irsaliyeler", "/giderler/siparisler", "/giderler/iadeler"] },
   { href: "/satislar", label: "Satışlar", icon: ShoppingCart, color: "text-emerald-500" },
@@ -50,9 +52,13 @@ export const PUSULAM_SIDEBAR_NAV = [
   { href: "/raporlar", label: "Raporlar", icon: ChartColumn, color: "text-fuchsia-500" },
 ];
 
+export const B2B_SIDEBAR_NAV = [
+  { href: "/urunler", label: "Ürünler ve Fiyatlar", icon: Tag, color: "text-violet-500", also: ["/stok/urunler"] },
+];
+
 /** Menü öğesinin aktif olup olmadığı (alt sayfalar ve iç adresler dahil) */
 function isNavActive(href: string, pathname: string) {
-  const item = PUSULAM_SIDEBAR_NAV.find((i) => i.href === href);
+  const item = [...PUSULAM_SIDEBAR_NAV, ...B2B_SIDEBAR_NAV].find((i) => i.href === href);
   const paths = [href, ...(item?.also ?? [])];
   return paths.some((p) => {
     if (p === "/") return pathname === "/";
@@ -63,10 +69,12 @@ function isNavActive(href: string, pathname: string) {
 
 export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = usePathname();
+  const { isB2B } = useOrg();
+  const navList = isB2B ? B2B_SIDEBAR_NAV : PUSULAM_SIDEBAR_NAV;
 
   return (
     <nav className="flex-1 overflow-y-auto thin-scroll py-2 space-y-0.5 px-3" aria-label="Ana menü">
-      {PUSULAM_SIDEBAR_NAV.map((item) => {
+      {navList.map((item) => {
         const isActive = isNavActive(item.href, pathname);
         const Icon = item.icon;
 
@@ -96,17 +104,21 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { org } = useOrg();
+  const { org, isB2B } = useOrg();
   const { openChangelog } = useChangelog();
   const [stored, setStored] = useLocalStorage("ren-sidebar");
   const collapsed = stored === "collapsed";
   const toggle = () => setStored(collapsed ? "open" : "collapsed");
 
-  const [items, setItems] = React.useState(PUSULAM_SIDEBAR_NAV);
+  const [items, setItems] = React.useState(isB2B ? B2B_SIDEBAR_NAV : PUSULAM_SIDEBAR_NAV);
   const [draggedIdx, setDraggedIdx] = React.useState<number | null>(null);
   const [overIdx, setOverIdx] = React.useState<number | null>(null);
 
   React.useEffect(() => {
+    if (isB2B) {
+      setItems(B2B_SIDEBAR_NAV);
+      return;
+    }
     try {
       const saved = localStorage.getItem("ren-sidebar-order");
       if (saved) {
@@ -284,59 +296,61 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* 3. Alt kısım: versiyon notları ve Ayarlar (Pusulam birebir) */}
-      <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
-        {!collapsed ? (
-          <>
-            <button
-              type="button"
-              onClick={openChangelog}
-              title="Sürüm Geçmişi ve Değişiklik Günlüğü"
-              className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition text-left"
-            >
-              <span className="flex items-center gap-2 min-w-0">
-                <Sparkles size={14} className="shrink-0" />
-                <span className="truncate">v{LATEST_VERSION} Versiyon Notları</span>
-              </span>
-              <ExternalLink size={12} className="shrink-0" />
-            </button>
+      {/* 3. Alt kısım: versiyon notları ve Ayarlar (B2B değilse) */}
+      {!isB2B && (
+        <div className="p-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
+          {!collapsed ? (
+            <>
+              <button
+                type="button"
+                onClick={openChangelog}
+                title="Sürüm Geçmişi ve Değişiklik Günlüğü"
+                className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition text-left"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <Sparkles size={14} className="shrink-0" />
+                  <span className="truncate">v{LATEST_VERSION} Versiyon Notları</span>
+                </span>
+                <ExternalLink size={12} className="shrink-0" />
+              </button>
 
-            <IskontoHesapButton variant="sidebar" />
+              <IskontoHesapButton variant="sidebar" />
 
-            <Link
-              href="/ayarlar"
-              className={cn(
-                "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition",
-                pathname.startsWith("/ayarlar")
-                  ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
-                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-              )}
-            >
-              <Settings size={20} className={pathname.startsWith("/ayarlar") ? "text-white" : "text-slate-400"} />
-              Ayarlar
-            </Link>
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-1">
-            <button
-              type="button"
-              onClick={openChangelog}
-              className="h-9 w-9 rounded-lg flex items-center justify-center text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition"
-              title={`v${LATEST_VERSION} Versiyon Notları`}
-            >
-              <Sparkles size={16} />
-            </button>
-            <IskontoHesapButton variant="icon" />
-            <Link
-              href="/ayarlar"
-              className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-              title="Ayarlar"
-            >
-              <Settings size={16} />
-            </Link>
-          </div>
-        )}
-      </div>
+              <Link
+                href="/ayarlar"
+                className={cn(
+                  "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition",
+                  pathname.startsWith("/ayarlar")
+                    ? "bg-brand-500 text-white shadow-sm shadow-brand-500/30"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                )}
+              >
+                <Settings size={20} className={pathname.startsWith("/ayarlar") ? "text-white" : "text-slate-400"} />
+                Ayarlar
+              </Link>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={openChangelog}
+                className="h-9 w-9 rounded-lg flex items-center justify-center text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/40 hover:bg-brand-100 dark:hover:bg-brand-900/60 transition"
+                title={`v${LATEST_VERSION} Versiyon Notları`}
+              >
+                <Sparkles size={16} />
+              </button>
+              <IskontoHesapButton variant="icon" />
+              <Link
+                href="/ayarlar"
+                className="h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                title="Ayarlar"
+              >
+                <Settings size={16} />
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

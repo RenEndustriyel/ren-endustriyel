@@ -127,7 +127,7 @@ export const NAV: NavGroup[] = [
   {
     title: "",
     items: [
-      { title: "Ajanda", href: "/ajanda", icon: CalendarDays, keywords: "hatırlatma takvim not" },
+      { title: "Takvim", href: "/takvim", icon: CalendarDays, keywords: "ajanda takvim hatırlatma not günlük yapacaklarımız yaptıklarımız görev" },
       { title: "Ayarlar", href: "/ayarlar", icon: Settings, keywords: "firma kullanıcı numara birim kur" },
     ],
   },

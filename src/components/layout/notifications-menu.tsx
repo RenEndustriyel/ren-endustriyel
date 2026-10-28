@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, CheckCheck, PackageCheck, PackageX, TrendingUp } from "lucide-react";
+import { Bell, CalendarClock, CheckCheck, PackageCheck, PackageX, TrendingUp, Trash2 } from "lucide-react";
 import { getStoredAiAlerts, type RenAiDiscrepancy } from "@/lib/ren-ai";
 import { toast } from "sonner";
 import { DOC_TYPES, type DocType } from "@/lib/doc-types";
@@ -16,6 +16,7 @@ import { useNettedDues, type DueItem } from "@/components/dashboard/use-netted-d
 
 type Item = { key: string; label: string; value: string; href: string };
 const READ_KEY = "ren-bildirim-okundu";
+const DISMISSED_KEY = "ren-bildirim-silinenler";
 
 /** Okundu bilgisi yalnızca bu cihazda tutulur; tutar değişirse uyarı yeniden okunmamış sayılır */
 const itemId = (section: string, it: Item) => `${section}:${it.key}:${it.value}`;
@@ -34,6 +35,20 @@ function saveRead(ids: Set<string>) {
   } catch {}
 }
 
+function loadDismissed(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissed(ids: Set<string>) {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]));
+  } catch {}
+}
+
 type Section = { key: string; title: string; icon: React.ReactNode; items: Item[] };
 
 /** Pusulam üst çubuk "Bildirimler" menüsü: kritik stok, vadesi geçen ödemeler/tahsilatlar ve çek/senetler */
@@ -45,7 +60,11 @@ export function NotificationsMenu() {
   const { data: dues } = useNettedDues();
   const [open, setOpen] = React.useState(false);
   const [read, setRead] = React.useState<Set<string>>(() => new Set());
-  React.useEffect(() => setRead(loadRead()), []); // eslint-disable-line react-hooks/set-state-in-effect
+  const [dismissed, setDismissed] = React.useState<Set<string>>(() => new Set());
+  React.useEffect(() => {
+    setRead(loadRead());
+    setDismissed(loadDismissed());
+  }, []);
   const today = isoDate();
 
   const cheques = useRows<Row<"cheques">>("cheques", {
@@ -176,7 +195,16 @@ export function NotificationsMenu() {
     return list;
   }, [criticalStockOn, data?.critical_stock, dues, cheques.data, dueOrders, today, aiAlerts]);
 
-  const allIds = sections.flatMap((s) => s.items.map((it) => itemId(s.key, it)));
+  const visibleSections = React.useMemo(() => {
+    return sections
+      .map((s) => ({
+        ...s,
+        items: s.items.filter((it) => !dismissed.has(itemId(s.key, it))),
+      }))
+      .filter((s) => s.items.length > 0);
+  }, [sections, dismissed]);
+
+  const allIds = visibleSections.flatMap((s) => s.items.map((it) => itemId(s.key, it)));
   const count = allIds.length;
   const unread = allIds.filter((id) => !read.has(id)).length;
 
@@ -186,6 +214,29 @@ export function NotificationsMenu() {
     ids.forEach((id) => next.add(id));
     setRead(next);
     saveRead(next);
+  };
+
+  const dismissItem = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    const next = new Set(dismissed);
+    next.add(id);
+    setDismissed(next);
+    saveDismissed(next);
+    toast.success("Bildirim silindi");
+  };
+
+  const dismissAll = () => {
+    const next = new Set(dismissed);
+    allIds.forEach((id) => next.add(id));
+    setDismissed(next);
+    saveDismissed(next);
+    toast.success("Tüm bildirimler silindi");
+  };
+
+  const resetDismissed = () => {
+    setDismissed(new Set());
+    saveDismissed(new Set());
+    toast.info("Silinen bildirimler geri getirildi");
   };
 
   const go = (id: string, href: string) => {
@@ -214,30 +265,55 @@ export function NotificationsMenu() {
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] card p-0 z-30 animate-scale-in overflow-hidden">
+          <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] card p-0 z-30 animate-scale-in overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800">
             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <span className="font-semibold text-sm">Bildirimler</span>
-                <span className="ml-2 text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                   {count === 0 ? "uyarı yok" : unread > 0 ? `${unread} okunmamış · ${count} uyarı` : `${count} uyarı`}
                 </span>
               </div>
-              {unread > 0 && (
-                <button
-                  type="button"
-                  onClick={() => markRead(allIds)}
-                  className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 shrink-0"
-                >
-                  <CheckCheck size={14} />
-                  Tümü okundu
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {unread > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => markRead(allIds)}
+                    className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 shrink-0"
+                    title="Tümünü okundu olarak işaretle"
+                  >
+                    <CheckCheck size={14} />
+                    Okundu
+                  </button>
+                )}
+                {count > 0 && (
+                  <button
+                    type="button"
+                    onClick={dismissAll}
+                    className="text-xs font-semibold text-rose-500 hover:text-rose-600 hover:underline flex items-center gap-1 shrink-0"
+                    title="Tüm bildirimleri sil"
+                  >
+                    <Trash2 size={13} />
+                    Sil
+                  </button>
+                )}
+              </div>
             </div>
             <div className="max-h-[60vh] overflow-y-auto">
-              {sections.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">Şu an bir uyarı yok.</p>
+              {visibleSections.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400 space-y-1">
+                  <p>Şu an aktif bir bildirim yok.</p>
+                  {dismissed.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={resetDismissed}
+                      className="text-xs text-brand-600 dark:text-brand-400 hover:underline block mx-auto mt-2"
+                    >
+                      Silinen {dismissed.size} bildirimi geri getir
+                    </button>
+                  )}
+                </div>
               ) : (
-                sections.map((s) => (
+                visibleSections.map((s) => (
                   <div key={s.key} className="py-2">
                     <p className="px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       {s.icon} {s.title}
@@ -246,30 +322,52 @@ export function NotificationsMenu() {
                       const id = itemId(s.key, it);
                       const isRead = read.has(id);
                       return (
-                        <button
+                        <div
                           key={it.key}
-                          type="button"
-                          onClick={() => go(id, it.href)}
                           className={cn(
-                            "w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between gap-3",
-                            !isRead && "bg-brand-50/60 dark:bg-brand-900/20",
+                            "group w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center justify-between gap-2 transition cursor-pointer",
+                            !isRead && "bg-brand-50/60 dark:bg-brand-900/20"
                           )}
+                          onClick={() => go(id, it.href)}
                         >
-                          <span className={cn("text-sm truncate flex items-center gap-2", !isRead && "font-semibold")}>
+                          <span className={cn("text-sm truncate flex items-center gap-2 flex-1 min-w-0", !isRead && "font-semibold")}>
                             <span
                               className={cn("h-2 w-2 rounded-full shrink-0", isRead ? "bg-transparent" : "bg-brand-500")}
                               aria-label={isRead ? undefined : "okunmamış"}
                             />
-                            {it.label}
+                            <span className="truncate">{it.label}</span>
                           </span>
-                          <span className="text-xs font-semibold shrink-0 text-rose-500">{it.value}</span>
-                        </button>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs font-semibold text-rose-500">{it.value}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => dismissItem(e, id)}
+                              title="Bu bildirimi sil"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
                 ))
               )}
             </div>
+
+            {dismissed.size > 0 && visibleSections.length > 0 && (
+              <div className="p-2 border-t border-slate-100 dark:border-slate-800 text-center bg-slate-50/50 dark:bg-slate-900/50">
+                <button
+                  type="button"
+                  onClick={resetDismissed}
+                  className="text-[11px] text-slate-400 hover:text-brand-600 hover:underline transition"
+                >
+                  Silinen {dismissed.size} bildirimi geri getir
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
